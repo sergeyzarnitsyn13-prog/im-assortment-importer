@@ -145,6 +145,7 @@ function App() {
   const [editingCardId, setEditingCardId] = useState(null);
   const [sources, setSources] = useState([]);
   const [seriesCards, setSeriesCards] = useState([]);
+  const [seriesCardsError, setSeriesCardsError] = useState('');
   const [comparisonForm, setComparisonForm] = useState({ firstCardId: '', secondCardId: '' });
   const [comparisonIds, setComparisonIds] = useState(null);
   const [message, setMessage] = useState('');
@@ -158,11 +159,27 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const cardsQuery = query(collection(db, 'seriesCards'), orderBy('updatedAt', 'desc'));
+    try {
+      const cardsQuery = query(collection(db, 'seriesCards'), orderBy('updatedAt', 'desc'));
 
-    return onSnapshot(cardsQuery, (snapshot) => {
-      setSeriesCards(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
-    });
+      return onSnapshot(
+        cardsQuery,
+        (snapshot) => {
+          try {
+            setSeriesCards(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
+            setSeriesCardsError('');
+          } catch (error) {
+            setSeriesCardsError(`Ошибка обработки карточек серий: ${error.message}`);
+          }
+        },
+        (error) => {
+          setSeriesCardsError(`Ошибка загрузки карточек серий: ${error.message}`);
+        },
+      );
+    } catch (error) {
+      setSeriesCardsError(`Ошибка загрузки карточек серий: ${error.message}`);
+      return undefined;
+    }
   }, []);
 
   const draftJson = useMemo(() => serializeCard(draft), [draft]);
@@ -336,6 +353,7 @@ function App() {
         <SeriesComparisonTab
           cards={seriesCards}
           comparedCards={comparedCards}
+          error={seriesCardsError}
           form={comparisonForm}
           onChange={handleComparisonChange}
           onCompare={handleCompareSeries}
@@ -471,6 +489,138 @@ function SeriesCardsTab({ cards, onCopyJson, onOpenCard }) {
           </tbody>
         </table>
       </div>
+    </section>
+  );
+}
+
+
+const COMPARISON_FIELDS = [
+  'brand',
+  'category',
+  'seriesName',
+  'shortDescription',
+  'positioning',
+  'targetClient',
+  'mainSalesIdea',
+  'salesFeatures',
+  'mainAdvantages',
+  'salesArguments',
+  'clientSpeech',
+  'differences',
+  'whenRecommend',
+  'whenNotRecommend',
+  'objections',
+  'technicalSpecs',
+  'importantSpecs',
+];
+
+const getCardTitle = (card) => {
+  if (!card) {
+    return 'Карточка не выбрана';
+  }
+
+  return [card.brand, card.category, card.seriesName].filter(Boolean).join(' · ') || 'Без названия';
+};
+
+const renderComparisonValue = (value) => {
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return <p className="muted">Не заполнено</p>;
+    }
+
+    return (
+      <ul className="comparison-list">
+        {value.map((item, index) => (
+          <li key={`${item}-${index}`}>{item}</li>
+        ))}
+      </ul>
+    );
+  }
+
+  if (!value) {
+    return <p className="muted">Не заполнено</p>;
+  }
+
+  return <p>{value}</p>;
+};
+
+function SeriesComparisonTab({ cards = [], comparedCards, error, form, onChange, onCompare }) {
+  const hasEnoughCards = cards.length >= 2;
+
+  return (
+    <section className="panel">
+      <h2>Сравнение серий</h2>
+      {error && <p className="notice error-notice">{error}</p>}
+
+      {cards.length === 0 && (
+        <p className="muted comparison-empty">
+          Нет сохранённых карточек серий. Сначала сохраните минимум две карточки.
+        </p>
+      )}
+
+      {cards.length === 1 && (
+        <p className="muted comparison-empty">
+          Для сравнения нужно минимум две сохранённые карточки.
+        </p>
+      )}
+
+      {hasEnoughCards && (
+        <>
+          <form className="comparison-form" onSubmit={onCompare}>
+            <label>
+              Серия 1
+              <select name="firstCardId" onChange={onChange} required value={form.firstCardId}>
+                <option value="">Выберите серию</option>
+                {cards.map((card) => (
+                  <option key={card.id} value={card.id}>
+                    {getCardTitle(card)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Серия 2
+              <select name="secondCardId" onChange={onChange} required value={form.secondCardId}>
+                <option value="">Выберите серию</option>
+                {cards.map((card) => (
+                  <option key={card.id} value={card.id}>
+                    {getCardTitle(card)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="comparison-actions">
+              <button
+                className="primary-button"
+                disabled={
+                  !form.firstCardId || !form.secondCardId || form.firstCardId === form.secondCardId
+                }
+                type="submit"
+              >
+                Сравнить
+              </button>
+            </div>
+          </form>
+
+          {comparedCards && comparedCards.first && comparedCards.second && (
+            <section className="comparison-result" aria-label="Результат сравнения серий">
+              <div className="comparison-columns">
+                {[comparedCards.first, comparedCards.second].map((card) => (
+                  <article className="comparison-column" key={card.id}>
+                    <h3>{getCardTitle(card)}</h3>
+                    {COMPARISON_FIELDS.map((field) => (
+                      <div className="comparison-field" key={field}>
+                        <h4>{FIELD_LABELS[field]}</h4>
+                        {renderComparisonValue(card[field])}
+                      </div>
+                    ))}
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+        </>
+      )}
     </section>
   );
 }

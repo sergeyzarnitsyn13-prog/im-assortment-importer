@@ -246,6 +246,54 @@ th {
   white-space: pre-wrap;
 }
 
+
+.error-notice {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #9f1239;
+}
+
+.comparison-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.comparison-column {
+  display: grid;
+  gap: 0;
+}
+
+.comparison-column:first-child {
+  border-right: 1px solid #d8e1ef;
+}
+
+.comparison-column h3 {
+  background: #eef3fa;
+  border-bottom: 1px solid #d8e1ef;
+  margin: 0;
+  padding: 14px;
+}
+
+.comparison-field {
+  border-bottom: 1px solid #d8e1ef;
+  padding: 14px;
+}
+
+.comparison-field:last-child {
+  border-bottom: 0;
+}
+
+.comparison-field h4,
+.comparison-field p {
+  margin: 0;
+}
+
+.comparison-field h4 {
+  color: #21466f;
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
 .comparison-form {
   align-items: end;
   display: grid;
@@ -317,7 +365,8 @@ th {
 
   .form-grid,
   .comparison-form,
-  .comparison-grid {
+  .comparison-grid,
+  .comparison-columns {
     grid-template-columns: 1fr;
   }
 
@@ -328,6 +377,11 @@ th {
 
   .comparison-header > :first-child {
     display: none;
+  }
+
+  .comparison-column:first-child {
+    border-bottom: 1px solid #d8e1ef;
+    border-right: 0;
   }
 
   .app-header,
