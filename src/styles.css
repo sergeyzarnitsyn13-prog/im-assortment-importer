@@ -163,6 +163,17 @@ textarea {
   margin-top: 18px;
 }
 
+.inline-control {
+  align-items: center;
+  display: inline-flex;
+  font-weight: 600;
+  gap: 8px;
+}
+
+.inline-control input {
+  width: auto;
+}
+
 .primary-button {
   background: #21466f;
   border-color: #21466f;
