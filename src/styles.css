@@ -281,3 +281,38 @@ th {
   font-weight: 800;
   padding: 0 8px;
 }
+
+.draft-block {
+  display: grid;
+  gap: 7px;
+}
+
+.draft-block-header {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 0.8fr);
+}
+
+.draft-block-title {
+  align-self: center;
+}
+
+.source-ref-field {
+  color: #52719d;
+  font-size: 13px;
+  gap: 4px;
+}
+
+.source-ref-field input {
+  background: #f8fbff;
+  border-color: #c7d4e6;
+  font-size: 13px;
+  padding: 8px 10px;
+}
+
+@media (max-width: 720px) {
+  .draft-block-header {
+    grid-template-columns: 1fr;
+  }
+}
