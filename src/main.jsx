@@ -48,13 +48,16 @@ const DRAFT_INITIAL = {
   shortDescription: '',
   positioning: '',
   targetClient: [],
+  mainSalesIdea: '',
   keyFeatures: [],
+  salesFeatures: [],
   salesArguments: [],
   clientSpeech: '',
   differences: '',
   whenRecommend: [],
   whenNotRecommend: [],
   objections: [],
+  technicalSpecs: [],
   importantSpecs: [],
   sourceIds: [],
   status: 'draft',
@@ -63,11 +66,30 @@ const DRAFT_INITIAL = {
 const ARRAY_FIELDS = [
   'targetClient',
   'keyFeatures',
+  'salesFeatures',
   'salesArguments',
   'whenRecommend',
   'whenNotRecommend',
   'objections',
+  'technicalSpecs',
   'importantSpecs',
+];
+
+const SALES_INFORMATION_FIELDS = [
+  'targetClient',
+  'mainSalesIdea',
+  'salesFeatures',
+  'salesArguments',
+  'clientSpeech',
+  'whenRecommend',
+  'whenNotRecommend',
+  'objections',
+];
+
+const TECHNICAL_INFORMATION_FIELDS = [
+  'technicalSpecs',
+  'importantSpecs',
+  'differences',
 ];
 
 const FIELD_LABELS = {
@@ -82,13 +104,16 @@ const FIELD_LABELS = {
   shortDescription: 'Краткое описание',
   positioning: 'Позиционирование',
   targetClient: 'Целевой клиент',
-  keyFeatures: 'Ключевые особенности',
+  mainSalesIdea: 'Главная продажная идея',
+  keyFeatures: 'Ключевые особенности (legacy)',
+  salesFeatures: 'Продажные особенности',
   salesArguments: 'Аргументы продаж',
   clientSpeech: 'Речь для клиента',
   differences: 'Отличия',
   whenRecommend: 'Когда рекомендовать',
   whenNotRecommend: 'Когда не рекомендовать',
   objections: 'Возражения',
+  technicalSpecs: 'Технические характеристики',
   importantSpecs: 'Важные характеристики',
 };
 
@@ -405,20 +430,22 @@ function DraftTab({ draft, draftJson, editingCardId, onChange, onSubmit }) {
             {FIELD_LABELS.positioning}
             <textarea name="positioning" onChange={onChange} value={draft.positioning} />
           </label>
-          {ARRAY_FIELDS.map((field) => (
-            <label className="wide-field" key={field}>
-              {FIELD_LABELS[field]}
-              <textarea name={field} onChange={onChange} value={toLines(draft[field])} />
-            </label>
-          ))}
-          <label className="wide-field">
-            {FIELD_LABELS.clientSpeech}
-            <textarea name="clientSpeech" onChange={onChange} value={draft.clientSpeech} />
-          </label>
-          <label className="wide-field">
-            {FIELD_LABELS.differences}
-            <textarea name="differences" onChange={onChange} value={draft.differences} />
-          </label>
+          <fieldset className="field-group wide-field">
+            <legend>Продажная информация</legend>
+            {SALES_INFORMATION_FIELDS.map((field) => (
+              <DraftTextarea draft={draft} field={field} key={field} onChange={onChange} />
+            ))}
+          </fieldset>
+          <fieldset className="field-group wide-field">
+            <legend>Техническая информация</legend>
+            {TECHNICAL_INFORMATION_FIELDS.map((field) => (
+              <DraftTextarea draft={draft} field={field} key={field} onChange={onChange} />
+            ))}
+          </fieldset>
+          <fieldset className="field-group wide-field">
+            <legend>Служебная совместимость</legend>
+            <DraftTextarea draft={draft} field="keyFeatures" onChange={onChange} />
+          </fieldset>
         </div>
         <button className="primary-button" type="submit">
           Сохранить карточку серии
@@ -429,6 +456,17 @@ function DraftTab({ draft, draftJson, editingCardId, onChange, onSubmit }) {
         <pre className="json-preview">{draftJson}</pre>
       </aside>
     </section>
+  );
+}
+
+function DraftTextarea({ draft, field, onChange }) {
+  const value = ARRAY_FIELDS.includes(field) ? toLines(draft[field]) : draft[field] || '';
+
+  return (
+    <label className="wide-field">
+      {FIELD_LABELS[field]}
+      <textarea name={field} onChange={onChange} value={value} />
+    </label>
   );
 }
 
