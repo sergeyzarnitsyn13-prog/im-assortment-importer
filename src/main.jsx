@@ -11,7 +11,7 @@ import {
   setDoc,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { generateSeriesDraft } from './generateSeriesDraft';
+import { generateIcePeakDraft, generateSeriesDraft } from './generateSeriesDraft';
 import './styles.css';
 
 const SOURCE_TYPES = [
@@ -174,6 +174,13 @@ function App() {
     showMessage('Черновик собран из источника.');
   };
 
+  const handleIcePeakTest = () => {
+    setDraft(generateIcePeakDraft(sourceForm));
+    setEditingCardId(null);
+    setActiveTab('draft');
+    showMessage('Черновик ICE PEAK заполнен правилами.');
+  };
+
   const handleOpenCard = (card) => {
     setDraft({ ...DRAFT_INITIAL, ...card });
     setEditingCardId(card.id);
@@ -235,6 +242,7 @@ function App() {
           form={sourceForm}
           onBuildDraft={handleBuildDraft}
           onChange={handleSourceChange}
+          onIcePeakTest={handleIcePeakTest}
           onSubmit={handleSourceSubmit}
           sources={sources}
         />
@@ -261,7 +269,7 @@ function App() {
   );
 }
 
-function SourcesTab({ form, onBuildDraft, onChange, onSubmit, sources }) {
+function SourcesTab({ form, onBuildDraft, onChange, onIcePeakTest, onSubmit, sources }) {
   return (
     <section className="layout-grid">
       <form className="panel" onSubmit={onSubmit}>
@@ -291,9 +299,19 @@ function SourcesTab({ form, onBuildDraft, onChange, onSubmit, sources }) {
             <textarea name="rawText" onChange={onChange} required value={form.rawText} />
           </label>
         </div>
-        <button className="primary-button" type="submit">
-          Сохранить источник
-        </button>
+        <div className="form-actions">
+          <button className="primary-button" type="submit">
+            Сохранить источник
+          </button>
+          <button
+            className="secondary-button"
+            disabled={!form.rawText.trim()}
+            onClick={onIcePeakTest}
+            type="button"
+          >
+            Тест ICE PEAK
+          </button>
+        </div>
       </form>
 
       <section className="panel">
