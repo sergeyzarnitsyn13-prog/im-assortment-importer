@@ -14,6 +14,23 @@ const PDF_SOURCE_INITIAL = {
 
 const normalizeSearchText = (value = '') => value.toLocaleLowerCase('ru-RU').trim();
 
+const getSearchFragment = (text, searchTerm) => {
+  const lowerText = text.toLowerCase();
+  const lowerSearchTerm = searchTerm.toLowerCase();
+  const matchIndex = lowerText.indexOf(lowerSearchTerm);
+
+  if (matchIndex === -1) {
+    return text.slice(0, 240);
+  }
+
+  const start = Math.max(matchIndex - 80, 0);
+  const end = Math.min(matchIndex + searchTerm.length + 160, text.length);
+  const prefix = start > 0 ? '…' : '';
+  const suffix = end < text.length ? '…' : '';
+
+  return `${prefix}${text.slice(start, end)}${suffix}`;
+};
+
 const pageHasSeriesName = (page, normalizedSeriesName) =>
   normalizeSearchText(page.text).includes(normalizedSeriesName);
 
@@ -75,7 +92,7 @@ function PdfImportPanel({ onCreateSource }) {
   const [pages, setPages] = useState([]);
   const [isExtracting, setIsExtracting] = useState(false);
   const [error, setError] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [seriesResult, setSeriesResult] = useState(null);
   const [seriesMessage, setSeriesMessage] = useState('');
   const [showSeriesDebugPages, setShowSeriesDebugPages] = useState(false);
@@ -87,15 +104,22 @@ function PdfImportPanel({ onCreateSource }) {
     [pages],
   );
 
-  const foundPages = useMemo(() => {
-    const normalizedQuery = normalizeSearchText(searchQuery);
-
-    if (!normalizedQuery) {
+  const filteredPages = useMemo(() => {
+    if (!searchTerm) {
       return [];
     }
 
-    return pages.filter((page) => normalizeSearchText(page.text).includes(normalizedQuery));
-  }, [pages, searchQuery]);
+    return pages.filter((page) => page.text.toLowerCase().includes(searchTerm.toLowerCase()));
+  }, [pages, searchTerm]);
+
+  const searchDebugResults = useMemo(
+    () => filteredPages.slice(0, 10).map((page) => ({
+      page,
+      isMatch: page.text.toLowerCase().includes(searchTerm.toLowerCase()),
+      fragment: getSearchFragment(page.text, searchTerm),
+    })),
+    [filteredPages, searchTerm],
+  );
 
   const handleFormChange = (event) => {
     const { name, value } = event.target;
@@ -108,7 +132,7 @@ function PdfImportPanel({ onCreateSource }) {
     setSelectedFile(file);
     setFileName(file?.name || '');
     setPages([]);
-    setSearchQuery('');
+    setSearchTerm('');
     setSeriesResult(null);
     setSeriesMessage('');
     setQualityWarning('');
@@ -264,27 +288,62 @@ function PdfImportPanel({ onCreateSource }) {
 
           <label>
             Поиск по извлечённому тексту
-            <input onChange={(event) => setSearchQuery(event.target.value)} value={searchQuery} />
+            <input onChange={(event) => setSearchTerm(event.target.value)} value={searchTerm} />
           </label>
 
-          {searchQuery.trim() && (
-            <div className="pdf-found-pages">
-              <h3>Найденные страницы</h3>
-              {foundPages.length > 0 ? (
-                <div className="card-list">
-                  {foundPages.map((page) => (
-                    <article className="item-card pdf-page-card" key={page.pageNumber}>
-                      <div>
-                        <h4>Страница {page.pageNumber}</h4>
-                        <p>{page.text.slice(0, 420)}{page.text.length > 420 ? '…' : ''}</p>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <p className="muted">Поиск не дал результатов.</p>
-              )}
-            </div>
+          {searchTerm && (
+            <>
+              <div className="pdf-found-pages pdf-search-debug">
+                <h3>Отладка поиска</h3>
+                <dl className="source-preview">
+                  <div>
+                    <dt>Поисковая строка</dt>
+                    <dd>{searchTerm}</dd>
+                  </div>
+                  <div>
+                    <dt>Страниц в PDF</dt>
+                    <dd>{pages.length}</dd>
+                  </div>
+                  <div>
+                    <dt>Страниц после фильтра</dt>
+                    <dd>{filteredPages.length}</dd>
+                  </div>
+                </dl>
+                {searchDebugResults.length > 0 ? (
+                  <div className="card-list">
+                    {searchDebugResults.map(({ page, isMatch, fragment }) => (
+                      <article className="item-card pdf-page-card" key={page.pageNumber}>
+                        <div>
+                          <h4>Страница {page.pageNumber}</h4>
+                          <p className="pdf-debug-match">Совпадение: {isMatch ? 'true' : 'false'}</p>
+                          <p>{fragment}</p>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="muted">Совпадений не найдено</p>
+                )}
+              </div>
+
+              <div className="pdf-found-pages">
+                <h3>Найденные страницы</h3>
+                {filteredPages.length > 0 ? (
+                  <div className="card-list">
+                    {filteredPages.map((page) => (
+                      <article className="item-card pdf-page-card" key={page.pageNumber}>
+                        <div>
+                          <h4>Страница {page.pageNumber}</h4>
+                          <p>{page.text.slice(0, 420)}{page.text.length > 420 ? '…' : ''}</p>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="muted">Совпадений не найдено</p>
+                )}
+              </div>
+            </>
           )}
 
           <div className="series-search-box">
