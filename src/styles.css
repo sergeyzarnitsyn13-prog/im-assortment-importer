@@ -265,3 +265,19 @@ th {
     display: grid;
   }
 }
+
+.field-group {
+  border: 1px solid #d8e1ef;
+  border-radius: 12px;
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 16px;
+}
+
+.field-group legend {
+  color: #21466f;
+  font-size: 16px;
+  font-weight: 800;
+  padding: 0 8px;
+}
