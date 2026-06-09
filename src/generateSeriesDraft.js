@@ -27,43 +27,84 @@ const TECHNICAL_SPEC_KEYWORDS = [
   'обогрев',
 ];
 
-const ICE_PEAK_MAIN_SALES_IDEA = 'Не просто кондиционер, а тепловой насос для отопления и охлаждения.';
-
-const ICE_PEAK_TARGET_CLIENT = [
-  'частный дом',
-  'коттедж',
-  'круглогодичная дача',
-  'северные регионы',
-  'клиент, которому важен обогрев зимой',
-];
-
-const ICE_PEAK_MAIN_ADVANTAGES = [
-  'обогрев до -30°C',
-  'тепловой насос',
-  'Smart Sens',
-  'Health Guard',
-  'Wi-Fi',
-];
-
-const ICE_PEAK_WHEN_RECOMMEND = [
-  'нужен обогрев зимой',
-  'дом или дача',
-  'межсезонье',
-  'экономия на отоплении',
-];
-
-const ICE_PEAK_WHEN_NOT_RECOMMEND = [
-  'нужен самый дешёвый кондиционер',
-  'требуется только охлаждение летом',
-];
-
-const ICE_PEAK_POSITIONING = 'Климатическая серия ICE PEAK для отопления зимой и охлаждения летом.';
-
-const ICE_PEAK_SHORT_DESCRIPTION =
-  'ICE PEAK — это тепловой насос для дома и дачи: он охлаждает летом и помогает отапливать помещение зимой при температуре до -30°C. Серия подходит для частных домов, коттеджей, круглогодичных дач и северных регионов. Smart Sens, Health Guard и Wi‑Fi делают управление комфортным, а работу — более полезной для ежедневного климата.';
-
-const ICE_PEAK_CLIENT_SPEECH =
-  'ICE PEAK стоит рассматривать не как обычный кондиционер, а как тепловой насос для круглогодичного комфорта. Летом он охлаждает помещение, а зимой помогает с отоплением даже при морозах до -30°C. Для дома, коттеджа или дачи это способ экономить на обогреве в межсезонье и холодный период. Smart Sens, Health Guard и Wi‑Fi делают использование простым и комфортным каждый день.';
+const SERIES_PROFILES = {
+  BOHO: {
+    seriesNames: ['boho', 'бохо'],
+    meaningKeywords: [
+      'дизайн',
+      'интерьер',
+      'сменные панели',
+      'тканевые панели',
+      'внешний вид',
+      'премиум дизайн',
+    ],
+    defaultBrand: '',
+    positioning: 'Дизайнерская климатическая серия BOHO для современного интерьера.',
+    shortDescription:
+      'BOHO — кондиционер для интерьера, где техника должна выглядеть как часть дизайн-проекта. Серия делает акцент не только на климате, но и на внешнем виде: сменные тканевые панели помогают вписать внутренний блок в современную премиум-квартиру, дизайнерский ремонт или продуманное коммерческое пространство.',
+    mainSalesIdea: 'Кондиционер как элемент интерьера.',
+    targetClient: ['дизайнерский ремонт', 'современный интерьер', 'премиум квартира'],
+    mainAdvantages: ['сменные тканевые панели', 'внешний вид', 'дизайнерская концепция'],
+    salesArguments: [
+      'кондиционер не спорит с интерьером, а становится его частью',
+      'сменные тканевые панели помогают подобрать внешний вид под проект',
+      'подходит для клиентов, которым важны эстетика и премиальное ощущение техники',
+    ],
+    clientSpeech:
+      'BOHO выбирают не только за климат, но и за возможность вписать кондиционер в интерьер.',
+    whenRecommend: ['дизайнерский ремонт', 'современная квартира', 'клиенту важен внешний вид техники'],
+    whenNotRecommend: [
+      'клиент выбирает только по минимальной цене',
+      'нужен исключительно технический подбор без требований к дизайну',
+    ],
+  },
+  'ICE PEAK': {
+    seriesNames: ['ice peak', 'айс пик'],
+    meaningKeywords: ['тепловой насос', 'отопление', '-30', 'smart sens', 'health guard'],
+    defaultBrand: 'ICE PEAK',
+    positioning: 'Климатическая серия ICE PEAK для отопления зимой и охлаждения летом.',
+    shortDescription:
+      'ICE PEAK — это тепловой насос для дома и дачи: он охлаждает летом и помогает отапливать помещение зимой при температуре до -30°C. Серия подходит для частных домов, коттеджей, круглогодичных дач и северных регионов. Smart Sens, Health Guard и Wi‑Fi делают управление комфортным, а работу — более полезной для ежедневного климата.',
+    mainSalesIdea: 'Не просто кондиционер, а тепловой насос для отопления и охлаждения.',
+    targetClient: [
+      'частный дом',
+      'коттедж',
+      'круглогодичная дача',
+      'северные регионы',
+      'клиент, которому важен обогрев зимой',
+    ],
+    mainAdvantages: ['обогрев до -30°C', 'тепловой насос', 'Smart Sens', 'Health Guard', 'Wi-Fi'],
+    fallbackSalesFeatures: ['Wi-Fi', 'Smart Sens', 'Health Guard', 'Тепловой насос', 'Обогрев до -30', 'Ионизация', 'Самоочистка'],
+    salesArguments: ['Не просто кондиционер, а тепловой насос для отопления и охлаждения.'],
+    clientSpeech:
+      'ICE PEAK стоит рассматривать не как обычный кондиционер, а как тепловой насос для круглогодичного комфорта. Летом он охлаждает помещение, а зимой помогает с отоплением даже при морозах до -30°C. Для дома, коттеджа или дачи это способ экономить на обогреве в межсезонье и холодный период. Smart Sens, Health Guard и Wi‑Fi делают использование простым и комфортным каждый день.',
+    whenRecommend: ['нужен обогрев зимой', 'дом или дача', 'межсезонье', 'экономия на отоплении'],
+    whenNotRecommend: ['нужен самый дешёвый кондиционер', 'требуется только охлаждение летом'],
+  },
+  DEFENDER: {
+    seriesNames: ['defender', 'дефендер'],
+    meaningKeywords: ['уф', 'uv', 'здоровье', 'очистка воздуха', 'семьи с детьми'],
+    defaultBrand: '',
+    positioning: 'Климатическая серия DEFENDER с акцентом на чистый воздух и заботу о здоровье.',
+    shortDescription:
+      'DEFENDER — серия для клиентов, которым важны не только охлаждение и обогрев, но и качество воздуха дома. Профиль серии стоит строить вокруг УФ-технологий, очистки воздуха и заботы о здоровье, поэтому она особенно уместна для семей с детьми и покупателей, которые внимательно относятся к микроклимату.',
+    mainSalesIdea: 'Кондиционер для климата, чистоты воздуха и заботы о здоровье семьи.',
+    targetClient: ['семьи с детьми', 'клиенты, которым важна очистка воздуха', 'домашний микроклимат'],
+    mainAdvantages: ['УФ', 'здоровье', 'очистка воздуха'],
+    salesArguments: [
+      'серия помогает говорить с клиентом не только про температуру, но и про качество воздуха',
+      'акцент на здоровье понятен семьям с детьми',
+      'очистка воздуха усиливает ценность кондиционера для ежедневного использования',
+    ],
+    clientSpeech:
+      'DEFENDER выбирают, когда кондиционер должен не только охлаждать, но и помогать поддерживать более чистый и здоровый воздух дома.',
+    whenRecommend: ['семья с детьми', 'важна очистка воздуха', 'покупатель заботится о здоровье'],
+    whenNotRecommend: [
+      'клиент выбирает только самый базовый кондиционер',
+      'не нужны дополнительные функции очистки воздуха',
+    ],
+  },
+};
 
 const MAX_SHORT_DESCRIPTION_LENGTH = 500;
 
@@ -92,8 +133,24 @@ const unique = (items) => {
   });
 };
 
+const getSourceSearchText = (source) =>
+  [source.brand, source.seriesName, source.title, source.rawText].filter(Boolean).join('\n');
+
 const extractSalesFeatures = (rawText = '') =>
   SALES_FEATURE_RULES.filter((rule) => hasAnyKeyword(rawText, rule.keywords)).map((rule) => rule.label);
+
+const extractProfileSalesFeatures = (profile, rawText = '') => {
+  const sourceFeatures = [
+    ...profile.meaningKeywords.filter((keyword) => hasAnyKeyword(rawText, [keyword])),
+    ...extractSalesFeatures(rawText),
+  ];
+
+  if (sourceFeatures.length === 0) {
+    return profile.fallbackSalesFeatures || profile.mainAdvantages;
+  }
+
+  return unique([...profile.mainAdvantages, ...sourceFeatures]);
+};
 
 const extractKeyFeatures = (rawText = '') => extractSalesFeatures(rawText);
 
@@ -106,10 +163,14 @@ const extractTechnicalSpecs = (rawText = '') =>
       .filter((line) => hasAnyKeyword(line, TECHNICAL_SPEC_KEYWORDS)),
   );
 
-const isIcePeakSource = (source) =>
-  [source.brand, source.seriesName, source.title, source.rawText].some((value) =>
-    normalizeText(value || '').includes('ice peak'),
+const detectSeriesProfile = (source) => {
+  const searchText = getSourceSearchText(source);
+
+  return Object.values(SERIES_PROFILES).find(
+    (profile) =>
+      hasAnyKeyword(searchText, profile.seriesNames) || hasAnyKeyword(searchText, profile.meaningKeywords),
   );
+};
 
 const trimToSentence = (text, maxLength = MAX_SHORT_DESCRIPTION_LENGTH) => {
   const normalizedText = text.replace(/\s+/g, ' ').trim();
@@ -141,31 +202,26 @@ const buildHumanShortDescription = (source, salesFeatures) => {
   );
 };
 
-const buildIcePeakShortDescription = () => trimToSentence(ICE_PEAK_SHORT_DESCRIPTION);
-
-export const generateIcePeakDraft = (source) => {
+const buildProfileDraft = (source, profile) => {
   const rawText = source.rawText || '';
-  const detectedSalesFeatures = extractSalesFeatures(rawText);
-  const salesFeatures = detectedSalesFeatures.length > 0
-    ? detectedSalesFeatures
-    : SALES_FEATURE_RULES.map((rule) => rule.label);
+  const salesFeatures = extractProfileSalesFeatures(profile, rawText);
 
   return {
-    brand: source.brand || 'ICE PEAK',
+    brand: source.brand || profile.defaultBrand,
     category: source.category || '',
     seriesName: source.seriesName || '',
-    shortDescription: buildIcePeakShortDescription(),
-    positioning: ICE_PEAK_POSITIONING,
-    targetClient: ICE_PEAK_TARGET_CLIENT,
-    mainSalesIdea: ICE_PEAK_MAIN_SALES_IDEA,
+    shortDescription: trimToSentence(profile.shortDescription),
+    positioning: profile.positioning,
+    targetClient: profile.targetClient,
+    mainSalesIdea: profile.mainSalesIdea,
     keyFeatures: salesFeatures,
     salesFeatures,
-    mainAdvantages: ICE_PEAK_MAIN_ADVANTAGES,
-    salesArguments: [ICE_PEAK_MAIN_SALES_IDEA],
-    clientSpeech: ICE_PEAK_CLIENT_SPEECH,
+    mainAdvantages: profile.mainAdvantages,
+    salesArguments: profile.salesArguments,
+    clientSpeech: profile.clientSpeech,
     differences: '',
-    whenRecommend: ICE_PEAK_WHEN_RECOMMEND,
-    whenNotRecommend: ICE_PEAK_WHEN_NOT_RECOMMEND,
+    whenRecommend: profile.whenRecommend,
+    whenNotRecommend: profile.whenNotRecommend,
     objections: [],
     technicalSpecs: extractTechnicalSpecs(rawText),
     importantSpecs: [],
@@ -174,9 +230,13 @@ export const generateIcePeakDraft = (source) => {
   };
 };
 
+export const generateIcePeakDraft = (source) => buildProfileDraft(source, SERIES_PROFILES['ICE PEAK']);
+
 export const generateSeriesDraft = (source) => {
-  if (isIcePeakSource(source)) {
-    return generateIcePeakDraft(source);
+  const profile = detectSeriesProfile(source);
+
+  if (profile) {
+    return buildProfileDraft(source, profile);
   }
 
   const salesFeatures = extractSalesFeatures(source.rawText);
