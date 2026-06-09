@@ -11,7 +11,8 @@
   "dependencies": {
     "firebase": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "pdfjs-dist": "latest"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "latest",
