@@ -246,14 +246,88 @@ th {
   white-space: pre-wrap;
 }
 
+.comparison-form {
+  align-items: end;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+}
+
+.comparison-actions {
+  display: flex;
+}
+
+.comparison-empty {
+  margin: 18px 0 0;
+}
+
+.comparison-result {
+  border: 1px solid #d8e1ef;
+  border-radius: 12px;
+  margin-top: 22px;
+  overflow: hidden;
+}
+
+.comparison-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.45fr) repeat(2, minmax(0, 1fr));
+}
+
+.comparison-header {
+  background: #eef3fa;
+}
+
+.comparison-header h3,
+.comparison-row h4,
+.comparison-row p {
+  margin: 0;
+}
+
+.comparison-header > *,
+.comparison-row > * {
+  border-right: 1px solid #d8e1ef;
+  padding: 14px;
+}
+
+.comparison-header > :last-child,
+.comparison-row > :last-child {
+  border-right: 0;
+}
+
+.comparison-row {
+  border-top: 1px solid #d8e1ef;
+}
+
+.comparison-row h4 {
+  background: #f8fbff;
+  color: #21466f;
+  font-size: 15px;
+}
+
+.comparison-list {
+  margin: 0;
+  padding-left: 20px;
+}
+
 @media (max-width: 960px) {
   .layout-grid,
   .draft-grid {
     grid-template-columns: 1fr;
   }
 
-  .form-grid {
+  .form-grid,
+  .comparison-form,
+  .comparison-grid {
     grid-template-columns: 1fr;
+  }
+
+  .comparison-header > *,
+  .comparison-row > * {
+    border-right: 0;
+  }
+
+  .comparison-header > :first-child {
+    display: none;
   }
 
   .app-header,

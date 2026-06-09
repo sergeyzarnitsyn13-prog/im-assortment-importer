@@ -27,6 +27,7 @@ const SOURCE_TYPES = [
 const TABS = {
   sources: 'Источники',
   cards: 'Карточки серий',
+  compare: 'Сравнение серий',
   draft: 'Черновик',
 };
 
@@ -143,6 +144,8 @@ function App() {
   const [editingCardId, setEditingCardId] = useState(null);
   const [sources, setSources] = useState([]);
   const [seriesCards, setSeriesCards] = useState([]);
+  const [comparisonForm, setComparisonForm] = useState({ firstCardId: '', secondCardId: '' });
+  const [comparisonIds, setComparisonIds] = useState(null);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -162,6 +165,16 @@ function App() {
   }, []);
 
   const draftJson = useMemo(() => serializeCard(draft), [draft]);
+  const comparedCards = useMemo(() => {
+    if (!comparisonIds) {
+      return null;
+    }
+
+    return {
+      first: seriesCards.find((card) => card.id === comparisonIds.firstCardId) || null,
+      second: seriesCards.find((card) => card.id === comparisonIds.secondCardId) || null,
+    };
+  }, [comparisonIds, seriesCards]);
 
   const showMessage = (text) => {
     setMessage(text);
@@ -220,6 +233,29 @@ function App() {
   const handleCopyJson = async (card) => {
     await navigator.clipboard.writeText(serializeCard(card));
     showMessage('JSON скопирован в буфер обмена.');
+  };
+
+  const handleComparisonChange = (event) => {
+    const { name, value } = event.target;
+
+    setComparisonForm((current) => ({ ...current, [name]: value }));
+    setComparisonIds(null);
+  };
+
+  const handleCompareSeries = (event) => {
+    event.preventDefault();
+
+    if (
+      !comparisonForm.firstCardId ||
+      !comparisonForm.secondCardId ||
+      comparisonForm.firstCardId === comparisonForm.secondCardId
+    ) {
+      showMessage('Выберите две разные серии для сравнения.');
+      return;
+    }
+
+    setComparisonIds({ ...comparisonForm });
+    showMessage('Сравнение построено из сохранённых карточек.');
   };
 
   const handleDraftSubmit = async (event) => {
@@ -282,6 +318,16 @@ function App() {
           cards={seriesCards}
           onCopyJson={handleCopyJson}
           onOpenCard={handleOpenCard}
+        />
+      )}
+
+      {activeTab === 'compare' && (
+        <SeriesComparisonTab
+          cards={seriesCards}
+          comparedCards={comparedCards}
+          form={comparisonForm}
+          onChange={handleComparisonChange}
+          onCompare={handleCompareSeries}
         />
       )}
 
@@ -415,6 +461,109 @@ function SeriesCardsTab({ cards, onCopyJson, onOpenCard }) {
       </div>
     </section>
   );
+}
+
+const COMPARISON_FIELDS = [
+  { field: 'mainSalesIdea', label: 'Главная идея' },
+  { field: 'targetClient', label: 'Целевой клиент' },
+  { field: 'mainAdvantages', label: 'Преимущества' },
+  { field: 'whenRecommend', label: 'Когда рекомендовать' },
+  { field: 'whenNotRecommend', label: 'Когда не рекомендовать' },
+  { field: 'clientSpeech', label: 'Речь для клиента' },
+];
+
+function SeriesComparisonTab({ cards, comparedCards, form, onChange, onCompare }) {
+  const canCompare = Boolean(
+    form.firstCardId && form.secondCardId && form.firstCardId !== form.secondCardId,
+  );
+
+  return (
+    <section className="panel">
+      <h2>Сравнение серий</h2>
+      <form className="comparison-form" onSubmit={onCompare}>
+        <label>
+          Серия 1
+          <select name="firstCardId" onChange={onChange} value={form.firstCardId}>
+            <option value="">Выберите серию</option>
+            {cards.map((card) => (
+              <SeriesOption card={card} key={card.id} />
+            ))}
+          </select>
+        </label>
+        <label>
+          Серия 2
+          <select name="secondCardId" onChange={onChange} value={form.secondCardId}>
+            <option value="">Выберите серию</option>
+            {cards.map((card) => (
+              <SeriesOption card={card} key={card.id} />
+            ))}
+          </select>
+        </label>
+        <div className="comparison-actions">
+          <button className="primary-button" disabled={!canCompare} type="submit">
+            Сравнить
+          </button>
+        </div>
+      </form>
+
+      {cards.length < 2 && (
+        <p className="muted comparison-empty">
+          Для сравнения нужны минимум две сохранённые карточки серий.
+        </p>
+      )}
+
+      {comparedCards?.first && comparedCards?.second && (
+        <SeriesComparisonResult firstCard={comparedCards.first} secondCard={comparedCards.second} />
+      )}
+    </section>
+  );
+}
+
+function SeriesOption({ card }) {
+  const label = [card.brand, card.category, card.seriesName].filter(Boolean).join(' · ');
+
+  return <option value={card.id}>{label || 'Без названия'}</option>;
+}
+
+function SeriesComparisonResult({ firstCard, secondCard }) {
+  return (
+    <div className="comparison-result" aria-live="polite">
+      <div className="comparison-header comparison-grid">
+        <div />
+        <h3>{getSeriesTitle(firstCard)}</h3>
+        <h3>{getSeriesTitle(secondCard)}</h3>
+      </div>
+      {COMPARISON_FIELDS.map(({ field, label }) => (
+        <div className="comparison-row comparison-grid" key={field}>
+          <h4>{label}</h4>
+          <ComparisonValue value={firstCard[field]} />
+          <ComparisonValue value={secondCard[field]} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ComparisonValue({ value }) {
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return <p className="muted">Не заполнено</p>;
+    }
+
+    return (
+      <ul className="comparison-list">
+        {value.map((item, index) => (
+          <li key={`${item}-${index}`}>{item}</li>
+        ))}
+      </ul>
+    );
+  }
+
+  return <p className={value ? undefined : 'muted'}>{value || 'Не заполнено'}</p>;
+}
+
+function getSeriesTitle(card) {
+  return [card.brand, card.seriesName].filter(Boolean).join(' · ') || 'Без названия';
 }
 
 function DraftTab({ draft, draftJson, editingCardId, onChange, onSubmit }) {
