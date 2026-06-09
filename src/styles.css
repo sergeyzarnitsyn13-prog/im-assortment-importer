@@ -508,3 +508,47 @@ th {
   color: #21466f;
   font-size: 15px;
 }
+
+.meaning-comparison {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.comparison-section-header h3 {
+  margin: 0;
+}
+
+.full-technical-data {
+  border-top: 1px solid #d8e1ef;
+}
+
+.full-technical-data summary {
+  background: #f8fbff;
+  color: #21466f;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 16px 18px;
+}
+
+.technical-columns {
+  border-top: 1px solid #d8e1ef;
+}
+
+.meaning-comparison-table {
+  min-width: 760px;
+}
+
+.meaning-comparison-table th:first-child {
+  width: 220px;
+}
+
+.meaning-comparison-table tbody th {
+  background: #f8fbff;
+  color: #21466f;
+  font-size: 15px;
+}
+
+.meaning-comparison-table td p {
+  margin: 0;
+}
