@@ -27,6 +27,7 @@ const SOURCE_TYPES = [
 const TABS = {
   sources: 'Источники',
   cards: 'Карточки серий',
+  compare: 'Сравнение серий',
   draft: 'Черновик',
 };
 
@@ -144,6 +145,8 @@ function App() {
   const [editingCardId, setEditingCardId] = useState(null);
   const [sources, setSources] = useState([]);
   const [seriesCards, setSeriesCards] = useState([]);
+  const [comparisonForm, setComparisonForm] = useState({ firstCardId: '', secondCardId: '' });
+  const [comparisonIds, setComparisonIds] = useState(null);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -163,6 +166,16 @@ function App() {
   }, []);
 
   const draftJson = useMemo(() => serializeCard(draft), [draft]);
+  const comparedCards = useMemo(() => {
+    if (!comparisonIds) {
+      return null;
+    }
+
+    return {
+      first: seriesCards.find((card) => card.id === comparisonIds.firstCardId) || null,
+      second: seriesCards.find((card) => card.id === comparisonIds.secondCardId) || null,
+    };
+  }, [comparisonIds, seriesCards]);
 
   const showMessage = (text) => {
     setMessage(text);
@@ -233,6 +246,29 @@ function App() {
     showMessage('JSON скопирован в буфер обмена.');
   };
 
+  const handleComparisonChange = (event) => {
+    const { name, value } = event.target;
+
+    setComparisonForm((current) => ({ ...current, [name]: value }));
+    setComparisonIds(null);
+  };
+
+  const handleCompareSeries = (event) => {
+    event.preventDefault();
+
+    if (
+      !comparisonForm.firstCardId ||
+      !comparisonForm.secondCardId ||
+      comparisonForm.firstCardId === comparisonForm.secondCardId
+    ) {
+      showMessage('Выберите две разные серии для сравнения.');
+      return;
+    }
+
+    setComparisonIds({ ...comparisonForm });
+    showMessage('Сравнение построено из сохранённых карточек.');
+  };
+
   const handleDraftSubmit = async (event) => {
     event.preventDefault();
 
@@ -293,6 +329,16 @@ function App() {
           cards={seriesCards}
           onCopyJson={handleCopyJson}
           onOpenCard={handleOpenCard}
+        />
+      )}
+
+      {activeTab === 'compare' && (
+        <SeriesComparisonTab
+          cards={seriesCards}
+          comparedCards={comparedCards}
+          form={comparisonForm}
+          onChange={handleComparisonChange}
+          onCompare={handleCompareSeries}
         />
       )}
 
