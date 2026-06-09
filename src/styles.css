@@ -613,6 +613,15 @@ th {
   grid-template-columns: 1fr;
 }
 
+.pdf-search-debug {
+  background: #f8fbff;
+}
+
+.pdf-debug-match {
+  color: #21466f;
+  font-weight: 800;
+}
+
 .warning-notice {
   background: #fff7ed;
   border-color: #fed7aa;
