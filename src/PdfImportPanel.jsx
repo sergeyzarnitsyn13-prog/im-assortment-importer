@@ -14,6 +14,14 @@ const PDF_SOURCE_INITIAL = {
 
 const normalizeSearchText = (value = '') => value.toLocaleLowerCase('ru-RU').trim();
 
+const pageHasSeriesName = (page, normalizedSeriesName) =>
+  normalizeSearchText(page.text).includes(normalizedSeriesName);
+
+const getPageWithNeighborsNumbers = (pageNumber, pagesCount) =>
+  [pageNumber - 1, pageNumber, pageNumber + 1].filter(
+    (neighborPageNumber) => neighborPageNumber >= 1 && neighborPageNumber <= pagesCount,
+  );
+
 const getPageText = async (page) => {
   const textContent = await page.getTextContent();
 
@@ -70,6 +78,7 @@ function PdfImportPanel({ onCreateSource }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [seriesResult, setSeriesResult] = useState(null);
   const [seriesMessage, setSeriesMessage] = useState('');
+  const [showSeriesDebugPages, setShowSeriesDebugPages] = useState(false);
   const [qualityWarning, setQualityWarning] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -151,19 +160,17 @@ function PdfImportPanel({ onCreateSource }) {
       return;
     }
 
-    const matchedPages = pages.filter((page) => normalizeSearchText(page.text).includes(normalizedSeries));
+    const directMatchPages = pages.filter((page) => pageHasSeriesName(page, normalizedSeries));
 
-    if (matchedPages.length === 0) {
-      setSeriesMessage('Серия не найдена в PDF');
+    if (directMatchPages.length === 0) {
+      setSeriesMessage('Серия не найдена в тексте PDF');
       return;
     }
 
     const pageNumbers = new Set();
 
-    matchedPages.forEach((page) => {
-      [page.pageNumber - 1, page.pageNumber, page.pageNumber + 1]
-        .filter((pageNumber) => pageNumber >= 1 && pageNumber <= pages.length)
-        .forEach((pageNumber) => pageNumbers.add(pageNumber));
+    directMatchPages.forEach((page) => {
+      getPageWithNeighborsNumbers(page.pageNumber, pages.length).forEach((pageNumber) => pageNumbers.add(pageNumber));
     });
 
     const selectedPages = [...pageNumbers]
@@ -186,8 +193,8 @@ function PdfImportPanel({ onCreateSource }) {
       rawText,
     };
 
-    setSeriesResult({ source, pages: selectedPages, matchedPages });
-    setSeriesMessage(`Найдены страницы: ${matchedPages.map((page) => page.pageNumber).join(', ')}`);
+    setSeriesResult({ source, pages: selectedPages, directMatchPages });
+    setSeriesMessage(`Найдено прямых совпадений: ${directMatchPages.length}`);
   };
 
   const handleCreateSource = async (buildDraftImmediately = false) => {
@@ -294,6 +301,14 @@ function PdfImportPanel({ onCreateSource }) {
               <button className="secondary-button" onClick={handleFindSeries} type="button">
                 Найти текст по серии
               </button>
+              <label className="inline-control">
+                <input
+                  checked={showSeriesDebugPages}
+                  onChange={(event) => setShowSeriesDebugPages(event.target.checked)}
+                  type="checkbox"
+                />
+                Показать все страницы, где найдено название серии
+              </label>
             </div>
           </div>
 
@@ -312,10 +327,33 @@ function PdfImportPanel({ onCreateSource }) {
                   <dd>{seriesResult.source.sourceRef}</dd>
                 </div>
                 <div>
+                  <dt>Найдено прямых совпадений</dt>
+                  <dd>{seriesResult.directMatchPages.length}</dd>
+                </div>
+                <div>
+                  <dt>Страницы с прямым совпадением</dt>
+                  <dd>{seriesResult.directMatchPages.map((page) => page.pageNumber).join(', ')}</dd>
+                </div>
+                <div>
                   <dt>Страниц в rawText</dt>
                   <dd>{seriesResult.pages.length}</dd>
                 </div>
               </dl>
+              {showSeriesDebugPages && (
+                <div className="pdf-found-pages">
+                  <h3>Страницы с прямым совпадением названия серии</h3>
+                  <div className="card-list">
+                    {seriesResult.directMatchPages.map((page) => (
+                      <article className="item-card pdf-page-card" key={page.pageNumber}>
+                        <div>
+                          <h4>Страница {page.pageNumber}</h4>
+                          <p>{page.text.slice(0, 420)}{page.text.length > 420 ? '…' : ''}</p>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              )}
               <label>
                 rawText
                 <textarea readOnly value={seriesResult.source.rawText} />
