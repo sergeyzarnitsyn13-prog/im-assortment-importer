@@ -494,25 +494,55 @@ function SeriesCardsTab({ cards, onCopyJson, onOpenCard }) {
 }
 
 
-const COMPARISON_FIELDS = [
-  'brand',
-  'category',
-  'seriesName',
-  'shortDescription',
-  'positioning',
-  'targetClient',
-  'mainSalesIdea',
-  'salesFeatures',
-  'mainAdvantages',
-  'salesArguments',
-  'clientSpeech',
-  'differences',
-  'whenRecommend',
-  'whenNotRecommend',
-  'objections',
-  'technicalSpecs',
-  'importantSpecs',
+const TECHNICAL_GARBAGE_PATTERN =
+  /(габарит|размер|ш\s*[xх×]\s*в|в\s*[xх×]\s*ш|упаков|короб|вес|масса|нетто|брутто|кг\b|номинальн.*ток|ток\b|ампер|\bа\b|труб|диаметр|ø|мм\b|btu|бте|потребляем|потребление|питание|кабель|провод|дренаж)/i;
+
+const TECHNICAL_USEFUL_PATTERN =
+  /(инвертор|on[-\s]?off|теплов(ой|ым) насос|обогрев|до\s*-?\d+\s*°?\s*c|шум|дб|wi[-\s]?fi|вай[-\s]?фай|фильтр|иониз|уф|uv|smart\s*sens|health\s*guard|3d|airflow|golden\s*fin|самоочист|самоочищ|класс|энергоэфф|a\+|r32)/i;
+
+const COMPARISON_MEANING_ROWS = [
+  {
+    label: 'Главная идея',
+    getValue: (card) => card.mainSalesIdea || card.positioning || card.shortDescription,
+  },
+  {
+    label: 'Для кого',
+    getValue: (card) => card.targetClient,
+  },
+  {
+    label: 'Ключевые функции',
+    getValue: (card) => [
+      ...normalizeTextList(card.salesFeatures),
+      ...normalizeTextList(card.keyFeatures),
+    ],
+  },
+  {
+    label: 'Главные преимущества',
+    getValue: (card) => card.mainAdvantages,
+  },
+  {
+    label: 'Что говорить клиенту',
+    getValue: (card) => card.clientSpeech || card.salesArguments,
+  },
+  {
+    label: 'Когда рекомендовать',
+    getValue: (card) => card.whenRecommend,
+  },
+  {
+    label: 'Когда не рекомендовать',
+    getValue: (card) => card.whenNotRecommend,
+  },
+  {
+    label: 'Важные технические отличия',
+    getValue: (card) => summarizeTechnicalSpecs(card),
+  },
+  {
+    label: 'Слабые места / ограничения',
+    getValue: (card) => card.objections,
+  },
 ];
+
+const FULL_TECHNICAL_FIELDS = ['technicalSpecs', 'importantSpecs'];
 
 const getCardTitle = (card) => {
   if (!card) {
@@ -524,13 +554,15 @@ const getCardTitle = (card) => {
 
 const renderComparisonValue = (value) => {
   if (Array.isArray(value)) {
-    if (value.length === 0) {
+    const normalizedItems = normalizeTextList(value);
+
+    if (normalizedItems.length === 0) {
       return <p className="muted">Не заполнено</p>;
     }
 
     return (
       <ul className="comparison-list">
-        {value.map((item, index) => (
+        {normalizedItems.map((item, index) => (
           <li key={`${item}-${index}`}>{item}</li>
         ))}
       </ul>
@@ -560,6 +592,49 @@ const normalizeTextString = (value) => normalizeTextList(value).join('; ');
 const joinHighlights = (items, limit = 2) => normalizeTextList(items).slice(0, limit).join('; ');
 
 const getSeriesLabel = (card, fallback) => card?.seriesName || getCardTitle(card) || fallback;
+
+const hasTooManyNumbers = (value) => {
+  const numericFragments = value.match(/\d+(?:[.,]\d+)?/g) || [];
+
+  return numericFragments.length >= 4;
+};
+
+const isUsefulTechnicalSpec = (value) => {
+  const normalizedValue = value.toLowerCase();
+
+  if (!normalizedValue || normalizedValue.length > 120 || hasTooManyNumbers(normalizedValue)) {
+    return false;
+  }
+
+  if (TECHNICAL_GARBAGE_PATTERN.test(normalizedValue)) {
+    return /r32/i.test(normalizedValue) && !hasTooManyNumbers(normalizedValue);
+  }
+
+  return TECHNICAL_USEFUL_PATTERN.test(normalizedValue);
+};
+
+const summarizeTechnicalSpecs = (card) => {
+  const items = [
+    ...normalizeTextList(card?.importantSpecs),
+    ...normalizeTextList(card?.technicalSpecs),
+    ...normalizeTextList(card?.salesFeatures),
+  ];
+  const seen = new Set();
+
+  return items
+    .filter(isUsefulTechnicalSpec)
+    .filter((item) => {
+      const key = item.toLowerCase();
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 8);
+};
 
 const getDifferenceDescription = (card) => {
   const idea = normalizeTextString(card?.mainSalesIdea);
@@ -667,6 +742,62 @@ function KeyDifferencesBlock({ first, second }) {
   );
 }
 
+function MeaningComparisonTable({ cards }) {
+  return (
+    <section className="meaning-comparison" aria-labelledby="meaning-comparison-title">
+      <div className="comparison-section-header">
+        <p className="eyebrow">Коротко для продажи</p>
+        <h3 id="meaning-comparison-title">Сравнение по смыслу</h3>
+      </div>
+      <div className="table-wrap meaning-comparison-table-wrap">
+        <table className="meaning-comparison-table">
+          <thead>
+            <tr>
+              <th>Критерий</th>
+              {cards.map((card) => (
+                <th key={card.id}>{getCardTitle(card)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {COMPARISON_MEANING_ROWS.map((row) => (
+              <tr key={row.label}>
+                <th scope="row">{row.label}</th>
+                {cards.map((card) => (
+                  <td key={`${card.id}-${row.label}`}>
+                    {renderComparisonValue(row.getValue(card))}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function FullTechnicalData({ cards }) {
+  return (
+    <details className="full-technical-data">
+      <summary>Полные технические данные</summary>
+      <div className="comparison-columns technical-columns">
+        {cards.map((card) => (
+          <article className="comparison-column" key={card.id}>
+            <h3>{getCardTitle(card)}</h3>
+            {FULL_TECHNICAL_FIELDS.map((field) => (
+              <div className="comparison-field" key={field}>
+                <h4>{FIELD_LABELS[field]}</h4>
+                {renderComparisonValue(card[field])}
+              </div>
+            ))}
+          </article>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 function SeriesComparisonTab({ cards = [], comparedCards, error, form, onChange, onCompare }) {
   const hasEnoughCards = cards.length >= 2;
 
@@ -728,19 +859,8 @@ function SeriesComparisonTab({ cards = [], comparedCards, error, form, onChange,
           {comparedCards && comparedCards.first && comparedCards.second && (
             <section className="comparison-result" aria-label="Результат сравнения серий">
               <KeyDifferencesBlock first={comparedCards.first} second={comparedCards.second} />
-              <div className="comparison-columns">
-                {[comparedCards.first, comparedCards.second].map((card) => (
-                  <article className="comparison-column" key={card.id}>
-                    <h3>{getCardTitle(card)}</h3>
-                    {COMPARISON_FIELDS.map((field) => (
-                      <div className="comparison-field" key={field}>
-                        <h4>{FIELD_LABELS[field]}</h4>
-                        {renderComparisonValue(card[field])}
-                      </div>
-                    ))}
-                  </article>
-                ))}
-              </div>
+              <MeaningComparisonTable cards={[comparedCards.first, comparedCards.second]} />
+              <FullTechnicalData cards={[comparedCards.first, comparedCards.second]} />
             </section>
           )}
         </>
