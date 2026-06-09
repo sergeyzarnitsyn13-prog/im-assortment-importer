@@ -155,12 +155,30 @@ textarea {
   grid-column: 1 / -1;
 }
 
+.form-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
 .primary-button {
   background: #21466f;
   border-color: #21466f;
   color: #ffffff;
   font-weight: 700;
-  margin-top: 18px;
+}
+
+.secondary-button {
+  background: #f3f7fc;
+  border-color: #9fb1c9;
+  font-weight: 700;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .card-list {
