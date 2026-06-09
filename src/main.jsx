@@ -544,6 +544,129 @@ const renderComparisonValue = (value) => {
   return <p>{value}</p>;
 };
 
+const normalizeTextList = (value) => {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  return String(value || '')
+    .split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean);
+};
+
+const normalizeTextString = (value) => normalizeTextList(value).join('; ');
+
+const joinHighlights = (items, limit = 2) => normalizeTextList(items).slice(0, limit).join('; ');
+
+const getSeriesLabel = (card, fallback) => card?.seriesName || getCardTitle(card) || fallback;
+
+const getDifferenceDescription = (card) => {
+  const idea = normalizeTextString(card?.mainSalesIdea);
+  const targetClient = normalizeTextList(card?.targetClient);
+  const advantages = normalizeTextList(card?.mainAdvantages);
+
+  if (idea) {
+    return idea;
+  }
+
+  if (targetClient.length > 0) {
+    return `для клиента: ${joinHighlights(targetClient)}`;
+  }
+
+  if (advantages.length > 0) {
+    return `акцент на преимуществах: ${joinHighlights(advantages)}`;
+  }
+
+  return 'ключевая идея не заполнена';
+};
+
+const getRecommendationDescription = (card) => {
+  const whenRecommend = normalizeTextList(card?.whenRecommend);
+  const targetClient = normalizeTextList(card?.targetClient);
+  const advantages = normalizeTextList(card?.mainAdvantages);
+  const idea = normalizeTextString(card?.mainSalesIdea);
+
+  if (whenRecommend.length > 0) {
+    return joinHighlights(whenRecommend, 3);
+  }
+
+  if (targetClient.length > 0) {
+    return `когда клиент подходит под профиль: ${joinHighlights(targetClient, 3)}`;
+  }
+
+  if (advantages.length > 0) {
+    return `когда важны преимущества: ${joinHighlights(advantages, 3)}`;
+  }
+
+  return idea || 'нет заполненных критериев рекомендации';
+};
+
+const getClientExplanationPart = (card) => {
+  const targetClient = normalizeTextList(card?.targetClient);
+  const advantages = normalizeTextList(card?.mainAdvantages);
+  const idea = normalizeTextString(card?.mainSalesIdea);
+
+  if (advantages.length > 0) {
+    return joinHighlights(advantages, 2);
+  }
+
+  if (targetClient.length > 0) {
+    return joinHighlights(targetClient, 2);
+  }
+
+  return idea || 'её ключевой сценарий';
+};
+
+const buildKeyDifferences = (first, second) => {
+  const firstLabel = getSeriesLabel(first, 'первая серия');
+  const secondLabel = getSeriesLabel(second, 'вторая серия');
+
+  return [
+    {
+      title: 'Главная разница между сериями',
+      text: `${firstLabel}: ${getDifferenceDescription(first)}. ${secondLabel}: ${getDifferenceDescription(
+        second,
+      )}.`,
+    },
+    {
+      title: `Когда выбирать ${firstLabel}`,
+      text: getRecommendationDescription(first),
+    },
+    {
+      title: `Когда выбирать ${secondLabel}`,
+      text: getRecommendationDescription(second),
+    },
+    {
+      title: 'Как объяснить выбор клиенту',
+      text: `Покажите выбор через приоритет клиента: ${firstLabel} — если важны ${getClientExplanationPart(
+        first,
+      )}; ${secondLabel} — если важны ${getClientExplanationPart(second)}.`,
+    },
+  ];
+};
+
+function KeyDifferencesBlock({ first, second }) {
+  const keyDifferences = buildKeyDifferences(first, second);
+
+  return (
+    <section className="key-differences" aria-labelledby="key-differences-title">
+      <div>
+        <p className="eyebrow">Автоматически из продажных полей</p>
+        <h3 id="key-differences-title">Ключевые отличия</h3>
+      </div>
+      <ol className="key-differences-list">
+        {keyDifferences.map((item) => (
+          <li key={item.title}>
+            <h4>{item.title}</h4>
+            <p>{item.text}</p>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 function SeriesComparisonTab({ cards = [], comparedCards, error, form, onChange, onCompare }) {
   const hasEnoughCards = cards.length >= 2;
 
@@ -604,6 +727,7 @@ function SeriesComparisonTab({ cards = [], comparedCards, error, form, onChange,
 
           {comparedCards && comparedCards.first && comparedCards.second && (
             <section className="comparison-result" aria-label="Результат сравнения серий">
+              <KeyDifferencesBlock first={comparedCards.first} second={comparedCards.second} />
               <div className="comparison-columns">
                 {[comparedCards.first, comparedCards.second].map((card) => (
                   <article className="comparison-column" key={card.id}>

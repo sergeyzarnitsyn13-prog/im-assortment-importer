@@ -444,3 +444,67 @@ th {
     grid-template-columns: 1fr;
   }
 }
+
+.key-differences {
+  background: linear-gradient(135deg, #f8fbff 0%, #eef5ff 100%);
+  border-bottom: 1px solid #d8e1ef;
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.key-differences h3 {
+  color: #162033;
+  margin: 0;
+}
+
+.key-differences .eyebrow {
+  margin-bottom: 4px;
+}
+
+.key-differences-list {
+  counter-reset: key-differences;
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.key-differences-list li {
+  background: #ffffff;
+  border: 1px solid #d8e1ef;
+  border-radius: 12px;
+  display: grid;
+  gap: 6px;
+  padding: 14px 14px 14px 48px;
+  position: relative;
+}
+
+.key-differences-list li::before {
+  align-items: center;
+  background: #21466f;
+  border-radius: 999px;
+  color: #ffffff;
+  content: counter(key-differences);
+  counter-increment: key-differences;
+  display: flex;
+  font-size: 14px;
+  font-weight: 800;
+  height: 26px;
+  justify-content: center;
+  left: 14px;
+  position: absolute;
+  top: 14px;
+  width: 26px;
+}
+
+.key-differences-list h4,
+.key-differences-list p {
+  margin: 0;
+}
+
+.key-differences-list h4 {
+  color: #21466f;
+  font-size: 15px;
+}
