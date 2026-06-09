@@ -108,6 +108,35 @@ const SERIES_PROFILES = {
 
 const MAX_SHORT_DESCRIPTION_LENGTH = 500;
 
+const buildSourceRef = (source) => [source.title, source.sourceRef].filter(Boolean).join(' · ');
+
+const hasDraftValue = (value) => {
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+
+  return Boolean(value);
+};
+
+const attachSourceRefs = (draft, source) => {
+  const sourceRef = buildSourceRef(source);
+
+  if (!sourceRef) {
+    return { ...draft, sourceRefs: {} };
+  }
+
+  return {
+    ...draft,
+    sourceRefs: Object.fromEntries(
+      Object.entries(draft)
+        .filter(
+          ([field, value]) => !['sourceIds', 'sourceRefs', 'status'].includes(field) && hasDraftValue(value),
+        )
+        .map(([field]) => [field, sourceRef]),
+    ),
+  };
+};
+
 const normalizeLine = (line) => line.trim().replace(/^[-–—•*\d.)\s]+/, '').trim();
 
 const normalizeText = (value = '') => value.toLocaleLowerCase('ru-RU');
@@ -206,7 +235,7 @@ const buildProfileDraft = (source, profile) => {
   const rawText = source.rawText || '';
   const salesFeatures = extractProfileSalesFeatures(profile, rawText);
 
-  return {
+  return attachSourceRefs({
     brand: source.brand || profile.defaultBrand,
     category: source.category || '',
     seriesName: source.seriesName || '',
@@ -227,7 +256,7 @@ const buildProfileDraft = (source, profile) => {
     importantSpecs: [],
     sourceIds: source.id ? [source.id] : [],
     status: 'draft',
-  };
+  }, source);
 };
 
 export const generateIcePeakDraft = (source) => buildProfileDraft(source, SERIES_PROFILES['ICE PEAK']);
@@ -241,7 +270,7 @@ export const generateSeriesDraft = (source) => {
 
   const salesFeatures = extractSalesFeatures(source.rawText);
 
-  return {
+  return attachSourceRefs({
     brand: source.brand || '',
     category: source.category || '',
     seriesName: source.seriesName || '',
@@ -262,5 +291,5 @@ export const generateSeriesDraft = (source) => {
     importantSpecs: [],
     sourceIds: source.id ? [source.id] : [],
     status: 'draft',
-  };
+  }, source);
 };

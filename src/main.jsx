@@ -62,6 +62,7 @@ const DRAFT_INITIAL = {
   technicalSpecs: [],
   importantSpecs: [],
   sourceIds: [],
+  sourceRefs: {},
   status: 'draft',
 };
 
@@ -195,6 +196,16 @@ function App() {
     }));
   };
 
+  const handleDraftSourceRefChange = (field, value) => {
+    setDraft((current) => ({
+      ...current,
+      sourceRefs: {
+        ...(current.sourceRefs || {}),
+        [field]: value,
+      },
+    }));
+  };
+
   const handleSourceSubmit = async (event) => {
     event.preventDefault();
 
@@ -224,7 +235,7 @@ function App() {
   };
 
   const handleOpenCard = (card) => {
-    setDraft({ ...DRAFT_INITIAL, ...card });
+    setDraft({ ...DRAFT_INITIAL, ...card, sourceRefs: card.sourceRefs || {} });
     setEditingCardId(card.id);
     setActiveTab('draft');
     showMessage('Карточка открыта в черновике.');
@@ -337,6 +348,7 @@ function App() {
           draftJson={draftJson}
           editingCardId={editingCardId}
           onChange={handleDraftChange}
+          onSourceRefChange={handleDraftSourceRefChange}
           onSubmit={handleDraftSubmit}
         />
       )}
@@ -463,110 +475,7 @@ function SeriesCardsTab({ cards, onCopyJson, onOpenCard }) {
   );
 }
 
-const COMPARISON_FIELDS = [
-  { field: 'mainSalesIdea', label: 'Главная идея' },
-  { field: 'targetClient', label: 'Целевой клиент' },
-  { field: 'mainAdvantages', label: 'Преимущества' },
-  { field: 'whenRecommend', label: 'Когда рекомендовать' },
-  { field: 'whenNotRecommend', label: 'Когда не рекомендовать' },
-  { field: 'clientSpeech', label: 'Речь для клиента' },
-];
-
-function SeriesComparisonTab({ cards, comparedCards, form, onChange, onCompare }) {
-  const canCompare = Boolean(
-    form.firstCardId && form.secondCardId && form.firstCardId !== form.secondCardId,
-  );
-
-  return (
-    <section className="panel">
-      <h2>Сравнение серий</h2>
-      <form className="comparison-form" onSubmit={onCompare}>
-        <label>
-          Серия 1
-          <select name="firstCardId" onChange={onChange} value={form.firstCardId}>
-            <option value="">Выберите серию</option>
-            {cards.map((card) => (
-              <SeriesOption card={card} key={card.id} />
-            ))}
-          </select>
-        </label>
-        <label>
-          Серия 2
-          <select name="secondCardId" onChange={onChange} value={form.secondCardId}>
-            <option value="">Выберите серию</option>
-            {cards.map((card) => (
-              <SeriesOption card={card} key={card.id} />
-            ))}
-          </select>
-        </label>
-        <div className="comparison-actions">
-          <button className="primary-button" disabled={!canCompare} type="submit">
-            Сравнить
-          </button>
-        </div>
-      </form>
-
-      {cards.length < 2 && (
-        <p className="muted comparison-empty">
-          Для сравнения нужны минимум две сохранённые карточки серий.
-        </p>
-      )}
-
-      {comparedCards?.first && comparedCards?.second && (
-        <SeriesComparisonResult firstCard={comparedCards.first} secondCard={comparedCards.second} />
-      )}
-    </section>
-  );
-}
-
-function SeriesOption({ card }) {
-  const label = [card.brand, card.category, card.seriesName].filter(Boolean).join(' · ');
-
-  return <option value={card.id}>{label || 'Без названия'}</option>;
-}
-
-function SeriesComparisonResult({ firstCard, secondCard }) {
-  return (
-    <div className="comparison-result" aria-live="polite">
-      <div className="comparison-header comparison-grid">
-        <div />
-        <h3>{getSeriesTitle(firstCard)}</h3>
-        <h3>{getSeriesTitle(secondCard)}</h3>
-      </div>
-      {COMPARISON_FIELDS.map(({ field, label }) => (
-        <div className="comparison-row comparison-grid" key={field}>
-          <h4>{label}</h4>
-          <ComparisonValue value={firstCard[field]} />
-          <ComparisonValue value={secondCard[field]} />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ComparisonValue({ value }) {
-  if (Array.isArray(value)) {
-    if (value.length === 0) {
-      return <p className="muted">Не заполнено</p>;
-    }
-
-    return (
-      <ul className="comparison-list">
-        {value.map((item, index) => (
-          <li key={`${item}-${index}`}>{item}</li>
-        ))}
-      </ul>
-    );
-  }
-
-  return <p className={value ? undefined : 'muted'}>{value || 'Не заполнено'}</p>;
-}
-
-function getSeriesTitle(card) {
-  return [card.brand, card.seriesName].filter(Boolean).join(' · ') || 'Без названия';
-}
-
-function DraftTab({ draft, draftJson, editingCardId, onChange, onSubmit }) {
+function DraftTab({ draft, draftJson, editingCardId, onChange, onSourceRefChange, onSubmit }) {
   return (
     <section className="layout-grid draft-grid">
       <form className="panel" onSubmit={onSubmit}>
@@ -575,29 +484,50 @@ function DraftTab({ draft, draftJson, editingCardId, onChange, onSubmit }) {
           <TextInput name="brand" onChange={onChange} value={draft.brand} />
           <TextInput name="category" onChange={onChange} value={draft.category} />
           <TextInput name="seriesName" onChange={onChange} value={draft.seriesName} />
-          <label className="wide-field">
-            {FIELD_LABELS.shortDescription}
-            <textarea name="shortDescription" onChange={onChange} value={draft.shortDescription} />
-          </label>
-          <label className="wide-field">
-            {FIELD_LABELS.positioning}
-            <textarea name="positioning" onChange={onChange} value={draft.positioning} />
-          </label>
+          <DraftTextarea
+            draft={draft}
+            field="shortDescription"
+            onChange={onChange}
+            onSourceRefChange={onSourceRefChange}
+          />
+          <DraftTextarea
+            draft={draft}
+            field="positioning"
+            onChange={onChange}
+            onSourceRefChange={onSourceRefChange}
+          />
           <fieldset className="field-group wide-field">
             <legend>Продажная информация</legend>
             {SALES_INFORMATION_FIELDS.map((field) => (
-              <DraftTextarea draft={draft} field={field} key={field} onChange={onChange} />
+              <DraftTextarea
+                draft={draft}
+                field={field}
+                key={field}
+                onChange={onChange}
+                onSourceRefChange={onSourceRefChange}
+              />
             ))}
           </fieldset>
           <fieldset className="field-group wide-field">
             <legend>Техническая информация</legend>
             {TECHNICAL_INFORMATION_FIELDS.map((field) => (
-              <DraftTextarea draft={draft} field={field} key={field} onChange={onChange} />
+              <DraftTextarea
+                draft={draft}
+                field={field}
+                key={field}
+                onChange={onChange}
+                onSourceRefChange={onSourceRefChange}
+              />
             ))}
           </fieldset>
           <fieldset className="field-group wide-field">
             <legend>Служебная совместимость</legend>
-            <DraftTextarea draft={draft} field="keyFeatures" onChange={onChange} />
+            <DraftTextarea
+              draft={draft}
+              field="keyFeatures"
+              onChange={onChange}
+              onSourceRefChange={onSourceRefChange}
+            />
           </fieldset>
         </div>
         <button className="primary-button" type="submit">
@@ -612,14 +542,28 @@ function DraftTab({ draft, draftJson, editingCardId, onChange, onSubmit }) {
   );
 }
 
-function DraftTextarea({ draft, field, onChange }) {
+function DraftTextarea({ draft, field, onChange, onSourceRefChange }) {
   const value = ARRAY_FIELDS.includes(field) ? toLines(draft[field]) : draft[field] || '';
+  const sourceRef = draft.sourceRefs?.[field] || '';
 
   return (
-    <label className="wide-field">
-      {FIELD_LABELS[field]}
-      <textarea name={field} onChange={onChange} value={value} />
-    </label>
+    <div className="draft-block wide-field">
+      <div className="draft-block-header">
+        <label className="draft-block-title" htmlFor={field}>
+          {FIELD_LABELS[field]}
+        </label>
+        <label className="source-ref-field">
+          <span>Источник</span>
+          <input
+            name={`${field}SourceRef`}
+            onChange={(event) => onSourceRefChange(field, event.target.value)}
+            placeholder="Например: Каталог Ballu 2026"
+            value={sourceRef}
+          />
+        </label>
+      </div>
+      <textarea id={field} name={field} onChange={onChange} value={value} />
+    </div>
   );
 }
 
