@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { generateIcePeakDraft, generateSeriesDraft } from './generateSeriesDraft';
+import PdfImportPanel from './PdfImportPanel';
 import './styles.css';
 
 const SOURCE_TYPES = [
@@ -223,18 +224,38 @@ function App() {
     }));
   };
 
-  const handleSourceSubmit = async (event) => {
-    event.preventDefault();
-
-    await addDoc(collection(db, 'sources'), {
-      ...sourceForm,
+  const createSource = async (source) => {
+    const createdSource = await addDoc(collection(db, 'sources'), {
+      ...source,
       status: 'new',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
 
+    return { ...source, id: createdSource.id, status: 'new' };
+  };
+
+  const handleSourceSubmit = async (event) => {
+    event.preventDefault();
+
+    await createSource(sourceForm);
+
     setSourceForm(SOURCE_INITIAL);
     showMessage('Источник сохранён.');
+  };
+
+  const handlePdfSourceCreate = async (source, { buildDraftImmediately = false } = {}) => {
+    const createdSource = await createSource(source);
+
+    if (buildDraftImmediately) {
+      setDraft(generateSeriesDraft(createdSource));
+      setEditingCardId(null);
+      setActiveTab('draft');
+      showMessage('Источник создан, черновик собран из найденного текста.');
+      return;
+    }
+
+    showMessage('Источник из PDF сохранён.');
   };
 
   const handleBuildDraft = (source) => {
@@ -335,6 +356,7 @@ function App() {
           form={sourceForm}
           onBuildDraft={handleBuildDraft}
           onChange={handleSourceChange}
+          onCreatePdfSource={handlePdfSourceCreate}
           onIcePeakTest={handleIcePeakTest}
           onSubmit={handleSourceSubmit}
           sources={sources}
@@ -374,50 +396,54 @@ function App() {
   );
 }
 
-function SourcesTab({ form, onBuildDraft, onChange, onIcePeakTest, onSubmit, sources }) {
+function SourcesTab({ form, onBuildDraft, onChange, onCreatePdfSource, onIcePeakTest, onSubmit, sources }) {
   return (
     <section className="layout-grid">
-      <form className="panel" onSubmit={onSubmit}>
-        <h2>Добавить источник</h2>
-        <div className="form-grid">
-          <TextInput name="title" onChange={onChange} required value={form.title} />
-          <label>
-            {FIELD_LABELS.type}
-            <select name="type" onChange={onChange} value={form.type}>
-              {SOURCE_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
-          </label>
-          <TextInput name="brand" onChange={onChange} value={form.brand} />
-          <TextInput name="category" onChange={onChange} value={form.category} />
-          <TextInput name="seriesName" onChange={onChange} value={form.seriesName} />
-          <TextInput name="sourceDate" onChange={onChange} type="date" value={form.sourceDate} />
-          <label className="wide-field">
-            {FIELD_LABELS.sourceRef}
-            <input name="sourceRef" onChange={onChange} value={form.sourceRef} />
-          </label>
-          <label className="wide-field">
-            {FIELD_LABELS.rawText}
-            <textarea name="rawText" onChange={onChange} required value={form.rawText} />
-          </label>
-        </div>
-        <div className="form-actions">
-          <button className="primary-button" type="submit">
-            Сохранить источник
-          </button>
-          <button
-            className="secondary-button"
-            disabled={!form.rawText.trim()}
-            onClick={onIcePeakTest}
-            type="button"
-          >
-            Тест ICE PEAK
-          </button>
-        </div>
-      </form>
+      <div className="sources-main-column">
+        <PdfImportPanel onCreateSource={onCreatePdfSource} />
+
+        <form className="panel" onSubmit={onSubmit}>
+          <h2>Добавить источник вручную</h2>
+          <div className="form-grid">
+            <TextInput name="title" onChange={onChange} required value={form.title} />
+            <label>
+              {FIELD_LABELS.type}
+              <select name="type" onChange={onChange} value={form.type}>
+                {SOURCE_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <TextInput name="brand" onChange={onChange} value={form.brand} />
+            <TextInput name="category" onChange={onChange} value={form.category} />
+            <TextInput name="seriesName" onChange={onChange} value={form.seriesName} />
+            <TextInput name="sourceDate" onChange={onChange} type="date" value={form.sourceDate} />
+            <label className="wide-field">
+              {FIELD_LABELS.sourceRef}
+              <input name="sourceRef" onChange={onChange} value={form.sourceRef} />
+            </label>
+            <label className="wide-field">
+              {FIELD_LABELS.rawText}
+              <textarea name="rawText" onChange={onChange} required value={form.rawText} />
+            </label>
+          </div>
+          <div className="form-actions">
+            <button className="primary-button" type="submit">
+              Сохранить источник
+            </button>
+            <button
+              className="secondary-button"
+              disabled={!form.rawText.trim()}
+              onClick={onIcePeakTest}
+              type="button"
+            >
+              Тест ICE PEAK
+            </button>
+          </div>
+        </form>
+      </div>
 
       <section className="panel">
         <h2>Последние источники</h2>
