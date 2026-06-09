@@ -61,6 +61,7 @@ const DRAFT_INITIAL = {
   technicalSpecs: [],
   importantSpecs: [],
   sourceIds: [],
+  sourceRefs: {},
   status: 'draft',
 };
 
@@ -182,6 +183,16 @@ function App() {
     }));
   };
 
+  const handleDraftSourceRefChange = (field, value) => {
+    setDraft((current) => ({
+      ...current,
+      sourceRefs: {
+        ...(current.sourceRefs || {}),
+        [field]: value,
+      },
+    }));
+  };
+
   const handleSourceSubmit = async (event) => {
     event.preventDefault();
 
@@ -211,7 +222,7 @@ function App() {
   };
 
   const handleOpenCard = (card) => {
-    setDraft({ ...DRAFT_INITIAL, ...card });
+    setDraft({ ...DRAFT_INITIAL, ...card, sourceRefs: card.sourceRefs || {} });
     setEditingCardId(card.id);
     setActiveTab('draft');
     showMessage('Карточка открыта в черновике.');
@@ -291,6 +302,7 @@ function App() {
           draftJson={draftJson}
           editingCardId={editingCardId}
           onChange={handleDraftChange}
+          onSourceRefChange={handleDraftSourceRefChange}
           onSubmit={handleDraftSubmit}
         />
       )}
@@ -417,7 +429,7 @@ function SeriesCardsTab({ cards, onCopyJson, onOpenCard }) {
   );
 }
 
-function DraftTab({ draft, draftJson, editingCardId, onChange, onSubmit }) {
+function DraftTab({ draft, draftJson, editingCardId, onChange, onSourceRefChange, onSubmit }) {
   return (
     <section className="layout-grid draft-grid">
       <form className="panel" onSubmit={onSubmit}>
@@ -426,29 +438,50 @@ function DraftTab({ draft, draftJson, editingCardId, onChange, onSubmit }) {
           <TextInput name="brand" onChange={onChange} value={draft.brand} />
           <TextInput name="category" onChange={onChange} value={draft.category} />
           <TextInput name="seriesName" onChange={onChange} value={draft.seriesName} />
-          <label className="wide-field">
-            {FIELD_LABELS.shortDescription}
-            <textarea name="shortDescription" onChange={onChange} value={draft.shortDescription} />
-          </label>
-          <label className="wide-field">
-            {FIELD_LABELS.positioning}
-            <textarea name="positioning" onChange={onChange} value={draft.positioning} />
-          </label>
+          <DraftTextarea
+            draft={draft}
+            field="shortDescription"
+            onChange={onChange}
+            onSourceRefChange={onSourceRefChange}
+          />
+          <DraftTextarea
+            draft={draft}
+            field="positioning"
+            onChange={onChange}
+            onSourceRefChange={onSourceRefChange}
+          />
           <fieldset className="field-group wide-field">
             <legend>Продажная информация</legend>
             {SALES_INFORMATION_FIELDS.map((field) => (
-              <DraftTextarea draft={draft} field={field} key={field} onChange={onChange} />
+              <DraftTextarea
+                draft={draft}
+                field={field}
+                key={field}
+                onChange={onChange}
+                onSourceRefChange={onSourceRefChange}
+              />
             ))}
           </fieldset>
           <fieldset className="field-group wide-field">
             <legend>Техническая информация</legend>
             {TECHNICAL_INFORMATION_FIELDS.map((field) => (
-              <DraftTextarea draft={draft} field={field} key={field} onChange={onChange} />
+              <DraftTextarea
+                draft={draft}
+                field={field}
+                key={field}
+                onChange={onChange}
+                onSourceRefChange={onSourceRefChange}
+              />
             ))}
           </fieldset>
           <fieldset className="field-group wide-field">
             <legend>Служебная совместимость</legend>
-            <DraftTextarea draft={draft} field="keyFeatures" onChange={onChange} />
+            <DraftTextarea
+              draft={draft}
+              field="keyFeatures"
+              onChange={onChange}
+              onSourceRefChange={onSourceRefChange}
+            />
           </fieldset>
         </div>
         <button className="primary-button" type="submit">
@@ -463,14 +496,28 @@ function DraftTab({ draft, draftJson, editingCardId, onChange, onSubmit }) {
   );
 }
 
-function DraftTextarea({ draft, field, onChange }) {
+function DraftTextarea({ draft, field, onChange, onSourceRefChange }) {
   const value = ARRAY_FIELDS.includes(field) ? toLines(draft[field]) : draft[field] || '';
+  const sourceRef = draft.sourceRefs?.[field] || '';
 
   return (
-    <label className="wide-field">
-      {FIELD_LABELS[field]}
-      <textarea name={field} onChange={onChange} value={value} />
-    </label>
+    <div className="draft-block wide-field">
+      <div className="draft-block-header">
+        <label className="draft-block-title" htmlFor={field}>
+          {FIELD_LABELS[field]}
+        </label>
+        <label className="source-ref-field">
+          <span>Источник</span>
+          <input
+            name={`${field}SourceRef`}
+            onChange={(event) => onSourceRefChange(field, event.target.value)}
+            placeholder="Например: Каталог Ballu 2026"
+            value={sourceRef}
+          />
+        </label>
+      </div>
+      <textarea id={field} name={field} onChange={onChange} value={value} />
+    </div>
   );
 }
 
