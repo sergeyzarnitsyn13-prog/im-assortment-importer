@@ -1,11 +1,46 @@
-const SALES_FEATURE_RULES = [
-  { label: 'Wi-Fi', keywords: ['wi-fi', 'wifi', 'вай-фай'] },
-  { label: 'Smart Sens', keywords: ['smart sens', 'smart sense', 'смарт сенс'] },
-  { label: 'Health Guard', keywords: ['health guard', 'хелс гард'] },
-  { label: 'Тепловой насос', keywords: ['тепловой насос', 'heat pump'] },
-  { label: 'Обогрев до -30', keywords: ['-30', '−30', 'до минус 30'] },
-  { label: 'Ионизация', keywords: ['ионизац', 'ionizer', 'ионизатор'] },
-  { label: 'Самоочистка', keywords: ['самоочист', 'self clean', 'self-clean'] },
+const FEATURE_RULES = [
+  { label: 'Wi-Fi управление', patterns: [/\bwi\s*-?\s*fi\b/u, /\bwifi\b/u, /вай\s*-?\s*фай/u] },
+  { label: '3D-контроль потока воздуха', patterns: [/\b3\s*d\b/u, /3d\s*-?\s*контрол/u, /3d[^\n.]{0,80}(?:поток|воздух)/u] },
+  { label: 'I Feel', patterns: [/\bi\s*feel\b/u, /ай\s*фил/u] },
+  { label: 'самоочистка со стерилизацией', patterns: [/самоочист[^\n.]{0,120}стерилизац/u, /стерилизац[^\n.]{0,120}самоочист/u] },
+  { label: 'самоочистка', patterns: [/самоочист/u, /\bself\s*-?\s*clean/u] },
+  { label: 'R32', patterns: [/\br\s*32\b/u] },
+  { label: 'Full DC inverter', patterns: [/\bfull\s*dc\s*inverter\b/u, /полн(?:ый|ыи)\s+dc\s+инвертор/u] },
+  { label: 'инвертор', patterns: [/инвертор/u, /\binverter\b/u] },
+  { label: 'Golden Fin', patterns: [/\bgolden\s*fin\b/u, /голден\s*фин/u, /золот[а-я]+\s+покрыт/u] },
+  { label: 'фильтрация воздуха', patterns: [/фильтрац/u, /фильтр[^\n.]{0,80}воздух/u, /air\s*filter/u] },
+  { label: 'ионизация', patterns: [/ионизац/u, /ионизатор/u, /\bionizer\b/u, /\bioniser\b/u] },
+  { label: 'УФ-обработка воздуха', patterns: [/\bуф\b/u, /\buv\b/u, /ультрафиолет/u, /уф\s*-?\s*ламп/u, /uv\s*-?\s*lamp/u] },
+  { label: 'Gentle Breeze / мягкий обдув', patterns: [/\bgentle\s*breeze\b/u, /мягк[^\n.]{0,40}обдув/u] },
+  { label: 'Health Guard', patterns: [/\bhealth\s*guard\b/u, /хелс\s*гард/u] },
+  { label: 'Smart Sens', patterns: [/\bsmart\s*sens\b/u, /\bsmart\s*sense\b/u, /смарт\s*сенс/u] },
+  { label: 'тепловой насос', patterns: [/теплов(?:ой|ои)\s+насос/u, /\bheat\s*pump\b/u] },
+  { label: 'сменные тканевые панели', patterns: [/сменн[^\n.]{0,60}тканев[^\n.]{0,40}панел/u, /тканев[^\n.]{0,40}панел/u] },
+  { label: 'поворот жалюзи 180°', patterns: [/180\s*°?[^\n.]{0,80}жалюз/u, /жалюз[^\n.]{0,80}180\s*°?/u] },
+];
+
+const FEATURE_PRIORITY = [
+  'УФ-обработка воздуха',
+  'Gentle Breeze / мягкий обдув',
+  'самоочистка со стерилизацией',
+  'Wi-Fi управление',
+  'обогрев до -20°C',
+  'обогрев до -30°C',
+  'R32',
+  '3D-контроль потока воздуха',
+  'низкий уровень шума от 19 дБ',
+  'Health Guard',
+  'Smart Sens',
+  'тепловой насос',
+  'Full DC inverter',
+  'инвертор',
+  'Golden Fin',
+  'фильтрация воздуха',
+  'ионизация',
+  'I Feel',
+  'поворот жалюзи 180°',
+  'сменные тканевые панели',
+  'самоочистка',
 ];
 
 const TECHNICAL_SPEC_KEYWORDS = [
@@ -25,6 +60,8 @@ const TECHNICAL_SPEC_KEYWORDS = [
   'диапазон',
   'охлаждение',
   'обогрев',
+  'хладагент',
+  'r32',
 ];
 
 const SERIES_PROFILES = {
@@ -75,8 +112,8 @@ const SERIES_PROFILES = {
       'северные регионы',
       'клиент, которому важен обогрев зимой',
     ],
-    mainAdvantages: ['обогрев до -30°C', 'тепловой насос', 'Smart Sens', 'Health Guard', 'Wi-Fi'],
-    fallbackSalesFeatures: ['Wi-Fi', 'Smart Sens', 'Health Guard', 'Тепловой насос', 'Обогрев до -30', 'Ионизация', 'Самоочистка'],
+    mainAdvantages: ['обогрев до -30°C', 'тепловой насос', 'Smart Sens', 'Health Guard', 'Wi-Fi управление'],
+    fallbackSalesFeatures: ['Wi-Fi управление', 'Smart Sens', 'Health Guard', 'тепловой насос', 'обогрев до -30°C', 'ионизация', 'самоочистка'],
     salesArguments: ['Не просто кондиционер, а тепловой насос для отопления и охлаждения.'],
     clientSpeech:
       'ICE PEAK стоит рассматривать не как обычный кондиционер, а как тепловой насос для круглогодичного комфорта. Летом он охлаждает помещение, а зимой помогает с отоплением даже при морозах до -30°C. Для дома, коттеджа или дачи это способ экономить на обогреве в межсезонье и холодный период. Smart Sens, Health Guard и Wi‑Fi делают использование простым и комфортным каждый день.',
@@ -93,7 +130,16 @@ const SERIES_PROFILES = {
       'DEFENDER — серия для клиентов, которым важны не только охлаждение и обогрев, но и качество воздуха дома. Профиль серии стоит строить вокруг УФ-технологий, очистки воздуха и заботы о здоровье, поэтому она особенно уместна для семей с детьми и покупателей, которые внимательно относятся к микроклимату.',
     mainSalesIdea: 'Кондиционер для климата, чистоты воздуха и заботы о здоровье семьи.',
     targetClient: ['семьи с детьми', 'клиенты, которым важна очистка воздуха', 'домашний микроклимат'],
-    mainAdvantages: ['УФ', 'здоровье', 'очистка воздуха'],
+    mainAdvantages: [
+      'УФ-обработка воздуха',
+      'Gentle Breeze / мягкий обдув',
+      'самоочистка со стерилизацией',
+      'Wi-Fi управление',
+      'обогрев до -20°C',
+      'R32',
+      '3D-контроль потока воздуха',
+      'низкий уровень шума от 19 дБ',
+    ],
     salesArguments: [
       'серия помогает говорить с клиентом не только про температуру, но и про качество воздуха',
       'акцент на здоровье понятен семьям с детьми',
@@ -110,6 +156,8 @@ const SERIES_PROFILES = {
 };
 
 const MAX_SHORT_DESCRIPTION_LENGTH = 500;
+const MAX_MAIN_ADVANTAGES = 8;
+const MIN_MAIN_ADVANTAGES = 5;
 
 const buildSourceRef = (source) => [source.title, source.sourceRef].filter(Boolean).join(' · ');
 
@@ -144,19 +192,29 @@ const normalizeLine = (line) => line.trim().replace(/^[-–—•*\d.)\s]+/, '')
 
 const normalizeText = (value = '') => value.toLocaleLowerCase('ru-RU');
 
+const normalizeSearchText = (value = '') =>
+  normalizeText(value)
+    .replace(/ё/g, 'е')
+    .replace(/[‐‑‒–—−]/g, '-')
+    .replace(/°\s*c/g, '°c')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 const normalizeSeriesName = (seriesName = '') => normalizeText(seriesName.trim());
 
 const hasAnyKeyword = (text = '', keywords) => {
-  const normalizedText = normalizeText(text);
+  const normalizedText = normalizeSearchText(text);
 
-  return keywords.some((keyword) => normalizedText.includes(normalizeText(keyword)));
+  return keywords.some((keyword) => normalizedText.includes(normalizeSearchText(keyword)));
 };
+
+const hasAnyPattern = (text, patterns) => patterns.some((pattern) => pattern.test(text));
 
 const unique = (items) => {
   const seen = new Set();
 
   return items.filter((item) => {
-    const normalizedItem = normalizeText(item);
+    const normalizedItem = normalizeSearchText(item);
 
     if (seen.has(normalizedItem)) {
       return false;
@@ -167,24 +225,110 @@ const unique = (items) => {
   });
 };
 
+const sortFeaturesByPriority = (features) => {
+  const priorityIndex = new Map(FEATURE_PRIORITY.map((feature, index) => [normalizeSearchText(feature), index]));
 
-const extractSalesFeatures = (rawText = '') =>
-  SALES_FEATURE_RULES.filter((rule) => hasAnyKeyword(rawText, rule.keywords)).map((rule) => rule.label);
+  return [...features].sort((left, right) => {
+    const leftPriority = priorityIndex.get(normalizeSearchText(left)) ?? FEATURE_PRIORITY.length;
+    const rightPriority = priorityIndex.get(normalizeSearchText(right)) ?? FEATURE_PRIORITY.length;
 
-const extractProfileKeyFeatures = (profile, rawText = '') => {
-  const sourceFeatures = [
-    ...profile.meaningKeywords.filter((keyword) => hasAnyKeyword(rawText, [keyword])),
-    ...extractSalesFeatures(rawText),
+    return leftPriority - rightPriority;
+  });
+};
+
+const extractNoiseFeature = (normalizedText = '') => {
+  const noiseValues = [];
+  const noiseText = normalizedText.includes('шум') || normalizedText.includes('дб');
+
+  if (!noiseText) {
+    return [];
+  }
+
+  for (const match of normalizedText.matchAll(/(?:от\s*)?(1[5-9]|2\d|30)\s*дб/gu)) {
+    noiseValues.push(Number(match[1]));
+  }
+
+  for (const match of normalizedText.matchAll(/\b(1[5-9]|2\d|30)\s*\/\s*\d{2}\b/gu)) {
+    noiseValues.push(Number(match[1]));
+  }
+
+  if (noiseValues.length === 0) {
+    return [];
+  }
+
+  const minNoise = Math.min(...noiseValues);
+
+  return [`низкий уровень шума от ${minNoise} дБ`];
+};
+
+const extractHeatingFeatures = (normalizedText = '') => {
+  const hasHeatingContext = /обогрев|отоплен|нагрев|heat|heating|теплов(?:ой|ои)\s+насос/u.test(normalizedText);
+
+  if (!hasHeatingContext) {
+    return [];
+  }
+
+  return [
+    /(?:-|минус\s*)30\s*(?:°?c|с|град)?/u.test(normalizedText) ? 'обогрев до -30°C' : null,
+    /(?:-|минус\s*)20\s*(?:°?c|с|град)?/u.test(normalizedText) ? 'обогрев до -20°C' : null,
+  ].filter(Boolean);
+};
+
+export const extractFeatureList = (rawText = '', seriesName = '') => {
+  const normalizedText = normalizeSearchText(rawText);
+  const normalizedSeriesName = normalizeSeriesName(seriesName);
+  const features = [
+    ...FEATURE_RULES.filter((rule) => hasAnyPattern(normalizedText, rule.patterns)).map((rule) => rule.label),
+    ...extractHeatingFeatures(normalizedText),
+    ...extractNoiseFeature(normalizedText),
   ];
 
-  if (sourceFeatures.length === 0) {
+  const uniqueFeatures = unique(features);
+  const normalizedUniqueFeatures = uniqueFeatures.map(normalizeSearchText);
+  const containsSterileSelfClean = normalizedUniqueFeatures.includes('самоочистка со стерилизацией');
+  const containsFullDcInverter = normalizedUniqueFeatures.includes('full dc inverter');
+  const normalizedFeatures = uniqueFeatures.filter((feature) => {
+    const normalizedFeature = normalizeSearchText(feature);
+
+    if (containsSterileSelfClean && normalizedFeature === 'самоочистка') {
+      return false;
+    }
+
+    if (containsFullDcInverter && normalizedFeature === 'инвертор') {
+      return false;
+    }
+
+    if (normalizedSeriesName !== 'defender') {
+      return true;
+    }
+
+    return !['здоровье', 'очистка воздуха'].includes(normalizedFeature);
+  });
+
+  return sortFeaturesByPriority(normalizedFeatures);
+};
+
+const extractProfileKeyFeatures = (profile, rawText = '') => {
+  const featureList = extractFeatureList(rawText, profile.name);
+
+  if (featureList.length === 0) {
     return profile.fallbackSalesFeatures || profile.mainAdvantages;
   }
 
-  return unique([...profile.mainAdvantages, ...sourceFeatures]);
+  return featureList;
 };
 
-const extractKeyFeatures = (rawText = '') => extractSalesFeatures(rawText);
+const extractKeyFeatures = (rawText = '', seriesName = '') => extractFeatureList(rawText, seriesName);
+
+const pickMainAdvantages = (features = [], fallback = []) => {
+  const normalizedFeatures = unique(features);
+
+  if (normalizedFeatures.length >= MIN_MAIN_ADVANTAGES) {
+    return normalizedFeatures.slice(0, MAX_MAIN_ADVANTAGES);
+  }
+
+  return unique([...normalizedFeatures, ...fallback]).slice(0, MAX_MAIN_ADVANTAGES);
+};
 
 const extractTechnicalSpecs = (rawText = '') =>
   unique(
@@ -238,7 +382,10 @@ const trimToSentence = (text, maxLength = MAX_SHORT_DESCRIPTION_LENGTH) => {
 const buildProfileDraft = (source, profile) => {
   const rawText = source.rawText || '';
   const keyFeatures = extractProfileKeyFeatures(profile, rawText);
-  const salesFeatures = profile.fallbackSalesFeatures || profile.mainAdvantages;
+  const salesFeatures = keyFeatures;
+  const mainAdvantages = pickMainAdvantages(keyFeatures, profile.mainAdvantages);
+  const technicalSpecs = extractTechnicalSpecs(rawText);
+  const importantSpecs = unique([...salesFeatures, ...technicalSpecs]);
 
   return attachSourceRefs({
     brand: source.brand || profile.defaultBrand,
@@ -250,15 +397,15 @@ const buildProfileDraft = (source, profile) => {
     mainSalesIdea: profile.mainSalesIdea,
     keyFeatures,
     salesFeatures,
-    mainAdvantages: profile.mainAdvantages,
+    mainAdvantages,
     salesArguments: profile.salesArguments,
     clientSpeech: profile.clientSpeech,
     differences: '',
     whenRecommend: profile.whenRecommend,
     whenNotRecommend: profile.whenNotRecommend,
     objections: [],
-    technicalSpecs: extractTechnicalSpecs(rawText),
-    importantSpecs: [],
+    technicalSpecs,
+    importantSpecs,
     sourceIds: source.id ? [source.id] : [],
     status: 'draft',
   }, source);
@@ -277,6 +424,10 @@ export const generateSeriesDraft = (source) => {
     }
   }
 
+  const rawText = source.rawText || '';
+  const keyFeatures = extractKeyFeatures(rawText, source.seriesName);
+  const technicalSpecs = extractTechnicalSpecs(rawText);
+
   return attachSourceRefs({
     brand: source.brand || '',
     category: source.category || '',
@@ -285,17 +436,17 @@ export const generateSeriesDraft = (source) => {
     positioning: '',
     targetClient: [],
     mainSalesIdea: '',
-    keyFeatures: extractKeyFeatures(source.rawText),
-    salesFeatures: [],
-    mainAdvantages: [],
+    keyFeatures,
+    salesFeatures: keyFeatures,
+    mainAdvantages: pickMainAdvantages(keyFeatures),
     salesArguments: [],
     clientSpeech: '',
     differences: '',
     whenRecommend: [],
     whenNotRecommend: [],
     objections: [],
-    technicalSpecs: extractTechnicalSpecs(source.rawText),
-    importantSpecs: [],
+    technicalSpecs,
+    importantSpecs: unique([...keyFeatures, ...technicalSpecs]),
     sourceIds: source.id ? [source.id] : [],
     status: 'draft',
   }, source);
