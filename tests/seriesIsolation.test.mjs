@@ -95,4 +95,53 @@ const noTechnicalPagesDraft = generateSeriesDraft({
 assert.deepEqual(noTechnicalPagesDraft.technicalSpecs, [], 'technicalSpecs must stay empty without technicalPages');
 assert.match(noTechnicalPagesDraft.draftWarning, /Техническая таблица серии не найдена/u);
 
+const discoveryProfile = SERIES_PROFILES.find((profile) => profile.seriesName === 'DISCOVERY');
+const discoveryDraft = generateSeriesDraft({
+  profileId: discoveryProfile.id,
+  seriesName: discoveryProfile.seriesName,
+  code: discoveryProfile.code,
+  exactSeriesRawText: `
+    ${discoveryProfile.seriesName} ${discoveryProfile.code}
+    3D-контроль потока воздуха
+    i-FEEL
+    7 скоростей вентилятора
+    стабильная работа на обогрев
+    инвертор
+  `,
+  technicalRawText: `
+    Технические характеристики ${discoveryProfile.code}
+    Уровень шума внутреннего блока 23/35/41 дБ
+    Уровень шума наружного блока 52 дБ
+  `,
+  summaryRawText: `${discoveryProfile.seriesName} ${discoveryProfile.code} Health Guard УФ-обработка воздуха`,
+  serviceRawText: `Модуль HOMMYN работает с Hommyn для ${discoveryProfile.seriesName} ${discoveryProfile.code}`,
+});
+assert.deepEqual(
+  discoveryDraft.salesFeatures,
+  [
+    'Wi-Fi управление',
+    '3D-контроль потока воздуха',
+    'i-FEEL',
+    '7 скоростей вентилятора',
+    'стабильная работа на обогрев',
+    'низкий уровень шума от 23 дБ',
+    'инвертор',
+  ],
+  'DISCOVERY must collect exact page icon captions, service HOMMYN and technical noise in priority order',
+);
+assert.equal(/Health Guard|УФ-обработка воздуха/iu.test(stringifyDraft(discoveryDraft)), false, 'summary/service pages must not add non-Wi-Fi features');
+
+const discoveryServiceWithoutSeries = generateSeriesDraft({
+  profileId: discoveryProfile.id,
+  seriesName: discoveryProfile.seriesName,
+  code: discoveryProfile.code,
+  exactSeriesRawText: `${discoveryProfile.seriesName} ${discoveryProfile.code} 3D-контроль потока воздуха`,
+  serviceRawText: 'Модуль HOMMYN для другой серии',
+});
+assert.deepEqual(
+  discoveryServiceWithoutSeries.salesFeatures,
+  ['3D-контроль потока воздуха'],
+  'service HOMMYN must reference the selected series before adding Wi-Fi',
+);
+
 console.log(`series isolation ok: ${SERIES_PROFILES.length} profiles checked`);

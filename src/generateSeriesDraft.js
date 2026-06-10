@@ -1,48 +1,56 @@
 import { SERIES_PROFILES, findSeriesProfile } from './data/seriesProfiles.js';
 
-const FEATURE_RULES = [
-  { label: 'Wi-Fi управление', patterns: [/\bwi\s*-?\s*fi\b/u, /\bwifi\b/u, /вай\s*-?\s*фай/u] },
-  { label: '3D-контроль потока воздуха', patterns: [/\b3\s*d\b/u, /3d\s*-?\s*контрол/u, /3d[^\n.]{0,80}(?:поток|воздух)/u] },
-  { label: 'I Feel', patterns: [/\bi\s*feel\b/u, /ай\s*фил/u] },
-  { label: 'самоочистка со стерилизацией', patterns: [/самоочист[^\n.]{0,120}стерилизац/u, /стерилизац[^\n.]{0,120}самоочист/u] },
+const featurePatterns = [
+  { label: 'Wi-Fi управление', patterns: [/\bwi\s*-?\s*fi\b/u, /\bwifi\b/u, /вай\s*-?\s*фай/u, /\bhommyn\b/u, /работает\s+с\s+hommyn/u] },
+  { label: '3D-контроль потока воздуха', patterns: [/3d\s*-?\s*контрол/u, /3d\s+контрол/u, /\b3d\s*airflow\b/u, /3d[^\n.]{0,80}(?:поток|воздух)/u] },
+  { label: 'i-FEEL', patterns: [/\bi\s*-?\s*feel\b/u, /\bifeel\b/u, /климат\s*-?\s*контрол/u, /ай\s*фил/u] },
+  { label: '7 скоростей вентилятора', patterns: [/7\s+скорост/u, /скорост[а-яё]*\s+вентилятор/u] },
+  { label: 'стабильная работа на обогрев', patterns: [/стабильн[а-яё]*\s+работ[а-яё]*\s+на\s+обогрев/u, /работ[а-яё]*\s+на\s+обогрев/u] },
+  { label: 'самоочистка со стерилизацией', patterns: [/самоочист[а-яё\s-]{0,120}стерилизац/u, /стерилизац[а-яё\s-]{0,120}самоочист/u, /самоочистка\s+со\s+стерилизацией/u, /стерилизац(?:ия|ией|иеи|ию|ии|ией|иеи|ие)/u] },
   { label: 'самоочистка', patterns: [/самоочист/u, /\bself\s*-?\s*clean/u] },
   { label: 'R32', patterns: [/\br\s*32\b/u] },
   { label: 'Full DC inverter', patterns: [/\bfull\s*dc\s*inverter\b/u, /полн(?:ый|ыи)\s+dc\s+инвертор/u] },
   { label: 'инвертор', patterns: [/инвертор/u, /\binverter\b/u] },
-  { label: 'Golden Fin', patterns: [/\bgolden\s*fin\b/u, /голден\s*фин/u, /золот[а-я]+\s+покрыт/u] },
+  { label: 'Golden Fin', patterns: [/\bgolden\s*fin\b/u, /голден\s*фин/u, /защитн[а-яё]*\s+покрыт/u] },
   { label: 'фильтрация воздуха', patterns: [/фильтрац/u, /фильтр[^\n.]{0,80}воздух/u, /air\s*filter/u] },
-  { label: 'ионизация', patterns: [/ионизац/u, /ионизатор/u, /\bionizer\b/u, /\bioniser\b/u] },
-  { label: 'УФ-обработка воздуха', patterns: [/\bуф\b/u, /\buv\b/u, /ультрафиолет/u, /уф\s*-?\s*ламп/u, /uv\s*-?\s*lamp/u] },
+  { label: 'ионизация', patterns: [/ионизац/u, /\bion\s*air\b/u, /ионизатор/u, /\bionizer\b/u, /\bioniser\b/u] },
+  { label: 'ION COMBO-4', patterns: [/\bion\s*combo-?4\b/u, /комбо\s*-?\s*фильтр\s+4\s+в\s+1/u] },
+  { label: 'УФ-обработка воздуха', patterns: [/уф\s*-?\s*обработ/u, /uv\s*-?\s*фильтр/u, /ультрафиолет/u, /уф\s*-?\s*ламп/u, /uv\s*-?\s*lamp/u] },
   { label: 'Gentle Breeze / мягкий обдув', patterns: [/\bgentle\s*breeze\b/u, /мягк[^\n.]{0,40}обдув/u] },
   { label: 'Health Guard', patterns: [/\bhealth\s*guard\b/u, /хелс\s*гард/u] },
-  { label: 'Smart Sens', patterns: [/\bsmart\s*sens\b/u, /\bsmart\s*sense\b/u, /смарт\s*сенс/u] },
+  { label: 'Smart Sens', patterns: [/\bsmart\s*sens\b/u, /\bsmart\s*sense\b/u, /смарт\s*сенс/u, /датчик\s+присутств/u] },
   { label: 'тепловой насос', patterns: [/теплов(?:ой|ои)\s+насос/u, /\bheat\s*pump\b/u] },
   { label: 'сменные тканевые панели', patterns: [/сменн[^\n.]{0,60}тканев[^\n.]{0,40}панел/u, /тканев[^\n.]{0,40}панел/u] },
   { label: 'поворот жалюзи 180°', patterns: [/180\s*°?[^\n.]{0,80}жалюз/u, /жалюз[^\n.]{0,80}180\s*°?/u] },
 ];
 
+const FEATURE_RULES = featurePatterns;
+
 const FEATURE_PRIORITY = [
+  'Wi-Fi управление',
+  '3D-контроль потока воздуха',
+  'i-FEEL',
+  '7 скоростей вентилятора',
+  'стабильная работа на обогрев',
+  'низкий уровень шума от 19 дБ',
   'УФ-обработка воздуха',
   'Gentle Breeze / мягкий обдув',
   'самоочистка со стерилизацией',
-  'Wi-Fi управление',
-  'обогрев до -20°C',
   'обогрев до -30°C',
-  'R32',
-  '3D-контроль потока воздуха',
-  'низкий уровень шума от 19 дБ',
+  'обогрев до -20°C',
   'Health Guard',
   'Smart Sens',
   'тепловой насос',
-  'Full DC inverter',
-  'инвертор',
   'Golden Fin',
-  'фильтрация воздуха',
   'ионизация',
-  'I Feel',
+  'ION COMBO-4',
+  'фильтрация воздуха',
   'поворот жалюзи 180°',
   'сменные тканевые панели',
   'самоочистка',
+  'Full DC inverter',
+  'инвертор',
+  'R32',
 ];
 
 const TECHNICAL_FEATURE_LABELS = new Set([
@@ -270,32 +278,53 @@ const unique = (items) => {
   });
 };
 
+const getFeaturePriorityKey = (feature = '') => {
+  const normalizedFeature = normalizeSearchText(feature);
+
+  if (/^низкий уровень шума от \d+ дб$/u.test(normalizedFeature)) {
+    return normalizeSearchText('низкий уровень шума от 19 дБ');
+  }
+
+  return normalizedFeature;
+};
+
 const sortFeaturesByPriority = (features) => {
   const priorityIndex = new Map(FEATURE_PRIORITY.map((feature, index) => [normalizeSearchText(feature), index]));
 
   return [...features].sort((left, right) => {
-    const leftPriority = priorityIndex.get(normalizeSearchText(left)) ?? FEATURE_PRIORITY.length;
-    const rightPriority = priorityIndex.get(normalizeSearchText(right)) ?? FEATURE_PRIORITY.length;
+    const leftPriority = priorityIndex.get(getFeaturePriorityKey(left)) ?? FEATURE_PRIORITY.length;
+    const rightPriority = priorityIndex.get(getFeaturePriorityKey(right)) ?? FEATURE_PRIORITY.length;
 
     return leftPriority - rightPriority;
   });
 };
 
+const collectNoiseValues = (text = '') => {
+  const values = [];
+
+  for (const match of text.matchAll(/(?:от\s*)?(1[5-9]|2\d|30)\s*дб/gu)) {
+    values.push(Number(match[1]));
+  }
+
+  for (const match of text.matchAll(/\b(1[5-9]|2\d|30)\s*\/\s*\d{2}\b/gu)) {
+    values.push(Number(match[1]));
+  }
+
+  return values;
+};
+
 const extractNoiseFeature = (normalizedText = '') => {
-  const noiseValues = [];
   const noiseText = normalizedText.includes('шум') || normalizedText.includes('дб');
 
   if (!noiseText) {
     return [];
   }
 
-  for (const match of normalizedText.matchAll(/(?:от\s*)?(1[5-9]|2\d|30)\s*дб/gu)) {
-    noiseValues.push(Number(match[1]));
-  }
-
-  for (const match of normalizedText.matchAll(/\b(1[5-9]|2\d|30)\s*\/\s*\d{2}\b/gu)) {
-    noiseValues.push(Number(match[1]));
-  }
+  const noiseLines = normalizedText.split(/\r?\n/u).filter((line) => line.includes('шум') || line.includes('дб'));
+  const indoorNoiseValues = noiseLines
+    .filter((line) => /внутрен|вн\.?\s*блок|indoor/u.test(line))
+    .flatMap(collectNoiseValues);
+  const noiseValues = indoorNoiseValues.length > 0 ? indoorNoiseValues : collectNoiseValues(normalizedText);
 
   if (noiseValues.length === 0) {
     return [];
@@ -351,6 +380,65 @@ export const extractFeatureList = (rawText = '', seriesName = '') => {
   });
 
   return sortFeaturesByPriority(normalizedFeatures);
+};
+
+const WIFI_PATTERNS = FEATURE_RULES.find((rule) => rule.label === 'Wi-Fi управление').patterns;
+const COMMON_SALES_FEATURES = new Set(['Full DC inverter', 'инвертор', 'R32'].map(normalizeSearchText));
+
+const hasSeriesReference = (normalizedText = '', seriesName = '', code = '') => {
+  const normalizedSeriesName = normalizeSeriesName(seriesName);
+  const normalizedCode = normalizeSearchText(code);
+
+  return [normalizedSeriesName, normalizedCode]
+    .filter(Boolean)
+    .some((marker) => new RegExp(`(^|[^0-9a-zа-яё])${marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^0-9a-zа-яё]|$)`, 'u').test(normalizedText));
+};
+
+const extractAuxiliaryWifiFeature = (rawText = '', seriesName = '', code = '') => {
+  const normalizedText = normalizeSearchText(rawText);
+
+  if (!normalizedText || !hasAnyPattern(normalizedText, WIFI_PATTERNS)) {
+    return [];
+  }
+
+  return hasSeriesReference(normalizedText, seriesName, code) ? ['Wi-Fi управление'] : [];
+};
+
+const sortSalesFeatures = (features = []) => {
+  const priorityIndex = new Map(FEATURE_PRIORITY.map((feature, index) => [normalizeSearchText(feature), index]));
+
+  return [...features].sort((left, right) => {
+    const leftNormalized = normalizeSearchText(left);
+    const rightNormalized = normalizeSearchText(right);
+    const leftCommon = COMMON_SALES_FEATURES.has(leftNormalized);
+    const rightCommon = COMMON_SALES_FEATURES.has(rightNormalized);
+
+    if (leftCommon !== rightCommon) {
+      return leftCommon ? 1 : -1;
+    }
+
+    const leftPriority = priorityIndex.get(getFeaturePriorityKey(left)) ?? FEATURE_PRIORITY.length;
+    const rightPriority = priorityIndex.get(getFeaturePriorityKey(right)) ?? FEATURE_PRIORITY.length;
+
+    return leftPriority - rightPriority;
+  });
+};
+
+const buildSalesFeatureList = ({ exactSeriesText = '', technicalText = '', summaryText = '', serviceText = '', seriesName = '', code = '', hasExactSeriesPages = false, hasTechnicalTable = false }) => {
+  if (!hasExactSeriesPages) {
+    return [];
+  }
+
+  const exactSeriesFeatures = extractFeatureList(exactSeriesText, seriesName).filter((feature) => !isTechnicalFeature(feature));
+  const auxiliaryWifiFeatures = [
+    ...extractAuxiliaryWifiFeature(summaryText, seriesName, code),
+    ...extractAuxiliaryWifiFeature(serviceText, seriesName, code),
+  ];
+  const technicalFeatures = hasTechnicalTable
+    ? extractFeatureList(technicalText, seriesName).filter(isTechnicalFeature)
+    : [];
+
+  return sortSalesFeatures(unique([...exactSeriesFeatures, ...auxiliaryWifiFeatures, ...technicalFeatures]));
 };
 
 const extractProfileKeyFeatures = (profile, rawText = '', technicalRawText = '') => {
@@ -464,11 +552,18 @@ const getIsolatedSourceTexts = (source) => {
 };
 
 const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
-  const { exactSeriesText, technicalText, hasExactSeriesPages, hasTechnicalTable } = getIsolatedSourceTexts(source);
+  const { exactSeriesText, technicalText, summaryText, serviceText, hasExactSeriesPages, hasTechnicalTable } = getIsolatedSourceTexts(source);
   const seriesName = approvedProfile.seriesName;
-  const salesFeatures = hasExactSeriesPages
-    ? extractFeatureList(exactSeriesText, seriesName).filter((feature) => !isTechnicalFeature(feature))
-    : [];
+  const salesFeatures = buildSalesFeatureList({
+    exactSeriesText,
+    technicalText,
+    summaryText,
+    serviceText,
+    seriesName,
+    code: approvedProfile.code,
+    hasExactSeriesPages,
+    hasTechnicalTable,
+  });
   const technicalFeatures = hasTechnicalTable
     ? extractFeatureList(technicalText, seriesName).filter(isTechnicalFeature)
     : [];
@@ -522,10 +617,17 @@ export const generateSeriesDraft = (source) => {
     return buildProfileDraft(source, approvedProfile, legacyProfile);
   }
 
-  const { exactSeriesText, technicalText, hasExactSeriesPages, hasTechnicalTable } = getIsolatedSourceTexts(source);
-  const salesFeatures = hasExactSeriesPages
-    ? extractFeatureList(exactSeriesText, source.seriesName).filter((feature) => !isTechnicalFeature(feature))
-    : [];
+  const { exactSeriesText, technicalText, summaryText, serviceText, hasExactSeriesPages, hasTechnicalTable } = getIsolatedSourceTexts(source);
+  const salesFeatures = buildSalesFeatureList({
+    exactSeriesText,
+    technicalText,
+    summaryText,
+    serviceText,
+    seriesName: source.seriesName,
+    code: source.code,
+    hasExactSeriesPages,
+    hasTechnicalTable,
+  });
   const technicalFeatures = hasTechnicalTable
     ? extractFeatureList(technicalText, source.seriesName).filter(isTechnicalFeature)
     : [];
