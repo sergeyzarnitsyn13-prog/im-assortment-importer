@@ -29,6 +29,7 @@ const TECHNICAL_SPEC_KEYWORDS = [
 
 const SERIES_PROFILES = {
   BOHO: {
+    name: 'BOHO',
     seriesNames: ['boho', 'бохо'],
     meaningKeywords: [
       'дизайн',
@@ -59,6 +60,7 @@ const SERIES_PROFILES = {
     ],
   },
   'ICE PEAK': {
+    name: 'ICE PEAK',
     seriesNames: ['ice peak', 'айс пик'],
     meaningKeywords: ['тепловой насос', 'отопление', '-30', 'smart sens', 'health guard'],
     defaultBrand: 'ICE PEAK',
@@ -82,6 +84,7 @@ const SERIES_PROFILES = {
     whenNotRecommend: ['нужен самый дешёвый кондиционер', 'требуется только охлаждение летом'],
   },
   DEFENDER: {
+    name: 'DEFENDER',
     seriesNames: ['defender', 'дефендер'],
     meaningKeywords: ['уф', 'uv', 'здоровье', 'очистка воздуха', 'семьи с детьми'],
     defaultBrand: '',
@@ -141,6 +144,8 @@ const normalizeLine = (line) => line.trim().replace(/^[-–—•*\d.)\s]+/, '')
 
 const normalizeText = (value = '') => value.toLocaleLowerCase('ru-RU');
 
+const normalizeSeriesName = (seriesName = '') => normalizeText(seriesName.trim());
+
 const hasAnyKeyword = (text = '', keywords) => {
   const normalizedText = normalizeText(text);
 
@@ -162,13 +167,11 @@ const unique = (items) => {
   });
 };
 
-const getSourceSearchText = (source) =>
-  [source.brand, source.seriesName, source.title, source.rawText].filter(Boolean).join('\n');
 
 const extractSalesFeatures = (rawText = '') =>
   SALES_FEATURE_RULES.filter((rule) => hasAnyKeyword(rawText, rule.keywords)).map((rule) => rule.label);
 
-const extractProfileSalesFeatures = (profile, rawText = '') => {
+const extractProfileKeyFeatures = (profile, rawText = '') => {
   const sourceFeatures = [
     ...profile.meaningKeywords.filter((keyword) => hasAnyKeyword(rawText, [keyword])),
     ...extractSalesFeatures(rawText),
@@ -192,13 +195,27 @@ const extractTechnicalSpecs = (rawText = '') =>
       .filter((line) => hasAnyKeyword(line, TECHNICAL_SPEC_KEYWORDS)),
   );
 
-const detectSeriesProfile = (source) => {
-  const searchText = getSourceSearchText(source);
+export const getSeriesProfileByName = (seriesName = '') => {
+  const normalizedSeriesName = normalizeSeriesName(seriesName);
 
-  return Object.values(SERIES_PROFILES).find(
-    (profile) =>
-      hasAnyKeyword(searchText, profile.seriesNames) || hasAnyKeyword(searchText, profile.meaningKeywords),
+  if (!normalizedSeriesName) {
+    return null;
+  }
+
+  return (
+    Object.values(SERIES_PROFILES).find((profile) => {
+      const profileNames = [profile.name, ...profile.seriesNames].filter(Boolean).map(normalizeSeriesName);
+
+      return profileNames.includes(normalizedSeriesName);
+    }) || null
   );
+};
+
+const doesProfileMatchDraftSeriesName = (draft, profile) => {
+  const normalizedDraftSeriesName = normalizeSeriesName(draft.seriesName);
+  const profileNames = [profile.name, ...profile.seriesNames].filter(Boolean).map(normalizeSeriesName);
+
+  return profileNames.includes(normalizedDraftSeriesName);
 };
 
 const trimToSentence = (text, maxLength = MAX_SHORT_DESCRIPTION_LENGTH) => {
@@ -218,22 +235,10 @@ const trimToSentence = (text, maxLength = MAX_SHORT_DESCRIPTION_LENGTH) => {
   return `${normalizedText.slice(0, maxLength - 1).trim()}…`;
 };
 
-const buildHumanShortDescription = (source, salesFeatures) => {
-  const productName = [source.brand, source.seriesName].filter(Boolean).join(' ') || 'Серия';
-  const category = source.category || 'климатическая техника';
-  const featureSummary = salesFeatures.slice(0, 3).join(', ');
-  const featureSentence = featureSummary
-    ? ` В карточке стоит подсветить понятные клиенту преимущества: ${featureSummary}.`
-    : ' Описание лучше дополнить ключевыми преимуществами из проверенного источника.';
-
-  return trimToSentence(
-    `${productName} — ${category} для клиентов, которым важно быстро понять назначение серии без лишних технических подробностей.${featureSentence} Текст можно использовать как основу для карточки и затем уточнить под конкретные модели.`,
-  );
-};
-
 const buildProfileDraft = (source, profile) => {
   const rawText = source.rawText || '';
-  const salesFeatures = extractProfileSalesFeatures(profile, rawText);
+  const keyFeatures = extractProfileKeyFeatures(profile, rawText);
+  const salesFeatures = profile.fallbackSalesFeatures || profile.mainAdvantages;
 
   return attachSourceRefs({
     brand: source.brand || profile.defaultBrand,
@@ -243,7 +248,7 @@ const buildProfileDraft = (source, profile) => {
     positioning: profile.positioning,
     targetClient: profile.targetClient,
     mainSalesIdea: profile.mainSalesIdea,
-    keyFeatures: salesFeatures,
+    keyFeatures,
     salesFeatures,
     mainAdvantages: profile.mainAdvantages,
     salesArguments: profile.salesArguments,
@@ -262,24 +267,26 @@ const buildProfileDraft = (source, profile) => {
 export const generateIcePeakDraft = (source) => buildProfileDraft(source, SERIES_PROFILES['ICE PEAK']);
 
 export const generateSeriesDraft = (source) => {
-  const profile = detectSeriesProfile(source);
+  const profile = getSeriesProfileByName(source.seriesName);
 
   if (profile) {
-    return buildProfileDraft(source, profile);
-  }
+    const profileDraft = buildProfileDraft(source, profile);
 
-  const salesFeatures = extractSalesFeatures(source.rawText);
+    if (doesProfileMatchDraftSeriesName(profileDraft, profile)) {
+      return profileDraft;
+    }
+  }
 
   return attachSourceRefs({
     brand: source.brand || '',
     category: source.category || '',
     seriesName: source.seriesName || '',
-    shortDescription: buildHumanShortDescription(source, salesFeatures),
+    shortDescription: '',
     positioning: '',
     targetClient: [],
     mainSalesIdea: '',
     keyFeatures: extractKeyFeatures(source.rawText),
-    salesFeatures,
+    salesFeatures: [],
     mainAdvantages: [],
     salesArguments: [],
     clientSpeech: '',
