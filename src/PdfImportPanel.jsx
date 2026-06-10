@@ -51,10 +51,18 @@ const SERIES_PAGE_RULES = Object.fromEntries(
     profile.seriesName.toLocaleLowerCase('ru-RU').trim().replace(/\s+/g, ' '),
     {
       code: profile.code,
+      aliases: profile.aliases || [],
       keywords: [],
     },
   ]),
 );
+
+const SERIES_MARKERS = SERIES_PROFILES.map((profile) => ({
+  id: profile.id,
+  seriesName: profile.seriesName,
+  code: profile.code,
+  aliases: profile.aliases || [],
+}));
 
 const SUMMARY_SERIES_NAMES = SERIES_PROFILES.map((profile) => profile.seriesName);
 
@@ -83,6 +91,8 @@ const includesNormalizedPhrase = (text = '', phrase = '') => {
 const countIncludedPhrases = (text = '', phrases = []) =>
   phrases.reduce((count, phrase) => (includesNormalizedPhrase(text, phrase) ? count + 1 : count), 0);
 
+const unique = (items) => [...new Set(items)];
+
 const hasExactPhrase = (text = '', phrase = '') => {
   const trimmedPhrase = phrase.trim();
 
@@ -91,6 +101,96 @@ const hasExactPhrase = (text = '', phrase = '') => {
   }
 
   return new RegExp(`(^|[^0-9a-zа-яё])${escapeRegExp(trimmedPhrase)}([^0-9a-zа-яё]|$)`, 'i').test(text);
+};
+
+const getProfileMarkers = (profile) => [profile?.seriesName, profile?.code, ...(profile?.aliases || [])].filter(Boolean);
+
+const getContainedSeriesMarkers = (text = '', profile) =>
+  getProfileMarkers(profile).filter((marker) => hasExactPhrase(text, marker));
+
+const getOtherSeriesMarkers = (text = '', selectedProfile) =>
+  SERIES_MARKERS.filter((profile) => profile.id !== selectedProfile?.id)
+    .flatMap((profile) =>
+      [profile.seriesName, profile.code, ...profile.aliases]
+        .filter(Boolean)
+        .filter((marker) => hasExactPhrase(text, marker)),
+    );
+
+const hasTechnicalMarker = (text = '') =>
+  includesNormalizedPhrase(text, 'Технические характеристики') || includesNormalizedPhrase(text, 'Параметр / Модель');
+
+const buildExcludeReason = ({ profile, selectedMarkers, otherMarkers, isHommynPage, isMultiSeriesSummaryPage, isCategoryPage }) => {
+  if (isHommynPage) {
+    return 'страница HOMMYN';
+  }
+
+  if (isMultiSeriesSummaryPage) {
+    return 'сводная таблица, где перечислены 4+ серии';
+  }
+
+  if (isCategoryPage) {
+    return 'общая страница категории';
+  }
+
+  if (otherMarkers.length > 0) {
+    return `содержит ${unique(otherMarkers).join(' / ')}, выбрана ${profile.seriesName}`;
+  }
+
+  if (selectedMarkers.length === 0) {
+    return `не содержит ${profile.seriesName} / ${profile.code}`;
+  }
+
+  return '';
+};
+
+export const classifyPageForSeries = (page, profile) => {
+  const text = page?.text || '';
+  const selectedMarkers = getContainedSeriesMarkers(text, profile);
+  const otherMarkers = getOtherSeriesMarkers(text, profile);
+  const isHommynPage = hasExactPhrase(text, 'HOMMYN');
+  const isMultiSeriesSummaryPage = isSummaryPage(text);
+  const isCategoryPage = isGeneralCategoryPage(text, profile.seriesName);
+  const excluded =
+    selectedMarkers.length === 0 ||
+    otherMarkers.length > 0 ||
+    isHommynPage ||
+    isMultiSeriesSummaryPage ||
+    isCategoryPage;
+  const belongsToSeries = selectedMarkers.length > 0 && !excluded;
+  const isTechnicalPage = belongsToSeries && hasTechnicalMarker(text) && hasExactPhrase(text, profile.code);
+  const isOverviewPage = belongsToSeries && !isTechnicalPage;
+  let score = scoreSeriesPage(page, profile.seriesName);
+
+  if (selectedMarkers.length > 0) {
+    score += selectedMarkers.some((marker) => marker === profile.code) ? 10 : 6;
+  }
+
+  if (isTechnicalPage) {
+    score += 5;
+  }
+
+  if (excluded) {
+    score = Math.min(score, -1);
+  }
+
+  return {
+    pageNumber: page?.pageNumber,
+    score,
+    belongsToSeries,
+    isTechnicalPage,
+    isOverviewPage,
+    excluded,
+    excludeReason: excluded
+      ? buildExcludeReason({
+          profile,
+          selectedMarkers,
+          otherMarkers,
+          isHommynPage,
+          isMultiSeriesSummaryPage,
+          isCategoryPage,
+        })
+      : '',
+  };
 };
 
 const hasSeriesCode = (text = '', seriesName = '') => {
@@ -128,84 +228,7 @@ const isGeneralCategoryPage = (text = '', seriesName = '') => {
   return hasGeneralMarkers && !hasSeriesCode(text, seriesName) && !hasHeadingSeriesName(text, seriesName);
 };
 
-const isExcludedByPageRules = (text = '', seriesName = '') =>
-  isSummaryPage(text) || isServicePage(text) || isGeneralCategoryPage(text, seriesName);
-
-export const scoreSeriesPage = (page, seriesName) => {
-  const text = page?.text || '';
-  const rule = findSeriesRule(seriesName);
-  let score = 0;
-
-  if (hasHeadingSeriesName(text, seriesName)) {
-    score += 10;
-  }
-
-  if (hasSeriesCode(text, seriesName)) {
-    score += 8;
-  }
-
-  if (rule?.keywords?.some((keyword) => includesNormalizedPhrase(text, keyword))) {
-    score += 6;
-  }
-
-  if (includesNormalizedPhrase(text, 'Параметр / Модель')) {
-    score += 3;
-  }
-
-  if (includesNormalizedPhrase(text, 'Технические характеристики')) {
-    score += 2;
-  }
-
-  if (isSummaryPage(text)) {
-    score -= 10;
-  }
-
-  if (isServicePage(text)) {
-    score -= 8;
-  }
-
-  if (isGeneralCategoryPage(text, seriesName)) {
-    score -= 5;
-  }
-
-  return score;
-};
-
-const pageHasDirectSeriesMatch = (page, normalizedSeriesName, seriesName) =>
-  Boolean(normalizedSeriesName) && (hasExactPhrase(page.text, seriesName) || hasSeriesCode(page.text, seriesName));
-
-const getFallbackSelectedPages = (scoredPages, seriesName) =>
-  scoredPages
-    .filter(({ page, score }) => score >= 0 && !isExcludedByPageRules(page.text, seriesName))
-    .sort((firstPage, secondPage) => {
-      if (secondPage.score !== firstPage.score) {
-        return secondPage.score - firstPage.score;
-      }
-
-      return firstPage.page.pageNumber - secondPage.page.pageNumber;
-    })
-    .slice(0, 2)
-    .map(({ page }) => page)
-    .sort((firstPage, secondPage) => firstPage.pageNumber - secondPage.pageNumber);
-
-const getAutoSelectedPages = (scoredPages, seriesName) => {
-  const highScorePages = scoredPages
-    .filter(({ page, score }) => score >= 8 && !isExcludedByPageRules(page.text, seriesName))
-    .map(({ page }) => page);
-
-  if (highScorePages.length > 0) {
-    return highScorePages;
-  }
-
-  return getFallbackSelectedPages(scoredPages, seriesName);
-};
-
 const formatPageNumbers = (pageNumbers) => (pageNumbers.length > 0 ? pageNumbers.join(', ') : 'нет');
-
-const getPageWithNeighborsNumbers = (pageNumber, pagesCount) =>
-  [pageNumber - 1, pageNumber, pageNumber + 1].filter(
-    (neighborPageNumber) => neighborPageNumber >= 1 && neighborPageNumber <= pagesCount,
-  );
 
 const getPageText = async (page) => {
   const textContent = await page.getTextContent();
@@ -291,6 +314,23 @@ function PdfImportPanel({ onCreateSource }) {
   }, [seriesResult, selectedPageNumbers]);
 
   const selectedRawText = useMemo(() => buildRawText(selectedPages), [selectedPages]);
+  const selectedClassifications = useMemo(() => {
+    const classifiedByNumber = seriesResult?.classifiedByNumber || new Map();
+
+    return selectedPages.map((page) => classifiedByNumber.get(page.pageNumber)).filter(Boolean);
+  }, [seriesResult, selectedPages]);
+  const selectedTechnicalPageNumbers = selectedClassifications
+    .filter((classification) => classification.isTechnicalPage)
+    .map((classification) => classification.pageNumber);
+  const selectedOverviewPageNumbers = selectedClassifications
+    .filter((classification) => classification.isOverviewPage)
+    .map((classification) => classification.pageNumber);
+  const selectedTechnicalRawText = buildRawText(
+    selectedPages.filter((page) => selectedTechnicalPageNumbers.includes(page.pageNumber)),
+  );
+  const selectedOverviewRawText = buildRawText(
+    selectedPages.filter((page) => selectedOverviewPageNumbers.includes(page.pageNumber)),
+  );
   const selectedPageNumbersText = selectedPages.map((page) => page.pageNumber).join(', ');
   const selectedRawTextPreview = selectedRawText.slice(0, 1000);
   const scoredPagesByNumber = useMemo(() => {
@@ -402,56 +442,103 @@ function PdfImportPanel({ onCreateSource }) {
 
   const handleFindSeries = () => {
     const profile = findSeriesProfile(form.seriesName || form.code || form.profileId);
-    const searchValue = profile?.seriesName || form.seriesName;
-    const normalizedSeries = normalizeSearchText(searchValue);
 
     setSeriesResult(null);
     setSelectedPageNumbers([]);
     setSeriesMessage('');
     setSeriesMessageKind('info');
 
-    if (!normalizedSeries) {
+    if (!profile) {
       setSeriesMessageKind('error');
-      setSeriesMessage('Введите название серии, код или модель.');
+      setSeriesMessage('Выберите серию из утверждённого справочника или введите её точный код/название.');
       return;
     }
 
-    const directMatchPages = pages.filter((page) => pageHasDirectSeriesMatch(page, normalizedSeries, searchValue));
+    const classifications = pages.map((page) => ({
+      page,
+      classification: classifyPageForSeries(page, profile),
+    }));
+    const directMatchPages = classifications
+      .filter(({ classification }) => classification.belongsToSeries)
+      .map(({ page }) => page);
 
     if (directMatchPages.length === 0) {
+      const excludedPages = classifications
+        .filter(
+          ({ classification }) =>
+            classification.excluded &&
+            classification.excludeReason &&
+            !classification.excludeReason.startsWith('не содержит'),
+        )
+        .map(({ page, classification }) => ({
+          pageNumber: page.pageNumber,
+          reason: classification.excludeReason,
+        }));
+
+      setSeriesResult({
+        pages: [],
+        directMatchPages: [],
+        scoredPages: [],
+        autoSelectedPageNumbers: [],
+        technicalPageNumbers: [],
+        overviewPageNumbers: [],
+        excludedPages,
+        excludedPageNumbers: excludedPages.map((page) => page.pageNumber),
+        classifiedByNumber: new Map(
+          classifications.map(({ page, classification }) => [page.pageNumber, classification]),
+        ),
+      });
       setSeriesMessageKind('error');
       setSeriesMessage('Серия не найдена в тексте PDF');
       return;
     }
 
-    const pageNumbers = new Set();
-
-    directMatchPages.forEach((page) => {
-      getPageWithNeighborsNumbers(page.pageNumber, pages.length).forEach((pageNumber) => pageNumbers.add(pageNumber));
-    });
-
-    const scoredPages = [...pageNumbers]
-      .sort((firstPage, secondPage) => firstPage - secondPage)
-      .map((pageNumber) => pages.find((page) => page.pageNumber === pageNumber))
-      .filter(Boolean)
-      .map((page) => ({ page, score: scoreSeriesPage(page, searchValue) }));
+    const scoredPages = classifications
+      .filter(({ classification }) => classification.belongsToSeries)
+      .sort((firstPage, secondPage) => firstPage.page.pageNumber - secondPage.page.pageNumber)
+      .map(({ page, classification }) => ({ page, score: classification.score }));
     const foundPages = scoredPages.map(({ page }) => page);
-    const autoSelectedPages = getAutoSelectedPages(scoredPages, searchValue);
+    const autoSelectedPages = scoredPages.map(({ page }) => page);
     const autoSelectedPageNumbers = getSelectedPageNumbers(autoSelectedPages);
-    const excludedPageNumbers = scoredPages
-      .filter(({ page, score }) => score < 0 || isExcludedByPageRules(page.text, searchValue))
+    const technicalPageNumbers = classifications
+      .filter(({ classification }) => classification.isTechnicalPage)
       .map(({ page }) => page.pageNumber);
+    const overviewPageNumbers = classifications
+      .filter(({ classification }) => classification.isOverviewPage)
+      .map(({ page }) => page.pageNumber);
+    const excludedPages = classifications
+      .filter(
+        ({ classification }) =>
+          classification.excluded &&
+          classification.excludeReason &&
+          !classification.excludeReason.startsWith('не содержит'),
+      )
+      .map(({ page, classification }) => ({
+        pageNumber: page.pageNumber,
+        reason: classification.excludeReason,
+      }));
+    const classifiedByNumber = new Map(
+      classifications.map(({ page, classification }) => [page.pageNumber, classification]),
+    );
 
     setSeriesResult({
       pages: foundPages,
       directMatchPages,
       scoredPages,
       autoSelectedPageNumbers,
-      excludedPageNumbers,
+      technicalPageNumbers,
+      overviewPageNumbers,
+      excludedPages,
+      excludedPageNumbers: excludedPages.map((page) => page.pageNumber),
+      classifiedByNumber,
     });
     setSelectedPageNumbers(autoSelectedPageNumbers);
-    setSeriesMessageKind('info');
-    setSeriesMessage(`${profile ? `Определена серия: ${profile.seriesName} (${profile.code}). ` : ''}Найдено прямых совпадений названия/кода: ${directMatchPages.length}`);
+    setSeriesMessageKind(technicalPageNumbers.length > 0 ? 'info' : 'warning');
+    setSeriesMessage(
+      `${`Определена серия: ${profile.seriesName} (${profile.code}). `}Найдено страниц серии: ${directMatchPages.length}. ${
+        technicalPageNumbers.length === 0 ? 'Техническая таблица для серии не найдена.' : ''
+      }`,
+    );
   };
 
   const handleFoundPageToggle = (pageNumber) => {
@@ -462,6 +549,18 @@ function PdfImportPanel({ onCreateSource }) {
 
       return [...current, pageNumber].sort((firstPage, secondPage) => firstPage - secondPage);
     });
+  };
+
+  const assertRawTextBelongsToSelectedSeries = (rawText, profile) => {
+    if (!profile) {
+      return;
+    }
+
+    const otherMarkers = getOtherSeriesMarkers(rawText, profile);
+
+    if (otherMarkers.length > 0 && !hasExactPhrase(rawText, profile.code)) {
+      throw new Error('Найден текст другой серии. Карточка не создана.');
+    }
   };
 
   const buildSelectedPagesSource = () => {
@@ -485,6 +584,8 @@ function PdfImportPanel({ onCreateSource }) {
       throw new Error('Текст выбранных страниц пустой.');
     }
 
+    assertRawTextBelongsToSelectedSeries(rawText, profile);
+
     const sourceBrand = profile?.brand || brand;
     const sourceCategory = profile?.category || category;
 
@@ -500,6 +601,16 @@ function PdfImportPanel({ onCreateSource }) {
       sourceDate: catalogYear,
       sourceRef: `PDF каталог ${catalogYear}, страницы ${selectedPagesArray.join(', ')}`,
       rawText,
+      technicalRawText: selectedTechnicalRawText.trim(),
+      overviewRawText: selectedOverviewRawText.trim(),
+      technicalPages: selectedTechnicalPageNumbers,
+      overviewPages: selectedOverviewPageNumbers,
+      pageDiagnostics: {
+        usedPages: selectedPagesArray,
+        technicalPages: selectedTechnicalPageNumbers,
+        overviewPages: selectedOverviewPageNumbers,
+        excludedPages: seriesResult?.excludedPages || [],
+      },
       pages: selectedPagesArray,
     };
   };
@@ -668,25 +779,57 @@ function PdfImportPanel({ onCreateSource }) {
                   onChange={(event) => setShowSeriesDebugPages(event.target.checked)}
                   type="checkbox"
                 />
-                Показать все страницы, где найдено название или код серии
+                Показать все страницы серии
               </label>
             </div>
           </div>
 
-          {seriesMessage && <p className={seriesMessageKind === 'error' ? 'notice error-notice' : 'notice'}>{seriesMessage}</p>}
+          {seriesMessage && (
+            <p
+              className={
+                seriesMessageKind === 'error'
+                  ? 'notice error-notice'
+                  : seriesMessageKind === 'warning'
+                    ? 'notice warning-notice'
+                    : 'notice'
+              }
+            >
+              {seriesMessage}
+            </p>
+          )}
 
           {seriesResult && (
             <div className="series-result">
               <h3>Источник из выбранных страниц</h3>
               <div className="notice pdf-auto-selection">
                 <p>
-                  Автоматически выбраны страницы:{' '}
+                  Использованные страницы:{' '}
                   {formatPageNumbers(seriesResult.autoSelectedPageNumbers || [])}
                 </p>
                 <p>
-                  Исключены как служебные/сводные:{' '}
+                  Технические страницы:{' '}
+                  {formatPageNumbers(seriesResult.technicalPageNumbers || [])}
+                </p>
+                <p>
+                  Обзорные страницы:{' '}
+                  {formatPageNumbers(seriesResult.overviewPageNumbers || [])}
+                </p>
+                <p>
+                  Исключённые страницы:{' '}
                   {formatPageNumbers(seriesResult.excludedPageNumbers || [])}
                 </p>
+                {(!seriesResult.technicalPageNumbers || seriesResult.technicalPageNumbers.length === 0) && (
+                  <p className="warning-text">Техническая таблица для серии не найдена.</p>
+                )}
+                {seriesResult.excludedPages?.length > 0 && (
+                  <ul className="pdf-excluded-list">
+                    {seriesResult.excludedPages.slice(0, 30).map((page) => (
+                      <li key={page.pageNumber}>
+                        Страница {page.pageNumber} исключена: {page.reason}.
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
               <dl className="source-preview">
                 <div>
@@ -704,11 +847,11 @@ function PdfImportPanel({ onCreateSource }) {
                   </div>
                 )}
                 <div>
-                  <dt>Найдено прямых совпадений названия/кода</dt>
+                  <dt>Страниц, принадлежащих серии</dt>
                   <dd>{seriesResult.directMatchPages.length}</dd>
                 </div>
                 <div>
-                  <dt>Страницы с прямым совпадением названия/кода</dt>
+                  <dt>Использованные страницы серии</dt>
                   <dd>{seriesResult.directMatchPages.map((page) => page.pageNumber).join(', ')}</dd>
                 </div>
                 <div>
@@ -747,7 +890,7 @@ function PdfImportPanel({ onCreateSource }) {
 
               {showSeriesDebugPages && (
                 <div className="pdf-found-pages">
-                  <h3>Страницы с прямым совпадением названия/кода серии</h3>
+                  <h3>Страницы, прошедшие проверку серии</h3>
                   <div className="card-list">
                     {seriesResult.directMatchPages.map((page) => (
                       <article className="item-card pdf-page-card" key={page.pageNumber}>
