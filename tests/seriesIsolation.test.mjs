@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { generateSeriesDraft } from '../src/generateSeriesDraft.js';
 import { SERIES_PROFILES } from '../src/data/seriesProfiles.js';
+import { classifyPageForSeries, getMatchedTokens } from '../src/seriesPageClassifier.js';
 
 const forbiddenByOwner = [
   { owner: 'ICE PEAK', patterns: [/тепловой насос/iu, /обогрев до -30°C/iu, /обогрев до -30°c/iu] },
@@ -197,5 +198,80 @@ const ecoSmartTechnicalDraft = buildTechnicalOnlyDraft({
 });
 assert.ok(ecoSmartTechnicalDraft.salesFeatures.includes('низкий уровень шума от 20 дБ'), 'ECO SMART noise must be 20 dB');
 assert.equal(/обогрев до -30°C/iu.test(stringifyDraft(ecoSmartTechnicalDraft)), false, 'ECO SMART must not use -30°C from foreign rawText');
+
+const icePeakProfile = SERIES_PROFILES.find((profile) => profile.seriesName === 'ICE PEAK');
+const ecoSmartProfile = SERIES_PROFILES.find((profile) => profile.seriesName === 'ECO SMART');
+const defenderProfile = SERIES_PROFILES.find((profile) => profile.seriesName === 'DEFENDER');
+const icePeakOverviewPage = {
+  pageNumber: 8,
+  text: `
+    ICE PEAK BSPKI/in-10HN8_V4 BSPKI/out-10HN8_V4
+    Тепловой насос Smart Sens Health Guard Wi-Fi управление R32
+  `,
+};
+const icePeakTechnicalPage = {
+  pageNumber: 9,
+  text: `
+    ICE PEAK
+    Параметр / Модель BSPKI/in-10HN8 BSPKI/out-10HN8
+    Уровень шума внутреннего блока 19 дБ
+    Диапазон рабочих температур -15…+50°C/-30…+24°C
+    Хладагент R32
+  `,
+};
+
+const icePeakOverviewClassification = classifyPageForSeries(icePeakOverviewPage, icePeakProfile);
+const icePeakTechnicalClassification = classifyPageForSeries(icePeakTechnicalPage, icePeakProfile);
+assert.equal(icePeakOverviewClassification.belongsToSeries, true, 'ICE PEAK page 8 must be an exactSeriesPage');
+assert.equal(icePeakTechnicalClassification.belongsToSeries, true, 'ICE PEAK page 9 must be an exactSeriesPage');
+assert.equal(icePeakTechnicalClassification.isTechnicalPage, true, 'ICE PEAK page 9 must be a technicalPage');
+assert.deepEqual(
+  icePeakTechnicalClassification.matchedTokens,
+  ['ICE PEAK', 'BSPKI', 'BSPKI/in', 'BSPKI/out'],
+  'ICE PEAK page 9 diagnostics must include matched series and model-prefix tokens',
+);
+
+for (const foreignProfile of [ecoSmartProfile, discoveryProfile, defenderProfile]) {
+  const classification = classifyPageForSeries(icePeakTechnicalPage, foreignProfile);
+  assert.equal(classification.belongsToSeries, false, `ICE PEAK page must not belong to ${foreignProfile.seriesName}`);
+}
+
+assert.deepEqual(
+  getMatchedTokens('BSPKI/in-10HN8_V4 BSPKI out 10HN8 V4 BSPKI-10HN8 BSPKI_10HN8 bspkiin10hn8v4', icePeakProfile),
+  ['BSPKI', 'BSPKI/in', 'BSPKI/out'],
+  'ICE PEAK tokens must match slash, space, hyphen, underscore and compact model forms',
+);
+
+const icePeakCardDraft = generateSeriesDraft({
+  profileId: icePeakProfile.id,
+  seriesName: icePeakProfile.seriesName,
+  code: icePeakProfile.code,
+  exactSeriesRawText: `
+    ICE PEAK BSPKI/in-10HN8_V4
+    тепловой насос
+    Smart Sens
+    Health Guard
+    Wi-Fi управление
+  `,
+  technicalRawText: `
+    Параметр / Модель BSPKI/in-10HN8 BSPKI/out-10HN8
+    Уровень шума (внутренний / наружный блок) 19/50 21/50
+    Диапазон рабочих температур -15…+50°C/-30…+24°C
+    Хладагент R32
+  `,
+  technicalPages: [9],
+});
+const icePeakCardText = stringifyDraft(icePeakCardDraft);
+for (const requiredIcePeakFeature of [
+  /тепловой насос/iu,
+  /Smart Sens/iu,
+  /Health Guard/iu,
+  /Wi-Fi управление/iu,
+  /низкий уровень шума от 19 дБ/iu,
+  /обогрев до -30°C/iu,
+  /R32/iu,
+]) {
+  assert.equal(requiredIcePeakFeature.test(icePeakCardText), true, `ICE PEAK card must contain ${requiredIcePeakFeature}`);
+}
 
 console.log(`series isolation ok: ${SERIES_PROFILES.length} profiles checked`);
