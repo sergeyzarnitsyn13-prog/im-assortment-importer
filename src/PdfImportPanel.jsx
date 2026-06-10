@@ -119,6 +119,47 @@ const getOtherSeriesMarkers = (text = '', selectedProfile) =>
 const hasTechnicalMarker = (text = '') =>
   includesNormalizedPhrase(text, 'Технические характеристики') || includesNormalizedPhrase(text, 'Параметр / Модель');
 
+
+function scoreSeriesPage(page, profile, allProfiles = []) {
+  const text = normalizeSearchText(page?.text || '');
+  const seriesName = normalizeSearchText(profile?.seriesName || '');
+  const code = normalizeSearchText(profile?.code || '');
+
+  let score = 0;
+
+  if (seriesName && text.includes(seriesName)) score += 10;
+  if (code && text.includes(code)) score += 8;
+
+  for (const alias of profile?.aliases || []) {
+    const normalizedAlias = normalizeSearchText(alias);
+    if (normalizedAlias && text.includes(normalizedAlias)) score += 4;
+  }
+
+  if (text.includes(normalizeSearchText('Технические характеристики'))) score += 3;
+  if (text.includes(normalizeSearchText('Параметр / Модель'))) score += 3;
+
+  const otherSeriesMatches = allProfiles.filter((otherProfile) => {
+    if (otherProfile.id === profile?.id) return false;
+    const otherName = normalizeSearchText(otherProfile.seriesName || '');
+    const otherCode = normalizeSearchText(otherProfile.code || '');
+    return (otherName && text.includes(otherName)) || (otherCode && text.includes(otherCode));
+  });
+
+  if (otherSeriesMatches.length >= 4) score -= 10;
+
+  if (
+    text.includes(normalizeSearchText('HOMMYN')) ||
+    text.includes(normalizeSearchText('Алиса')) ||
+    text.includes(normalizeSearchText('Маруся')) ||
+    text.includes(normalizeSearchText('Сбер')) ||
+    text.includes(normalizeSearchText('совместим'))
+  ) {
+    score -= 8;
+  }
+
+  return score;
+}
+
 const buildExcludeReason = ({ profile, selectedMarkers, otherMarkers, isHommynPage, isMultiSeriesSummaryPage, isCategoryPage }) => {
   if (isHommynPage) {
     return 'страница HOMMYN';
@@ -159,7 +200,7 @@ export const classifyPageForSeries = (page, profile) => {
   const belongsToSeries = selectedMarkers.length > 0 && !excluded;
   const isTechnicalPage = belongsToSeries && hasTechnicalMarker(text) && hasExactPhrase(text, profile.code);
   const isOverviewPage = belongsToSeries && !isTechnicalPage;
-  let score = scoreSeriesPage(page, profile.seriesName);
+  let score = scoreSeriesPage(page, profile, SERIES_PROFILES);
 
   if (selectedMarkers.length > 0) {
     score += selectedMarkers.some((marker) => marker === profile.code) ? 10 : 6;
