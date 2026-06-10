@@ -93,7 +93,7 @@ const noTechnicalPagesDraft = generateSeriesDraft({
   exactSeriesRawText: `${lagoonProfile.seriesName} ${lagoonProfile.code} Wi-Fi управление.`,
 });
 assert.deepEqual(noTechnicalPagesDraft.technicalSpecs, [], 'technicalSpecs must stay empty without technicalPages');
-assert.match(noTechnicalPagesDraft.draftWarning, /Техническая таблица серии не найдена/u);
+assert.match(noTechnicalPagesDraft.draftWarning, /Техническая таблица выбранной серии не найдена/u);
 
 const discoveryProfile = SERIES_PROFILES.find((profile) => profile.seriesName === 'DISCOVERY');
 const discoveryDraft = generateSeriesDraft({
@@ -143,5 +143,59 @@ assert.deepEqual(
   ['3D-контроль потока воздуха'],
   'service HOMMYN must reference the selected series before adding Wi-Fi',
 );
+
+const buildTechnicalOnlyDraft = ({ seriesName, technicalRawText, rawText = '', exactSeriesRawText = '' }) => {
+  const profile = SERIES_PROFILES.find((item) => item.seriesName === seriesName);
+
+  return generateSeriesDraft({
+    profileId: profile.id,
+    seriesName: profile.seriesName,
+    code: profile.code,
+    rawText,
+    exactSeriesRawText: exactSeriesRawText || `${profile.seriesName} ${profile.code} Wi-Fi управление`,
+    technicalRawText,
+    technicalPages: [42],
+    sourceRef: 'PDF каталог 2026, страницы 3, 4, 42',
+    sourceDate: '2026',
+  });
+};
+
+const discoveryTechnicalDraft = buildTechnicalOnlyDraft({
+  seriesName: 'DISCOVERY',
+  rawText: 'Чужая сводная таблица: Уровень шума 19/50 21/50 29/54 31/62',
+  technicalRawText: 'Технические характеристики BSVI\nУровень шума (внутренний / наружный блок) 23/49 23/49 23/49',
+});
+assert.ok(discoveryTechnicalDraft.salesFeatures.includes('низкий уровень шума от 23 дБ'), 'DISCOVERY noise must come from BSVI technical table');
+assert.equal(/низкий уровень шума от 19 дБ/iu.test(stringifyDraft(discoveryTechnicalDraft)), false, 'DISCOVERY must not use 19 dB from foreign rawText');
+assert.match(discoveryTechnicalDraft.sourceRefs.salesFeatures, /technicalPages 42/u, 'numeric salesFeatures sourceRef must point to technicalPages only');
+assert.equal(/страницы 3, 4/iu.test(discoveryTechnicalDraft.sourceRefs.salesFeatures), false, 'numeric salesFeatures sourceRef must not point to selected summary/service pages');
+
+const icePeakTechnicalDraft = buildTechnicalOnlyDraft({
+  seriesName: 'ICE PEAK',
+  technicalRawText: 'Технические характеристики BSPKI\nУровень шума (внутренний / наружный блок) 19/50 21/50 29/54 31/62\nДиапазон рабочих температур -15…+50°C/-30…+24°C',
+});
+assert.ok(icePeakTechnicalDraft.salesFeatures.includes('низкий уровень шума от 19 дБ'), 'ICE PEAK noise must be 19 dB');
+assert.ok(icePeakTechnicalDraft.salesFeatures.includes('обогрев до -30°C'), 'ICE PEAK heating must be -30°C');
+
+const defenderTechnicalDraft = buildTechnicalOnlyDraft({
+  seriesName: 'DEFENDER',
+  technicalRawText: 'Технические характеристики BSHI\nУровень шума (внутренний / наружный блок) 19/50 21/50 29/54 31/62\nДиапазон рабочих температур -15…+50°C/-20…+32°C',
+});
+assert.ok(defenderTechnicalDraft.salesFeatures.includes('низкий уровень шума от 19 дБ'), 'DEFENDER noise must be 19 dB');
+assert.ok(defenderTechnicalDraft.salesFeatures.includes('обогрев до -20°C'), 'DEFENDER heating must be -20°C');
+
+const platinumBlackTechnicalDraft = buildTechnicalOnlyDraft({
+  seriesName: 'PLATINUM BLACK',
+  technicalRawText: 'Технические характеристики BSPI\nУровень шума (внутренний / наружный блок) 21/42 23/48,5',
+});
+assert.ok(platinumBlackTechnicalDraft.salesFeatures.includes('низкий уровень шума от 21 дБ'), 'PLATINUM BLACK noise must be 21 dB');
+
+const ecoSmartTechnicalDraft = buildTechnicalOnlyDraft({
+  seriesName: 'ECO SMART',
+  rawText: 'Чужая таблица ICE PEAK: Диапазон рабочих температур -15…+50°C/-30…+24°C',
+  technicalRawText: 'Технические характеристики BSYI\nУровень шума (внутренний / наружный блок) 20/45 22/47\nДиапазон рабочих температур -15…+50°C/-15…+24°C',
+});
+assert.ok(ecoSmartTechnicalDraft.salesFeatures.includes('низкий уровень шума от 20 дБ'), 'ECO SMART noise must be 20 dB');
+assert.equal(/обогрев до -30°C/iu.test(stringifyDraft(ecoSmartTechnicalDraft)), false, 'ECO SMART must not use -30°C from foreign rawText');
 
 console.log(`series isolation ok: ${SERIES_PROFILES.length} profiles checked`);
