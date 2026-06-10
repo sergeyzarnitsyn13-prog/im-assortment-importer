@@ -133,6 +133,20 @@ const SERIES_PAGE_RULES = Object.fromEntries(
 
 const SERVICE_PAGE_KEYWORDS = ['HOMMYN', 'совместимость', 'совместим', 'USB', 'Алиса', 'Маруся', 'Сбер'];
 
+function isServicePage(page) {
+  const text = normalizeSearchText(page?.text || '');
+
+  return (
+    text.includes('hommyn') ||
+    text.includes('алиса') ||
+    text.includes('маруся') ||
+    text.includes('сбер') ||
+    text.includes('совместим') ||
+    text.includes('соединительный кабель') ||
+    text.includes('usb')
+  );
+}
+
 const escapeRegExp = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const normalizeSeriesKey = (seriesName = '') => normalizeSearchText(seriesName);
@@ -214,7 +228,7 @@ function scoreSeriesPage(page, profile, allProfiles = []) {
 
   if (otherSeriesMatches.length >= 4) score -= 10;
 
-  if (isServicePage(text)) {
+  if (isServicePage(page) && selectedTokens.length === 0) {
     score -= 8;
   }
 
@@ -222,12 +236,12 @@ function scoreSeriesPage(page, profile, allProfiles = []) {
 }
 
 const buildExcludeReason = ({ profile, matchedTokens, matchedOtherSeries, isHommynPage, isExplicitOtherSeriesPage, hasSelectedCode }) => {
-  if (matchedTokens.length === 0) {
-    return `не содержит ${profile.seriesName} / ${profile.code}`;
+  if (isHommynPage && matchedTokens.length === 0) {
+    return 'страница HOMMYN/совместимости без токена выбранной серии';
   }
 
-  if (isHommynPage && !hasSelectedCode) {
-    return 'страница HOMMYN/совместимости без кода выбранной серии';
+  if (matchedTokens.length === 0) {
+    return `не содержит ${profile.seriesName} / ${profile.code}`;
   }
 
   if (isExplicitOtherSeriesPage && !hasSelectedCode) {
@@ -246,13 +260,10 @@ export const classifyPageForSeries = (page, profile, allProfiles = SERIES_PROFIL
   const matchedOtherSeries = getOtherSeriesMatches(text, profile, allProfiles);
   const hasSelectedCode = matchedTokenObjects.some((token) => ['code', 'compactCode', 'modelPrefix'].includes(token.kind));
   const hasOtherSeriesCode = matchedOtherSeries.some((match) => match.hasCode);
-  const isHommynPage = isServicePage(text);
+  const isHommynPage = isServicePage(page);
   const isMultiSeriesSummaryPage = matchedOtherSeries.length + (matchedTokens.length > 0 ? 1 : 0) >= 4;
   const isExplicitOtherSeriesPage = hasOtherSeriesCode && !hasSelectedCode;
-  const excluded =
-    matchedTokens.length === 0 ||
-    (isHommynPage && !hasSelectedCode) ||
-    isExplicitOtherSeriesPage;
+  const excluded = matchedTokens.length === 0 || isExplicitOtherSeriesPage;
   const belongsToSeries = matchedTokens.length > 0 && !excluded;
   const isTechnicalPage = belongsToSeries && !isMultiSeriesSummaryPage && hasTechnicalMarker(text) && hasSelectedCode;
   const isOverviewPage = belongsToSeries && !isTechnicalPage;
@@ -524,36 +535,84 @@ function PdfImportPanel({ onCreateSource }) {
   };
 
   const handleFindSeries = () => {
-    const profile = findSeriesProfile(form.seriesName || form.code || form.profileId);
-
     setSeriesResult(null);
     setSelectedPageNumbers([]);
     setSeriesMessage('');
     setSeriesMessageKind('info');
 
-    if (!profile) {
-      setSeriesMessageKind('error');
-      setSeriesMessage('Выберите серию из утверждённого справочника или введите её точный код/название.');
-      return;
-    }
+    try {
+      const profile = findSeriesProfile(form.seriesName || form.code || form.profileId);
 
-    const classifications = pages.map((page) => ({
-      page,
-      classification: classifyPageForSeries(page, profile),
-    }));
-    const diagnostics = {
-      matchedTokens: unique(
-        classifications.flatMap(({ classification }) => classification.matchedTokens || []),
-      ),
-      usedPages: [],
-      technicalPages: [],
-      excludedPages: [],
-    };
-    const directMatchPages = classifications
-      .filter(({ classification }) => classification.belongsToSeries)
-      .map(({ page }) => page);
+      if (!profile) {
+        setSeriesMessageKind('error');
+        setSeriesMessage('Выберите серию из утверждённого справочника или введите её точный код/название.');
+        return;
+      }
 
-    if (directMatchPages.length === 0) {
+      const classifications = pages.map((page) => ({
+        page,
+        classification: classifyPageForSeries(page, profile),
+      }));
+      const diagnostics = {
+        matchedTokens: unique(
+          classifications.flatMap(({ classification }) => classification.matchedTokens || []),
+        ),
+        usedPages: [],
+        technicalPages: [],
+        excludedPages: [],
+      };
+      const directMatchPages = classifications
+        .filter(({ classification }) => classification.belongsToSeries)
+        .map(({ page }) => page);
+
+      if (directMatchPages.length === 0) {
+        const excludedPages = classifications
+          .filter(
+            ({ classification }) =>
+              classification.excluded &&
+              classification.excludeReason &&
+              !classification.excludeReason.startsWith('не содержит'),
+          )
+          .map(({ page, classification }) => ({
+            pageNumber: page.pageNumber,
+            reason: classification.excludeReason,
+          }));
+
+        setSeriesResult({
+          pages: [],
+          directMatchPages: [],
+          scoredPages: [],
+          autoSelectedPageNumbers: [],
+          technicalPageNumbers: [],
+          overviewPageNumbers: [],
+          excludedPages,
+          diagnostics: {
+            ...diagnostics,
+            excludedPages,
+          },
+          excludedPageNumbers: excludedPages.map((page) => page.pageNumber),
+          classifiedByNumber: new Map(
+            classifications.map(({ page, classification }) => [page.pageNumber, classification]),
+          ),
+        });
+        setSeriesMessageKind('error');
+        setSeriesMessage('Серия не найдена в тексте PDF');
+        return;
+      }
+
+      const scoredPages = classifications
+        .filter(({ classification }) => classification.belongsToSeries)
+        .sort((firstPage, secondPage) => firstPage.page.pageNumber - secondPage.page.pageNumber)
+        .map(({ page, classification }) => ({ page, score: classification.score }));
+      const foundPages = scoredPages.map(({ page }) => page);
+      const autoSelectedPages = scoredPages.map(({ page }) => page);
+      const autoSelectedPageNumbers = getSelectedPageNumbers(autoSelectedPages);
+      const technicalPageNumbers = classifications
+        .filter(({ classification }) => classification.isTechnicalPage)
+        .map(({ page }) => page.pageNumber);
+      const overviewPageNumbers = classifications
+        .filter(({ classification }) => classification.isOverviewPage)
+        .map(({ page }) => page.pageNumber);
       const excludedPages = classifications
         .filter(
           ({ classification }) =>
@@ -565,81 +624,40 @@ function PdfImportPanel({ onCreateSource }) {
           pageNumber: page.pageNumber,
           reason: classification.excludeReason,
         }));
+      const classifiedByNumber = new Map(
+        classifications.map(({ page, classification }) => [page.pageNumber, classification]),
+      );
 
       setSeriesResult({
-        pages: [],
-        directMatchPages: [],
-        scoredPages: [],
-        autoSelectedPageNumbers: [],
-        technicalPageNumbers: [],
-        overviewPageNumbers: [],
+        pages: foundPages,
+        directMatchPages,
+        scoredPages,
+        autoSelectedPageNumbers,
+        technicalPageNumbers,
+        overviewPageNumbers,
         excludedPages,
         diagnostics: {
           ...diagnostics,
+          usedPages: autoSelectedPageNumbers,
+          technicalPages: technicalPageNumbers,
           excludedPages,
         },
         excludedPageNumbers: excludedPages.map((page) => page.pageNumber),
-        classifiedByNumber: new Map(
-          classifications.map(({ page, classification }) => [page.pageNumber, classification]),
-        ),
+        classifiedByNumber,
       });
+      setSelectedPageNumbers(autoSelectedPageNumbers);
+      setSeriesMessageKind(technicalPageNumbers.length > 0 ? 'info' : 'warning');
+      setSeriesMessage(
+        `${`Определена серия: ${profile.seriesName} (${profile.code}). `}Найдено страниц серии: ${directMatchPages.length}. ${
+          technicalPageNumbers.length === 0 ? 'Техническая таблица серии не найдена.' : ''
+        }`,
+      );
+    } catch (findError) {
+      setSeriesResult(null);
+      setSelectedPageNumbers([]);
       setSeriesMessageKind('error');
-      setSeriesMessage('Серия не найдена в тексте PDF');
-      return;
+      setSeriesMessage(findError?.message || String(findError));
     }
-
-    const scoredPages = classifications
-      .filter(({ classification }) => classification.belongsToSeries)
-      .sort((firstPage, secondPage) => firstPage.page.pageNumber - secondPage.page.pageNumber)
-      .map(({ page, classification }) => ({ page, score: classification.score }));
-    const foundPages = scoredPages.map(({ page }) => page);
-    const autoSelectedPages = scoredPages.map(({ page }) => page);
-    const autoSelectedPageNumbers = getSelectedPageNumbers(autoSelectedPages);
-    const technicalPageNumbers = classifications
-      .filter(({ classification }) => classification.isTechnicalPage)
-      .map(({ page }) => page.pageNumber);
-    const overviewPageNumbers = classifications
-      .filter(({ classification }) => classification.isOverviewPage)
-      .map(({ page }) => page.pageNumber);
-    const excludedPages = classifications
-      .filter(
-        ({ classification }) =>
-          classification.excluded &&
-          classification.excludeReason &&
-          !classification.excludeReason.startsWith('не содержит'),
-      )
-      .map(({ page, classification }) => ({
-        pageNumber: page.pageNumber,
-        reason: classification.excludeReason,
-      }));
-    const classifiedByNumber = new Map(
-      classifications.map(({ page, classification }) => [page.pageNumber, classification]),
-    );
-
-    setSeriesResult({
-      pages: foundPages,
-      directMatchPages,
-      scoredPages,
-      autoSelectedPageNumbers,
-      technicalPageNumbers,
-      overviewPageNumbers,
-      excludedPages,
-      diagnostics: {
-        ...diagnostics,
-        usedPages: autoSelectedPageNumbers,
-        technicalPages: technicalPageNumbers,
-        excludedPages,
-      },
-      excludedPageNumbers: excludedPages.map((page) => page.pageNumber),
-      classifiedByNumber,
-    });
-    setSelectedPageNumbers(autoSelectedPageNumbers);
-    setSeriesMessageKind(technicalPageNumbers.length > 0 ? 'info' : 'warning');
-    setSeriesMessage(
-      `${`Определена серия: ${profile.seriesName} (${profile.code}). `}Найдено страниц серии: ${directMatchPages.length}. ${
-        technicalPageNumbers.length === 0 ? 'Техническая таблица серии не найдена.' : ''
-      }`,
-    );
   };
 
   const handleFoundPageToggle = (pageNumber) => {
