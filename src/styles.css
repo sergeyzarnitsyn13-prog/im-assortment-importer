@@ -628,6 +628,22 @@ th {
   width: auto;
 }
 
+.pdf-auto-selection {
+  display: grid;
+  gap: 6px;
+}
+
+.pdf-auto-selection p {
+  margin: 0;
+}
+
+.pdf-page-score {
+  color: #21466f;
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .selected-text-preview {
   display: grid;
   gap: 8px;
