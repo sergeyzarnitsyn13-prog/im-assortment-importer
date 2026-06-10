@@ -617,6 +617,22 @@ th {
   background: #f8fbff;
 }
 
+.pdf-page-checkbox {
+  align-items: center;
+  display: inline-flex;
+  font-weight: 800;
+  gap: 8px;
+}
+
+.pdf-page-checkbox input {
+  width: auto;
+}
+
+.selected-text-preview {
+  display: grid;
+  gap: 8px;
+}
+
 .pdf-debug-match {
   color: #21466f;
   font-weight: 800;

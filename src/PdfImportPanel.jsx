@@ -68,22 +68,9 @@ const getQualityWarning = (pages) => {
   return '';
 };
 
-const getPagesRef = (pages) => {
-  if (pages.length === 0) {
-    return 'PDF каталог, страницы не найдены';
-  }
+const buildRawText = (pages) => pages.map((page) => page.text).join('\n\n').trim();
 
-  const pageNumbers = pages.map((page) => page.pageNumber);
-  const minPage = Math.min(...pageNumbers);
-  const maxPage = Math.max(...pageNumbers);
-  const isContinuous = maxPage - minPage + 1 === pageNumbers.length;
-
-  if (isContinuous) {
-    return `PDF каталог, страницы ${minPage}-${maxPage}`;
-  }
-
-  return `PDF каталог, страницы ${pageNumbers.join(', ')}`;
-};
+const getSelectedPageNumbers = (pages) => pages.map((page) => page.pageNumber);
 
 function PdfImportPanel({ onCreateSource }) {
   const [form, setForm] = useState(PDF_SOURCE_INITIAL);
@@ -95,9 +82,11 @@ function PdfImportPanel({ onCreateSource }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [seriesResult, setSeriesResult] = useState(null);
   const [seriesMessage, setSeriesMessage] = useState('');
+  const [seriesMessageKind, setSeriesMessageKind] = useState('info');
   const [showSeriesDebugPages, setShowSeriesDebugPages] = useState(false);
   const [qualityWarning, setQualityWarning] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedPageNumbers, setSelectedPageNumbers] = useState([]);
 
   const pagesWithTextCount = useMemo(
     () => pages.filter((page) => page.text.trim().length > 0).length,
@@ -121,6 +110,20 @@ function PdfImportPanel({ onCreateSource }) {
     [filteredPages, searchTerm],
   );
 
+  const selectedPages = useMemo(() => {
+    if (!seriesResult) {
+      return [];
+    }
+
+    const selectedNumbers = new Set(selectedPageNumbers);
+
+    return seriesResult.pages.filter((page) => selectedNumbers.has(page.pageNumber));
+  }, [seriesResult, selectedPageNumbers]);
+
+  const selectedRawText = useMemo(() => buildRawText(selectedPages), [selectedPages]);
+  const selectedPageNumbersText = selectedPages.map((page) => page.pageNumber).join(', ');
+  const selectedRawTextPreview = selectedRawText.slice(0, 1000);
+
   const handleFormChange = (event) => {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
@@ -134,7 +137,9 @@ function PdfImportPanel({ onCreateSource }) {
     setPages([]);
     setSearchTerm('');
     setSeriesResult(null);
+    setSelectedPageNumbers([]);
     setSeriesMessage('');
+    setSeriesMessageKind('info');
     setQualityWarning('');
     setError('');
   };
@@ -148,7 +153,9 @@ function PdfImportPanel({ onCreateSource }) {
     setIsExtracting(true);
     setError('');
     setSeriesResult(null);
+    setSelectedPageNumbers([]);
     setSeriesMessage('');
+    setSeriesMessageKind('info');
     setQualityWarning('');
 
     try {
@@ -177,9 +184,12 @@ function PdfImportPanel({ onCreateSource }) {
     const normalizedSeries = normalizeSearchText(form.seriesName);
 
     setSeriesResult(null);
+    setSelectedPageNumbers([]);
     setSeriesMessage('');
+    setSeriesMessageKind('info');
 
     if (!normalizedSeries) {
+      setSeriesMessageKind('error');
       setSeriesMessage('Введите название серии.');
       return;
     }
@@ -187,6 +197,7 @@ function PdfImportPanel({ onCreateSource }) {
     const directMatchPages = pages.filter((page) => pageHasSeriesName(page, normalizedSeries));
 
     if (directMatchPages.length === 0) {
+      setSeriesMessageKind('error');
       setSeriesMessage('Серия не найдена в тексте PDF');
       return;
     }
@@ -197,28 +208,58 @@ function PdfImportPanel({ onCreateSource }) {
       getPageWithNeighborsNumbers(page.pageNumber, pages.length).forEach((pageNumber) => pageNumbers.add(pageNumber));
     });
 
-    const selectedPages = [...pageNumbers]
+    const foundPages = [...pageNumbers]
       .sort((firstPage, secondPage) => firstPage - secondPage)
       .map((pageNumber) => pages.find((page) => page.pageNumber === pageNumber))
       .filter(Boolean);
-    const sourceRef = getPagesRef(selectedPages);
-    const rawText = selectedPages
-      .map((page) => `Страница ${page.pageNumber}\n${page.text}`)
-      .join('\n\n')
-      .trim();
-    const source = {
-      title: [form.brand, form.category, form.seriesName, form.sourceDate].filter(Boolean).join(' '),
-      type: 'catalog',
-      brand: form.brand,
-      category: form.category,
-      seriesName: form.seriesName,
-      sourceDate: form.sourceDate,
-      sourceRef,
-      rawText,
-    };
 
-    setSeriesResult({ source, pages: selectedPages, directMatchPages });
+    setSeriesResult({ pages: foundPages, directMatchPages });
+    setSelectedPageNumbers(getSelectedPageNumbers(foundPages));
+    setSeriesMessageKind('info');
     setSeriesMessage(`Найдено прямых совпадений: ${directMatchPages.length}`);
+  };
+
+  const handleFoundPageToggle = (pageNumber) => {
+    setSelectedPageNumbers((current) => {
+      if (current.includes(pageNumber)) {
+        return current.filter((selectedPageNumber) => selectedPageNumber !== pageNumber);
+      }
+
+      return [...current, pageNumber].sort((firstPage, secondPage) => firstPage - secondPage);
+    });
+  };
+
+  const buildSelectedPagesSource = () => {
+    const brand = form.brand.trim();
+    const category = form.category.trim();
+    const catalogYear = form.sourceDate.trim();
+    const seriesName = form.seriesName.trim();
+    const selectedPagesArray = getSelectedPageNumbers(selectedPages);
+    const rawText = selectedRawText.trim();
+
+    if (!seriesName) {
+      throw new Error('Введите название серии.');
+    }
+
+    if (selectedPagesArray.length === 0) {
+      throw new Error('Выберите хотя бы одну страницу.');
+    }
+
+    if (!rawText) {
+      throw new Error('Текст выбранных страниц пустой.');
+    }
+
+    return {
+      title: `${brand} ${catalogYear} — ${seriesName}`.trim(),
+      type: 'catalog',
+      brand,
+      category,
+      seriesName,
+      sourceDate: catalogYear,
+      sourceRef: `PDF каталог ${catalogYear}, страницы ${selectedPagesArray.join(', ')}`,
+      rawText,
+      pages: selectedPagesArray,
+    };
   };
 
   const handleCreateSource = async (buildDraftImmediately = false) => {
@@ -227,9 +268,17 @@ function PdfImportPanel({ onCreateSource }) {
     }
 
     setIsSaving(true);
+    setSeriesMessage('');
+    setSeriesMessageKind('info');
 
     try {
-      await onCreateSource(seriesResult.source, { buildDraftImmediately });
+      const source = buildSelectedPagesSource();
+      await onCreateSource(source, { buildDraftImmediately });
+      setSeriesMessageKind('info');
+      setSeriesMessage(buildDraftImmediately ? 'Источник создан, карточка собрана.' : 'Источник создан');
+    } catch (saveError) {
+      setSeriesMessageKind('error');
+      setSeriesMessage(saveError.message);
     } finally {
       setIsSaving(false);
     }
@@ -371,19 +420,19 @@ function PdfImportPanel({ onCreateSource }) {
             </div>
           </div>
 
-          {seriesMessage && <p className={seriesResult ? 'notice' : 'notice error-notice'}>{seriesMessage}</p>}
+          {seriesMessage && <p className={seriesMessageKind === 'error' ? 'notice error-notice' : 'notice'}>{seriesMessage}</p>}
 
           {seriesResult && (
             <div className="series-result">
-              <h3>Источник из найденного текста</h3>
+              <h3>Источник из выбранных страниц</h3>
               <dl className="source-preview">
                 <div>
                   <dt>Название</dt>
-                  <dd>{seriesResult.source.title || 'Без названия'}</dd>
+                  <dd>{`${form.brand.trim()} ${form.sourceDate.trim()} — ${form.seriesName.trim()}`.trim() || 'Без названия'}</dd>
                 </div>
                 <div>
                   <dt>Источник</dt>
-                  <dd>{seriesResult.source.sourceRef}</dd>
+                  <dd>PDF каталог {form.sourceDate.trim()}, страницы {selectedPageNumbersText || 'не выбраны'}</dd>
                 </div>
                 <div>
                   <dt>Найдено прямых совпадений</dt>
@@ -394,10 +443,38 @@ function PdfImportPanel({ onCreateSource }) {
                   <dd>{seriesResult.directMatchPages.map((page) => page.pageNumber).join(', ')}</dd>
                 </div>
                 <div>
-                  <dt>Страниц в rawText</dt>
+                  <dt>Страниц найдено</dt>
                   <dd>{seriesResult.pages.length}</dd>
                 </div>
+                <div>
+                  <dt>Выбранные страницы</dt>
+                  <dd>{selectedPageNumbersText || 'не выбраны'}</dd>
+                </div>
+                <div>
+                  <dt>Символов в rawText</dt>
+                  <dd>{selectedRawText.length}</dd>
+                </div>
               </dl>
+
+              <div className="pdf-found-pages">
+                <h3>Найденные страницы для источника</h3>
+                <div className="card-list">
+                  {seriesResult.pages.map((page) => (
+                    <article className="item-card pdf-page-card" key={page.pageNumber}>
+                      <label className="pdf-page-checkbox">
+                        <input
+                          checked={selectedPageNumbers.includes(page.pageNumber)}
+                          onChange={() => handleFoundPageToggle(page.pageNumber)}
+                          type="checkbox"
+                        />
+                        <span>Страница {page.pageNumber}</span>
+                      </label>
+                      <p>{page.text.slice(0, 420)}{page.text.length > 420 ? '…' : ''}</p>
+                    </article>
+                  ))}
+                </div>
+              </div>
+
               {showSeriesDebugPages && (
                 <div className="pdf-found-pages">
                   <h3>Страницы с прямым совпадением названия серии</h3>
@@ -413,16 +490,19 @@ function PdfImportPanel({ onCreateSource }) {
                   </div>
                 </div>
               )}
-              <label>
-                rawText
-                <textarea readOnly value={seriesResult.source.rawText} />
-              </label>
+
+              <div className="selected-text-preview">
+                <h3>Предпросмотр выбранного текста</h3>
+                <p className="muted">Первые 1000 символов объединённого rawText.</p>
+                <textarea readOnly value={selectedRawTextPreview} />
+              </div>
+
               <div className="form-actions">
                 <button className="primary-button" disabled={isSaving} onClick={() => handleCreateSource(false)} type="button">
-                  Создать источник из найденного текста
+                  Создать источник из выбранных страниц
                 </button>
                 <button className="secondary-button" disabled={isSaving} onClick={() => handleCreateSource(true)} type="button">
-                  Собрать карточку сразу
+                  Создать источник и собрать карточку
                 </button>
               </div>
             </div>
