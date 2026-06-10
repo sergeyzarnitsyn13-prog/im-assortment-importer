@@ -38,6 +38,9 @@ const SOURCE_INITIAL = {
   brand: '',
   category: '',
   seriesName: '',
+  profileId: '',
+  group: '',
+  code: '',
   sourceDate: '',
   sourceRef: '',
   rawText: '',
@@ -47,6 +50,11 @@ const DRAFT_INITIAL = {
   brand: '',
   category: '',
   seriesName: '',
+  profileId: '',
+  profileStatus: '',
+  group: '',
+  code: '',
+  draftWarning: '',
   shortDescription: '',
   positioning: '',
   targetClient: [],
@@ -104,6 +112,11 @@ const FIELD_LABELS = {
   brand: 'Бренд',
   category: 'Категория',
   seriesName: 'Серия',
+  profileId: 'ID профиля справочника',
+  profileStatus: 'Статус профиля',
+  group: 'Группа',
+  code: 'Код серии',
+  draftWarning: 'Предупреждение черновика',
   sourceDate: 'Дата источника',
   sourceRef: 'Ссылка / номер / примечание',
   rawText: 'Исходный текст',
@@ -419,6 +432,8 @@ function SourcesTab({ form, onBuildDraft, onChange, onCreatePdfSource, onIcePeak
             <TextInput name="brand" onChange={onChange} value={form.brand} />
             <TextInput name="category" onChange={onChange} value={form.category} />
             <TextInput name="seriesName" onChange={onChange} value={form.seriesName} />
+            <TextInput name="group" onChange={onChange} value={form.group} />
+            <TextInput name="code" onChange={onChange} value={form.code} />
             <TextInput name="sourceDate" onChange={onChange} type="date" value={form.sourceDate} />
             <label className="wide-field">
               {FIELD_LABELS.sourceRef}
@@ -901,9 +916,13 @@ function DraftTab({ draft, draftJson, editingCardId, onChange, onSourceRefChange
       <form className="panel" onSubmit={onSubmit}>
         <h2>{editingCardId ? 'Редактировать карточку серии' : 'Черновик карточки серии'}</h2>
         <div className="form-grid">
+          {draft.draftWarning && <p className="notice warning-notice wide-field">{draft.draftWarning}</p>}
           <TextInput name="brand" onChange={onChange} value={draft.brand} />
           <TextInput name="category" onChange={onChange} value={draft.category} />
           <TextInput name="seriesName" onChange={onChange} value={draft.seriesName} />
+          <TextInput name="group" onChange={onChange} value={draft.group} />
+          <TextInput name="code" onChange={onChange} value={draft.code} />
+          <TextInput name="profileStatus" onChange={onChange} value={draft.profileStatus} />
           <DraftTextarea
             draft={draft}
             field="shortDescription"
