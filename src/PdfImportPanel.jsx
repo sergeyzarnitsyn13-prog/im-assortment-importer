@@ -114,25 +114,6 @@ const buildSearchTokens = (profile) => {
     });
 };
 
-const SERIES_SEARCH_PROFILES = SERIES_PROFILES.map((profile) => ({
-  ...profile,
-  searchTokens: buildSearchTokens(profile),
-}));
-
-const SERIES_PAGE_RULES = Object.fromEntries(
-  SERIES_SEARCH_PROFILES.map((profile) => [
-    normalizeSearchText(profile.seriesName),
-    {
-      code: profile.code,
-      aliases: profile.aliases || [],
-      keywords: [],
-      searchTokens: profile.searchTokens,
-    },
-  ]),
-);
-
-const SERVICE_PAGE_KEYWORDS = ['HOMMYN', 'совместимость', 'совместим', 'USB', 'Алиса', 'Маруся', 'Сбер'];
-
 const isServicePage = (page) => {
   const text = normalizeSearchText(page?.text || '');
 
@@ -149,10 +130,6 @@ const isServicePage = (page) => {
 
 const escapeRegExp = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const normalizeSeriesKey = (seriesName = '') => normalizeSearchText(seriesName);
-
-const findSeriesRule = (seriesName = '') => SERIES_PAGE_RULES[normalizeSeriesKey(seriesName)] || null;
-
 const getNormalizedBoundaryPattern = (normalizedPhrase = '') =>
   new RegExp(`(^|[^0-9a-zа-яе])${escapeRegExp(normalizedPhrase)}([^0-9a-zа-яе]|$)`, 'iu');
 
@@ -161,9 +138,6 @@ const hasNormalizedPhrase = (normalizedText = '', normalizedPhrase = '') =>
 
 const includesNormalizedPhrase = (text = '', phrase = '') =>
   hasNormalizedPhrase(normalizeSearchText(text), normalizeSearchText(phrase));
-
-const countIncludedPhrases = (text = '', phrases = []) =>
-  phrases.reduce((count, phrase) => (includesNormalizedPhrase(text, phrase) ? count + 1 : count), 0);
 
 const tokenMatchesPage = ({ normalizedText, compactText }, token) => {
   if (!token?.normalized && !token?.compact) {
@@ -211,6 +185,22 @@ const getOtherSeriesMatches = (text = '', selectedProfile, allProfiles = SERIES_
 const hasTechnicalMarker = (text = '') =>
   includesNormalizedPhrase(text, 'Технические характеристики') || includesNormalizedPhrase(text, 'Параметр / Модель');
 
+const PAGE_CLASSES = {
+  exactSeriesPage: 'exactSeriesPage',
+  servicePage: 'servicePage',
+  summaryPage: 'summaryPage',
+  otherSeriesPage: 'otherSeriesPage',
+  categoryPage: 'categoryPage',
+};
+
+const PAGE_CLASS_LABELS = {
+  [PAGE_CLASSES.exactSeriesPage]: 'точная страница серии',
+  [PAGE_CLASSES.servicePage]: 'servicePage: HOMMYN/совместимость',
+  [PAGE_CLASSES.summaryPage]: 'summaryPage: сводная страница нескольких серий',
+  [PAGE_CLASSES.otherSeriesPage]: 'otherSeriesPage: другая серия',
+  [PAGE_CLASSES.categoryPage]: 'categoryPage: общая страница категории',
+};
+
 function scoreSeriesPage(page, profile, allProfiles = []) {
   const text = page?.text || '';
   const selectedTokens = getMatchedTokenObjects(text, profile);
@@ -228,26 +218,58 @@ function scoreSeriesPage(page, profile, allProfiles = []) {
 
   if (otherSeriesMatches.length >= 4) score -= 10;
 
-  if (isServicePage(page) && selectedTokens.length === 0) {
+  if (isServicePage(page)) {
     score -= 8;
   }
 
   return score;
 }
 
-const buildExcludeReason = ({ profile, matchedTokens, matchedOtherSeries, isHommynPage, isExplicitOtherSeriesPage, hasSelectedCode }) => {
-  if (isHommynPage && matchedTokens.length === 0) {
-    return 'страница HOMMYN/совместимости без токена выбранной серии';
+const getPageSeriesMatchCount = (matchedTokens, matchedOtherSeries) =>
+  matchedOtherSeries.length + (matchedTokens.length > 0 ? 1 : 0);
+
+const getPageClass = ({ matchedTokens, matchedOtherSeries, isHommynPage }) => {
+  const hasSelectedSeries = matchedTokens.length > 0;
+  const seriesMatchCount = getPageSeriesMatchCount(matchedTokens, matchedOtherSeries);
+
+  if (isHommynPage) {
+    return PAGE_CLASSES.servicePage;
   }
 
-  if (matchedTokens.length === 0) {
-    return `не содержит ${profile.seriesName} / ${profile.code}`;
+  if (seriesMatchCount >= 4) {
+    return PAGE_CLASSES.summaryPage;
   }
 
-  if (isExplicitOtherSeriesPage && !hasSelectedCode) {
+  if (hasSelectedSeries) {
+    return PAGE_CLASSES.exactSeriesPage;
+  }
+
+  if (matchedOtherSeries.length > 0) {
+    return PAGE_CLASSES.otherSeriesPage;
+  }
+
+  return PAGE_CLASSES.categoryPage;
+};
+
+const buildExcludeReason = ({ profile, pageClass, matchedOtherSeries }) => {
+  if (pageClass === PAGE_CLASSES.servicePage) {
+    return 'servicePage: страница HOMMYN/совместимости используется только для Wi‑Fi/HOMMYN';
+  }
+
+  if (pageClass === PAGE_CLASSES.summaryPage) {
+    return 'summaryPage: сводная страница используется только для обнаружения серии';
+  }
+
+  if (pageClass === PAGE_CLASSES.otherSeriesPage) {
     const otherCodes = unique(matchedOtherSeries.filter((match) => match.hasCode).map((match) => match.profile.code));
+    const otherNames = unique(matchedOtherSeries.map((match) => match.profile.seriesName));
+    const markers = otherCodes.length > 0 ? otherCodes : otherNames;
 
-    return `явная страница другой серии: ${otherCodes.join(' / ')}`;
+    return `otherSeriesPage: страница другой серии${markers.length > 0 ? ` (${markers.join(' / ')})` : ''}`;
+  }
+
+  if (pageClass === PAGE_CLASSES.categoryPage) {
+    return `categoryPage: общая страница без точного токена ${profile.seriesName} / ${profile.code}`;
   }
 
   return '';
@@ -259,14 +281,13 @@ export const classifyPageForSeries = (page, profile, allProfiles = SERIES_PROFIL
   const matchedTokens = unique(matchedTokenObjects.map((token) => token.label));
   const matchedOtherSeries = getOtherSeriesMatches(text, profile, allProfiles);
   const hasSelectedCode = matchedTokenObjects.some((token) => ['code', 'compactCode', 'modelPrefix'].includes(token.kind));
-  const hasOtherSeriesCode = matchedOtherSeries.some((match) => match.hasCode);
   const isHommynPage = isServicePage(page);
-  const isMultiSeriesSummaryPage = matchedOtherSeries.length + (matchedTokens.length > 0 ? 1 : 0) >= 4;
-  const isExplicitOtherSeriesPage = hasOtherSeriesCode && !hasSelectedCode;
-  const excluded = matchedTokens.length === 0 || isExplicitOtherSeriesPage;
-  const belongsToSeries = matchedTokens.length > 0 && !excluded;
-  const isTechnicalPage = belongsToSeries && !isMultiSeriesSummaryPage && hasTechnicalMarker(text) && hasSelectedCode;
+  const pageClass = getPageClass({ matchedTokens, matchedOtherSeries, isHommynPage });
+  const belongsToSeries = pageClass === PAGE_CLASSES.exactSeriesPage;
+  const isMultiSeriesSummaryPage = pageClass === PAGE_CLASSES.summaryPage;
+  const isTechnicalPage = belongsToSeries && hasTechnicalMarker(text) && hasSelectedCode;
   const isOverviewPage = belongsToSeries && !isTechnicalPage;
+  const excluded = pageClass !== PAGE_CLASSES.exactSeriesPage;
   let score = scoreSeriesPage(page, profile, allProfiles);
 
   if (hasSelectedCode) {
@@ -285,20 +306,19 @@ export const classifyPageForSeries = (page, profile, allProfiles = SERIES_PROFIL
 
   return {
     pageNumber: page?.pageNumber,
+    pageClass,
+    pageClassLabel: PAGE_CLASS_LABELS[pageClass],
     score,
     belongsToSeries,
     isTechnicalPage,
     isOverviewPage,
+    isServicePage: pageClass === PAGE_CLASSES.servicePage,
+    isSummaryPage: pageClass === PAGE_CLASSES.summaryPage,
+    isOtherSeriesPage: pageClass === PAGE_CLASSES.otherSeriesPage,
+    isCategoryPage: pageClass === PAGE_CLASSES.categoryPage,
     excluded,
     excludeReason: excluded
-      ? buildExcludeReason({
-          profile,
-          matchedTokens,
-          matchedOtherSeries,
-          isHommynPage,
-          isExplicitOtherSeriesPage,
-          hasSelectedCode,
-        })
+      ? buildExcludeReason({ profile, pageClass, matchedOtherSeries })
       : '',
     matchedTokens,
     matchedOtherSeries: matchedOtherSeries.map((match) => ({
@@ -413,18 +433,29 @@ function PdfImportPanel({ onCreateSource }) {
 
     return selectedPages.map((page) => classifiedByNumber.get(page.pageNumber)).filter(Boolean);
   }, [seriesResult, selectedPages]);
+  const selectedExactSeriesPageNumbers = selectedClassifications
+    .filter((classification) => classification.belongsToSeries)
+    .map((classification) => classification.pageNumber);
   const selectedTechnicalPageNumbers = selectedClassifications
     .filter((classification) => classification.isTechnicalPage)
     .map((classification) => classification.pageNumber);
   const selectedOverviewPageNumbers = selectedClassifications
     .filter((classification) => classification.isOverviewPage)
     .map((classification) => classification.pageNumber);
-  const selectedTechnicalRawText = buildRawText(
-    selectedPages.filter((page) => selectedTechnicalPageNumbers.includes(page.pageNumber)),
+  const selectedSummaryPageNumbers = selectedClassifications
+    .filter((classification) => classification.isSummaryPage)
+    .map((classification) => classification.pageNumber);
+  const selectedServicePageNumbers = selectedClassifications
+    .filter((classification) => classification.isServicePage)
+    .map((classification) => classification.pageNumber);
+  const buildRawTextByPageNumbers = (pageNumbers) => buildRawText(
+    selectedPages.filter((page) => pageNumbers.includes(page.pageNumber)),
   );
-  const selectedOverviewRawText = buildRawText(
-    selectedPages.filter((page) => selectedOverviewPageNumbers.includes(page.pageNumber)),
-  );
+  const selectedExactSeriesRawText = buildRawTextByPageNumbers(selectedExactSeriesPageNumbers);
+  const selectedTechnicalRawText = buildRawTextByPageNumbers(selectedTechnicalPageNumbers);
+  const selectedOverviewRawText = buildRawTextByPageNumbers(selectedOverviewPageNumbers);
+  const selectedSummaryRawText = buildRawTextByPageNumbers(selectedSummaryPageNumbers);
+  const selectedServiceRawText = buildRawTextByPageNumbers(selectedServicePageNumbers);
   const selectedPageNumbersText = selectedPages.map((page) => page.pageNumber).join(', ');
   const selectedRawTextPreview = selectedRawText.slice(0, 1000);
   const scoredPagesByNumber = useMemo(() => {
@@ -553,31 +584,35 @@ function PdfImportPanel({ onCreateSource }) {
         page,
         classification: classifyPageForSeries(page, profile),
       }));
+      const getPagesByClassFlag = (flagName) => classifications
+        .filter(({ classification }) => classification[flagName])
+        .map(({ page }) => page.pageNumber);
+      const exactSeriesPageNumbers = getPagesByClassFlag('belongsToSeries');
+      const technicalPageNumbers = getPagesByClassFlag('isTechnicalPage');
+      const summaryPageNumbers = getPagesByClassFlag('isSummaryPage');
+      const servicePageNumbers = getPagesByClassFlag('isServicePage');
+      const excludedPages = classifications
+        .filter(({ classification }) => classification.excluded && classification.excludeReason)
+        .map(({ page, classification }) => ({
+          pageNumber: page.pageNumber,
+          className: classification.pageClass,
+          reason: classification.excludeReason,
+        }));
       const diagnostics = {
         matchedTokens: unique(
           classifications.flatMap(({ classification }) => classification.matchedTokens || []),
         ),
-        usedPages: [],
-        technicalPages: [],
-        excludedPages: [],
+        exactSeriesPages: exactSeriesPageNumbers,
+        technicalPages: technicalPageNumbers,
+        summaryPages: summaryPageNumbers,
+        servicePages: servicePageNumbers,
+        excludedPages,
       };
       const directMatchPages = classifications
         .filter(({ classification }) => classification.belongsToSeries)
         .map(({ page }) => page);
 
       if (directMatchPages.length === 0) {
-        const excludedPages = classifications
-          .filter(
-            ({ classification }) =>
-              classification.excluded &&
-              classification.excludeReason &&
-              !classification.excludeReason.startsWith('не содержит'),
-          )
-          .map(({ page, classification }) => ({
-            pageNumber: page.pageNumber,
-            reason: classification.excludeReason,
-          }));
-
         setSeriesResult({
           pages: [],
           directMatchPages: [],
@@ -586,17 +621,14 @@ function PdfImportPanel({ onCreateSource }) {
           technicalPageNumbers: [],
           overviewPageNumbers: [],
           excludedPages,
-          diagnostics: {
-            ...diagnostics,
-            excludedPages,
-          },
+          diagnostics,
           excludedPageNumbers: excludedPages.map((page) => page.pageNumber),
           classifiedByNumber: new Map(
             classifications.map(({ page, classification }) => [page.pageNumber, classification]),
           ),
         });
         setSeriesMessageKind('error');
-        setSeriesMessage('Серия не найдена в тексте PDF');
+        setSeriesMessage('Точные страницы серии не найдены.');
         return;
       }
 
@@ -607,23 +639,9 @@ function PdfImportPanel({ onCreateSource }) {
       const foundPages = scoredPages.map(({ page }) => page);
       const autoSelectedPages = scoredPages.map(({ page }) => page);
       const autoSelectedPageNumbers = getSelectedPageNumbers(autoSelectedPages);
-      const technicalPageNumbers = classifications
-        .filter(({ classification }) => classification.isTechnicalPage)
-        .map(({ page }) => page.pageNumber);
       const overviewPageNumbers = classifications
         .filter(({ classification }) => classification.isOverviewPage)
         .map(({ page }) => page.pageNumber);
-      const excludedPages = classifications
-        .filter(
-          ({ classification }) =>
-            classification.excluded &&
-            classification.excludeReason &&
-            !classification.excludeReason.startsWith('не содержит'),
-        )
-        .map(({ page, classification }) => ({
-          pageNumber: page.pageNumber,
-          reason: classification.excludeReason,
-        }));
       const classifiedByNumber = new Map(
         classifications.map(({ page, classification }) => [page.pageNumber, classification]),
       );
@@ -639,8 +657,6 @@ function PdfImportPanel({ onCreateSource }) {
         diagnostics: {
           ...diagnostics,
           usedPages: autoSelectedPageNumbers,
-          technicalPages: technicalPageNumbers,
-          excludedPages,
         },
         excludedPageNumbers: excludedPages.map((page) => page.pageNumber),
         classifiedByNumber,
@@ -720,15 +736,24 @@ function PdfImportPanel({ onCreateSource }) {
       sourceDate: catalogYear,
       sourceRef: `PDF каталог ${catalogYear}, страницы ${selectedPagesArray.join(', ')}`,
       rawText,
+      exactSeriesRawText: selectedExactSeriesRawText.trim(),
       technicalRawText: selectedTechnicalRawText.trim(),
       overviewRawText: selectedOverviewRawText.trim(),
+      summaryRawText: selectedSummaryRawText.trim(),
+      serviceRawText: selectedServiceRawText.trim(),
+      exactSeriesPages: selectedExactSeriesPageNumbers,
       technicalPages: selectedTechnicalPageNumbers,
       overviewPages: selectedOverviewPageNumbers,
+      summaryPages: selectedSummaryPageNumbers,
+      servicePages: selectedServicePageNumbers,
       pageDiagnostics: {
         matchedTokens: seriesResult?.diagnostics?.matchedTokens || [],
         usedPages: selectedPagesArray,
+        exactSeriesPages: selectedExactSeriesPageNumbers,
         technicalPages: selectedTechnicalPageNumbers,
         overviewPages: selectedOverviewPageNumbers,
+        summaryPages: selectedSummaryPageNumbers,
+        servicePages: selectedServicePageNumbers,
         excludedPages: seriesResult?.excludedPages || [],
       },
       pages: selectedPagesArray,
@@ -927,15 +952,23 @@ function PdfImportPanel({ onCreateSource }) {
                   {formatPageNumbers(seriesResult.autoSelectedPageNumbers || [])}
                 </p>
                 <p>
-                  Технические страницы:{' '}
-                  {formatPageNumbers(seriesResult.technicalPageNumbers || [])}
+                  exactSeriesPages:{' '}
+                  {formatPageNumbers(seriesResult.diagnostics?.exactSeriesPages || [])}
                 </p>
                 <p>
-                  Обзорные страницы:{' '}
-                  {formatPageNumbers(seriesResult.overviewPageNumbers || [])}
+                  technicalPages:{' '}
+                  {formatPageNumbers(seriesResult.diagnostics?.technicalPages || [])}
                 </p>
                 <p>
-                  Исключённые страницы:{' '}
+                  summaryPages:{' '}
+                  {formatPageNumbers(seriesResult.diagnostics?.summaryPages || [])}
+                </p>
+                <p>
+                  servicePages:{' '}
+                  {formatPageNumbers(seriesResult.diagnostics?.servicePages || [])}
+                </p>
+                <p>
+                  excludedPages:{' '}
                   {formatPageNumbers(seriesResult.excludedPageNumbers || [])}
                 </p>
                 <p>
@@ -944,6 +977,9 @@ function PdfImportPanel({ onCreateSource }) {
                     ? seriesResult.diagnostics.matchedTokens.join(', ')
                     : 'нет'}
                 </p>
+                {(!seriesResult.diagnostics?.exactSeriesPages || seriesResult.diagnostics.exactSeriesPages.length === 0) && (
+                  <p className="warning-text">Точные страницы серии не найдены.</p>
+                )}
                 {(!seriesResult.technicalPageNumbers || seriesResult.technicalPageNumbers.length === 0) && (
                   <p className="warning-text">Техническая таблица серии не найдена.</p>
                 )}
@@ -1008,6 +1044,11 @@ function PdfImportPanel({ onCreateSource }) {
                         <span>Страница {page.pageNumber}</span>
                       </label>
                       <span className="pdf-page-score">Релевантность: {scoredPagesByNumber.get(page.pageNumber) ?? 0}</span>
+                      {seriesResult.classifiedByNumber?.get(page.pageNumber)?.pageClassLabel && (
+                        <p className="pdf-debug-match">
+                          Класс: {seriesResult.classifiedByNumber.get(page.pageNumber).pageClassLabel}
+                        </p>
+                      )}
                       {seriesResult.classifiedByNumber?.get(page.pageNumber)?.matchedTokens?.length > 0 && (
                         <p className="pdf-debug-match">
                           Токены: {seriesResult.classifiedByNumber.get(page.pageNumber).matchedTokens.join(', ')}
