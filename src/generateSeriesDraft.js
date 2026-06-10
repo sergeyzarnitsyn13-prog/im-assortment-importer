@@ -1,4 +1,4 @@
-import { SERIES_PROFILES, findSeriesProfile } from './data/seriesProfiles';
+import { SERIES_PROFILES, findSeriesProfile } from './data/seriesProfiles.js';
 
 const FEATURE_RULES = [
   { label: 'Wi-Fi управление', patterns: [/\bwi\s*-?\s*fi\b/u, /\bwifi\b/u, /вай\s*-?\s*фай/u] },
@@ -232,7 +232,7 @@ const getOtherSeriesMarkers = (text = '', selectedProfile) =>
     .filter((marker) => hasExactPhrase(text, marker));
 
 const assertRawTextBelongsToSelectedSeries = (source, profile) => {
-  const rawText = source?.rawText || '';
+  const rawText = source?.exactSeriesRawText || source?.overviewRawText || source?.rawText || '';
 
   if (!profile || !rawText) {
     return;
@@ -435,27 +435,48 @@ const trimToSentence = (text, maxLength = MAX_SHORT_DESCRIPTION_LENGTH) => {
   return `${normalizedText.slice(0, maxLength - 1).trim()}…`;
 };
 
-const getApprovedProfileSeed = (source) => findSeriesProfile(source.seriesName || source.code || source.profileId);
+const getApprovedProfileSeed = (source) => findSeriesProfile(source.profileId || source.code || source.seriesName);
+
+const buildDraftWarning = ({ hasExactSeriesPages, hasTechnicalTable, prefix = '' }) => {
+  const warnings = [
+    prefix,
+    hasExactSeriesPages ? '' : 'Точные страницы серии не найдены.',
+    hasTechnicalTable ? '' : 'Техническая таблица серии не найдена.',
+  ].filter(Boolean);
+
+  return warnings.join(' ');
+};
+
+const getIsolatedSourceTexts = (source) => {
+  const exactSeriesText = source.exactSeriesRawText || source.overviewRawText || '';
+  const technicalText = source.technicalRawText || '';
+  const summaryText = source.summaryRawText || '';
+  const serviceText = source.serviceRawText || '';
+
+  return {
+    exactSeriesText,
+    technicalText,
+    summaryText,
+    serviceText,
+    hasExactSeriesPages: exactSeriesText.trim().length > 0,
+    hasTechnicalTable: technicalText.trim().length > 0,
+  };
+};
 
 const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
-  assertRawTextBelongsToSelectedSeries(source, approvedProfile);
-
-  const rawText = source.rawText || '';
-  const overviewRawText = source.overviewRawText || rawText;
-  const technicalRawText = source.technicalRawText || '';
-  const hasTechnicalTable = technicalRawText.trim().length > 0;
+  const { exactSeriesText, technicalText, hasExactSeriesPages, hasTechnicalTable } = getIsolatedSourceTexts(source);
   const seriesName = approvedProfile.seriesName;
-  const keyFeatures = legacyProfile
-    ? extractProfileKeyFeatures(legacyProfile, overviewRawText, technicalRawText)
-    : extractKeyFeatures(overviewRawText, seriesName, technicalRawText);
-  const salesFeatures = keyFeatures.filter((feature) => !isTechnicalFeature(feature));
-  const safeLegacyAdvantages = hasTechnicalTable
-    ? legacyProfile?.mainAdvantages || []
-    : (legacyProfile?.mainAdvantages || []).filter((feature) => !isTechnicalFeature(feature));
-  const mainAdvantages = legacyProfile ? pickMainAdvantages(keyFeatures, safeLegacyAdvantages) : pickMainAdvantages(keyFeatures);
-  const technicalSpecs = hasTechnicalTable ? extractTechnicalSpecs(technicalRawText) : [];
+  const salesFeatures = hasExactSeriesPages
+    ? extractFeatureList(exactSeriesText, seriesName).filter((feature) => !isTechnicalFeature(feature))
+    : [];
+  const technicalFeatures = hasTechnicalTable
+    ? extractFeatureList(technicalText, seriesName).filter(isTechnicalFeature)
+    : [];
+  const keyFeatures = sortFeaturesByPriority(unique([...salesFeatures, ...technicalFeatures]));
+  const mainAdvantages = pickMainAdvantages(salesFeatures);
+  const technicalSpecs = hasTechnicalTable ? extractTechnicalSpecs(technicalText) : [];
   const importantSpecs = unique([...salesFeatures, ...technicalSpecs]);
-  const draftWarning = hasTechnicalTable ? '' : 'Техническая таблица серии не найдена.';
+  const draftWarning = buildDraftWarning({ hasExactSeriesPages, hasTechnicalTable });
 
   return attachSourceRefs({
     profileId: approvedProfile.id,
@@ -466,8 +487,8 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
     group: approvedProfile.group,
     code: approvedProfile.code,
     seriesName,
-    shortDescription: legacyProfile ? trimToSentence(legacyProfile.shortDescription) : '',
-    positioning: legacyProfile?.positioning || '',
+    shortDescription: hasExactSeriesPages && legacyProfile ? trimToSentence(legacyProfile.shortDescription) : '',
+    positioning: hasExactSeriesPages ? legacyProfile?.positioning || '' : '',
     targetClient: legacyProfile?.targetClient || [],
     mainSalesIdea: legacyProfile?.mainSalesIdea || '',
     keyFeatures,
@@ -501,27 +522,24 @@ export const generateSeriesDraft = (source) => {
     return buildProfileDraft(source, approvedProfile, legacyProfile);
   }
 
-  assertRawTextBelongsToSelectedSeries(source, {
-    id: source.profileId || '',
-    seriesName: source.seriesName || '',
-    code: source.code || '',
-    aliases: [],
-  });
-
-  const rawText = source.rawText || '';
-  const overviewRawText = source.overviewRawText || rawText;
-  const technicalRawText = source.technicalRawText || '';
-  const hasTechnicalTable = technicalRawText.trim().length > 0;
-  const keyFeatures = extractKeyFeatures(overviewRawText, source.seriesName, technicalRawText);
-  const salesFeatures = keyFeatures.filter((feature) => !isTechnicalFeature(feature));
-  const technicalSpecs = hasTechnicalTable ? extractTechnicalSpecs(technicalRawText) : [];
+  const { exactSeriesText, technicalText, hasExactSeriesPages, hasTechnicalTable } = getIsolatedSourceTexts(source);
+  const salesFeatures = hasExactSeriesPages
+    ? extractFeatureList(exactSeriesText, source.seriesName).filter((feature) => !isTechnicalFeature(feature))
+    : [];
+  const technicalFeatures = hasTechnicalTable
+    ? extractFeatureList(technicalText, source.seriesName).filter(isTechnicalFeature)
+    : [];
+  const keyFeatures = sortFeaturesByPriority(unique([...salesFeatures, ...technicalFeatures]));
+  const technicalSpecs = hasTechnicalTable ? extractTechnicalSpecs(technicalText) : [];
 
   return attachSourceRefs({
     profileId: source.profileId || '',
     profileStatus: 'unknown',
-    draftWarning: hasTechnicalTable
-      ? 'Серия не найдена в утверждённом справочнике Ballu 2026. Проверьте серию вручную: продажное позиционирование не заполнено автоматически.'
-      : 'Серия не найдена в утверждённом справочнике Ballu 2026. Проверьте серию вручную: продажное позиционирование не заполнено автоматически. Техническая таблица серии не найдена.',
+    draftWarning: buildDraftWarning({
+      hasExactSeriesPages,
+      hasTechnicalTable,
+      prefix: 'Серия не найдена в утверждённом справочнике Ballu 2026. Проверьте серию вручную: продажное позиционирование не заполнено автоматически.',
+    }),
     brand: source.brand || '',
     category: source.category || '',
     group: source.group || '',
@@ -541,7 +559,7 @@ export const generateSeriesDraft = (source) => {
     whenNotRecommend: [],
     objections: [],
     technicalSpecs,
-    importantSpecs: technicalSpecs,
+    importantSpecs: unique([...salesFeatures, ...technicalSpecs]),
     sourceIds: source.id ? [source.id] : [],
     status: 'draft',
   }, source);
