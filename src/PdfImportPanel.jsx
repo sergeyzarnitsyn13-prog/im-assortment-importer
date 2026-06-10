@@ -16,7 +16,25 @@ const PDF_SOURCE_INITIAL = {
   code: '',
 };
 
-const normalizeSearchText = (value = '') => value.toLocaleLowerCase('ru-RU').trim();
+const normalizeSearchText = (value = '') =>
+  String(value)
+    .toLocaleLowerCase('ru-RU')
+    .trim()
+    .replace(/ё/g, 'е')
+    .replace(/[\-/\\_‐‑‒–—−]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const compactSearchText = (value = '') => normalizeSearchText(value).replace(/\s+/g, '');
+
+const getSearchTextForms = (value = '') => {
+  const normalized = normalizeSearchText(value);
+
+  return {
+    normalized,
+    compact: normalized.replace(/\s+/g, ''),
+  };
+};
 
 const getProfileOptionLabel = (profile) => `${profile.group} — ${profile.seriesName} (${profile.code})`;
 
@@ -46,164 +64,204 @@ const getSearchFragment = (text, searchTerm) => {
   return `${prefix}${text.slice(start, end)}${suffix}`;
 };
 
+const unique = (items) => [...new Set(items)];
+
+const buildSearchTokens = (profile) => {
+  if (!profile) {
+    return [];
+  }
+
+  const baseTokens = [
+    { value: profile.seriesName, kind: 'seriesName' },
+    { value: profile.code, kind: 'code' },
+    ...(profile.aliases || []).map((alias) => ({ value: alias, kind: 'alias' })),
+    { value: compactSearchText(profile.seriesName), kind: 'compactSeriesName' },
+    { value: compactSearchText(profile.code), kind: 'compactCode' },
+  ];
+  const prefixTokens = ['in', 'out'].flatMap((suffix) => [
+    { value: `${profile.code}/${suffix}`, kind: 'modelPrefix' },
+    { value: `${profile.code}-${suffix}`, kind: 'modelPrefix' },
+    { value: `${profile.code}_${suffix}`, kind: 'modelPrefix' },
+  ]);
+
+  const seen = new Set();
+
+  return [...baseTokens, ...prefixTokens]
+    .filter(({ value }) => Boolean(String(value || '').trim()))
+    .map((token) => {
+      const forms = getSearchTextForms(token.value);
+
+      return {
+        ...token,
+        normalized: forms.normalized,
+        compact: forms.compact,
+        label: String(token.value).trim(),
+      };
+    })
+    .filter((token) => {
+      const key = `${token.kind}:${token.normalized}:${token.compact}`;
+
+      if (!token.normalized && !token.compact) {
+        return false;
+      }
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    });
+};
+
+const SERIES_SEARCH_PROFILES = SERIES_PROFILES.map((profile) => ({
+  ...profile,
+  searchTokens: buildSearchTokens(profile),
+}));
+
 const SERIES_PAGE_RULES = Object.fromEntries(
-  SERIES_PROFILES.map((profile) => [
-    profile.seriesName.toLocaleLowerCase('ru-RU').trim().replace(/\s+/g, ' '),
+  SERIES_SEARCH_PROFILES.map((profile) => [
+    normalizeSearchText(profile.seriesName),
     {
       code: profile.code,
       aliases: profile.aliases || [],
       keywords: [],
+      searchTokens: profile.searchTokens,
     },
   ]),
 );
 
-const SERIES_MARKERS = SERIES_PROFILES.map((profile) => ({
-  id: profile.id,
-  seriesName: profile.seriesName,
-  code: profile.code,
-  aliases: profile.aliases || [],
-}));
-
-const SUMMARY_SERIES_NAMES = SERIES_PROFILES.map((profile) => profile.seriesName);
-
-const SERVICE_PAGE_KEYWORDS = ['HOMMYN', 'совместимость', 'USB', 'Алиса', 'Маруся', 'Сбер'];
-
-const GENERAL_CATEGORY_KEYWORDS = [
-  'модельный ряд',
-  'категория',
-  'каталог',
-  'настенные сплит-системы',
-  'сплит-системы',
-];
+const SERVICE_PAGE_KEYWORDS = ['HOMMYN', 'совместимость', 'совместим', 'USB', 'Алиса', 'Маруся', 'Сбер'];
 
 const escapeRegExp = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const normalizeSeriesKey = (seriesName = '') => normalizeSearchText(seriesName).replace(/\s+/g, ' ');
+const normalizeSeriesKey = (seriesName = '') => normalizeSearchText(seriesName);
 
 const findSeriesRule = (seriesName = '') => SERIES_PAGE_RULES[normalizeSeriesKey(seriesName)] || null;
 
-const includesNormalizedPhrase = (text = '', phrase = '') => {
-  const normalizedPhrase = normalizeSearchText(phrase);
+const getNormalizedBoundaryPattern = (normalizedPhrase = '') =>
+  new RegExp(`(^|[^0-9a-zа-яе])${escapeRegExp(normalizedPhrase)}([^0-9a-zа-яе]|$)`, 'iu');
 
-  return Boolean(normalizedPhrase) && normalizeSearchText(text).includes(normalizedPhrase);
-};
+const hasNormalizedPhrase = (normalizedText = '', normalizedPhrase = '') =>
+  Boolean(normalizedPhrase) && getNormalizedBoundaryPattern(normalizedPhrase).test(normalizedText);
+
+const includesNormalizedPhrase = (text = '', phrase = '') =>
+  hasNormalizedPhrase(normalizeSearchText(text), normalizeSearchText(phrase));
 
 const countIncludedPhrases = (text = '', phrases = []) =>
   phrases.reduce((count, phrase) => (includesNormalizedPhrase(text, phrase) ? count + 1 : count), 0);
 
-const unique = (items) => [...new Set(items)];
-
-const hasExactPhrase = (text = '', phrase = '') => {
-  const trimmedPhrase = phrase.trim();
-
-  if (!trimmedPhrase) {
+const tokenMatchesPage = ({ normalizedText, compactText }, token) => {
+  if (!token?.normalized && !token?.compact) {
     return false;
   }
 
-  return new RegExp(`(^|[^0-9a-zа-яё])${escapeRegExp(trimmedPhrase)}([^0-9a-zа-яё]|$)`, 'i').test(text);
+  if (token.normalized && hasNormalizedPhrase(normalizedText, token.normalized)) {
+    return true;
+  }
+
+  return Boolean(token.compact && token.compact.length >= 4 && compactText.includes(token.compact));
 };
 
-const getProfileMarkers = (profile) => [profile?.seriesName, profile?.code, ...(profile?.aliases || [])].filter(Boolean);
+const getProfileSearchTokens = (profile) => buildSearchTokens(profile);
 
-const getContainedSeriesMarkers = (text = '', profile) =>
-  getProfileMarkers(profile).filter((marker) => hasExactPhrase(text, marker));
+const getMatchedTokens = (text = '', profile) => {
+  const forms = getSearchTextForms(text);
+  const pageForms = { normalizedText: forms.normalized, compactText: forms.compact };
 
-const getOtherSeriesMarkers = (text = '', selectedProfile) =>
-  SERIES_MARKERS.filter((profile) => profile.id !== selectedProfile?.id)
-    .flatMap((profile) =>
-      [profile.seriesName, profile.code, ...profile.aliases]
-        .filter(Boolean)
-        .filter((marker) => hasExactPhrase(text, marker)),
-    );
+  return getProfileSearchTokens(profile)
+    .filter((token) => tokenMatchesPage(pageForms, token))
+    .map((token) => token.label);
+};
+
+const getMatchedTokenObjects = (text = '', profile) => {
+  const forms = getSearchTextForms(text);
+  const pageForms = { normalizedText: forms.normalized, compactText: forms.compact };
+
+  return getProfileSearchTokens(profile).filter((token) => tokenMatchesPage(pageForms, token));
+};
+
+const hasProfileCodeMatch = (text = '', profile) =>
+  getMatchedTokenObjects(text, profile).some((token) => ['code', 'compactCode', 'modelPrefix'].includes(token.kind));
+
+const getOtherSeriesMatches = (text = '', selectedProfile, allProfiles = SERIES_PROFILES) =>
+  allProfiles
+    .filter((profile) => profile.id !== selectedProfile?.id)
+    .map((profile) => ({
+      profile,
+      matchedTokens: getMatchedTokens(text, profile),
+      hasCode: hasProfileCodeMatch(text, profile),
+    }))
+    .filter((match) => match.matchedTokens.length > 0);
 
 const hasTechnicalMarker = (text = '') =>
   includesNormalizedPhrase(text, 'Технические характеристики') || includesNormalizedPhrase(text, 'Параметр / Модель');
 
-
 function scoreSeriesPage(page, profile, allProfiles = []) {
-  const text = normalizeSearchText(page?.text || '');
-  const seriesName = normalizeSearchText(profile?.seriesName || '');
-  const code = normalizeSearchText(profile?.code || '');
+  const text = page?.text || '';
+  const selectedTokens = getMatchedTokenObjects(text, profile);
+  const otherSeriesMatches = getOtherSeriesMatches(text, profile, allProfiles);
 
   let score = 0;
 
-  if (seriesName && text.includes(seriesName)) score += 10;
-  if (code && text.includes(code)) score += 8;
-
-  for (const alias of profile?.aliases || []) {
-    const normalizedAlias = normalizeSearchText(alias);
-    if (normalizedAlias && text.includes(normalizedAlias)) score += 4;
+  for (const token of selectedTokens) {
+    if (token.kind === 'seriesName' || token.kind === 'compactSeriesName') score += 10;
+    else if (token.kind === 'code' || token.kind === 'compactCode' || token.kind === 'modelPrefix') score += 8;
+    else score += 4;
   }
 
-  if (text.includes(normalizeSearchText('Технические характеристики'))) score += 3;
-  if (text.includes(normalizeSearchText('Параметр / Модель'))) score += 3;
-
-  const otherSeriesMatches = allProfiles.filter((otherProfile) => {
-    if (otherProfile.id === profile?.id) return false;
-    const otherName = normalizeSearchText(otherProfile.seriesName || '');
-    const otherCode = normalizeSearchText(otherProfile.code || '');
-    return (otherName && text.includes(otherName)) || (otherCode && text.includes(otherCode));
-  });
+  if (hasTechnicalMarker(text)) score += 3;
 
   if (otherSeriesMatches.length >= 4) score -= 10;
 
-  if (
-    text.includes(normalizeSearchText('HOMMYN')) ||
-    text.includes(normalizeSearchText('Алиса')) ||
-    text.includes(normalizeSearchText('Маруся')) ||
-    text.includes(normalizeSearchText('Сбер')) ||
-    text.includes(normalizeSearchText('совместим'))
-  ) {
+  if (isServicePage(text)) {
     score -= 8;
   }
 
   return score;
 }
 
-const buildExcludeReason = ({ profile, selectedMarkers, otherMarkers, isHommynPage, isMultiSeriesSummaryPage, isCategoryPage }) => {
-  if (isHommynPage) {
-    return 'страница HOMMYN';
-  }
-
-  if (isMultiSeriesSummaryPage) {
-    return 'сводная таблица, где перечислены 4+ серии';
-  }
-
-  if (isCategoryPage) {
-    return 'общая страница категории';
-  }
-
-  if (otherMarkers.length > 0) {
-    return `содержит ${unique(otherMarkers).join(' / ')}, выбрана ${profile.seriesName}`;
-  }
-
-  if (selectedMarkers.length === 0) {
+const buildExcludeReason = ({ profile, matchedTokens, matchedOtherSeries, isHommynPage, isExplicitOtherSeriesPage, hasSelectedCode }) => {
+  if (matchedTokens.length === 0) {
     return `не содержит ${profile.seriesName} / ${profile.code}`;
+  }
+
+  if (isHommynPage && !hasSelectedCode) {
+    return 'страница HOMMYN/совместимости без кода выбранной серии';
+  }
+
+  if (isExplicitOtherSeriesPage && !hasSelectedCode) {
+    const otherCodes = unique(matchedOtherSeries.filter((match) => match.hasCode).map((match) => match.profile.code));
+
+    return `явная страница другой серии: ${otherCodes.join(' / ')}`;
   }
 
   return '';
 };
 
-export const classifyPageForSeries = (page, profile) => {
+export const classifyPageForSeries = (page, profile, allProfiles = SERIES_PROFILES) => {
   const text = page?.text || '';
-  const selectedMarkers = getContainedSeriesMarkers(text, profile);
-  const otherMarkers = getOtherSeriesMarkers(text, profile);
-  const isHommynPage = hasExactPhrase(text, 'HOMMYN');
-  const isMultiSeriesSummaryPage = isSummaryPage(text);
-  const isCategoryPage = isGeneralCategoryPage(text, profile.seriesName);
+  const matchedTokenObjects = getMatchedTokenObjects(text, profile);
+  const matchedTokens = unique(matchedTokenObjects.map((token) => token.label));
+  const matchedOtherSeries = getOtherSeriesMatches(text, profile, allProfiles);
+  const hasSelectedCode = matchedTokenObjects.some((token) => ['code', 'compactCode', 'modelPrefix'].includes(token.kind));
+  const hasOtherSeriesCode = matchedOtherSeries.some((match) => match.hasCode);
+  const isHommynPage = isServicePage(text);
+  const isMultiSeriesSummaryPage = matchedOtherSeries.length + (matchedTokens.length > 0 ? 1 : 0) >= 4;
+  const isExplicitOtherSeriesPage = hasOtherSeriesCode && !hasSelectedCode;
   const excluded =
-    selectedMarkers.length === 0 ||
-    otherMarkers.length > 0 ||
-    isHommynPage ||
-    isMultiSeriesSummaryPage ||
-    isCategoryPage;
-  const belongsToSeries = selectedMarkers.length > 0 && !excluded;
-  const isTechnicalPage = belongsToSeries && hasTechnicalMarker(text) && hasExactPhrase(text, profile.code);
+    matchedTokens.length === 0 ||
+    (isHommynPage && !hasSelectedCode) ||
+    isExplicitOtherSeriesPage;
+  const belongsToSeries = matchedTokens.length > 0 && !excluded;
+  const isTechnicalPage = belongsToSeries && !isMultiSeriesSummaryPage && hasTechnicalMarker(text) && hasSelectedCode;
   const isOverviewPage = belongsToSeries && !isTechnicalPage;
-  let score = scoreSeriesPage(page, profile, SERIES_PROFILES);
+  let score = scoreSeriesPage(page, profile, allProfiles);
 
-  if (selectedMarkers.length > 0) {
-    score += selectedMarkers.some((marker) => marker === profile.code) ? 10 : 6;
+  if (hasSelectedCode) {
+    score += 10;
+  } else if (matchedTokens.length > 0) {
+    score += 6;
   }
 
   if (isTechnicalPage) {
@@ -224,49 +282,23 @@ export const classifyPageForSeries = (page, profile) => {
     excludeReason: excluded
       ? buildExcludeReason({
           profile,
-          selectedMarkers,
-          otherMarkers,
+          matchedTokens,
+          matchedOtherSeries,
           isHommynPage,
-          isMultiSeriesSummaryPage,
-          isCategoryPage,
+          isExplicitOtherSeriesPage,
+          hasSelectedCode,
         })
       : '',
+    matchedTokens,
+    matchedOtherSeries: matchedOtherSeries.map((match) => ({
+      seriesName: match.profile.seriesName,
+      code: match.profile.code,
+      matchedTokens: unique(match.matchedTokens),
+      hasCode: match.hasCode,
+    })),
+    isMultiSeriesSummaryPage,
+    hasSelectedCode,
   };
-};
-
-const hasSeriesCode = (text = '', seriesName = '') => {
-  const rule = findSeriesRule(seriesName);
-
-  return Boolean(rule?.code && hasExactPhrase(text, rule.code));
-};
-
-const hasHeadingSeriesName = (text = '', seriesName = '') => {
-  const trimmedSeriesName = seriesName.trim();
-
-  if (!trimmedSeriesName || !hasExactPhrase(text, trimmedSeriesName)) {
-    return false;
-  }
-
-  const headText = text.slice(0, 700);
-  const normalizedHeadText = normalizeSearchText(headText);
-  const normalizedSeriesName = normalizeSearchText(trimmedSeriesName);
-  const uppercaseSeriesName = trimmedSeriesName.toLocaleUpperCase('ru-RU');
-
-  return (
-    hasExactPhrase(headText, uppercaseSeriesName) ||
-    normalizedHeadText.includes(`серия ${normalizedSeriesName}`) ||
-    normalizedHeadText.startsWith(normalizedSeriesName)
-  );
-};
-
-const isSummaryPage = (text = '') => countIncludedPhrases(text, SUMMARY_SERIES_NAMES) >= 4;
-
-const isServicePage = (text = '') => countIncludedPhrases(text, SERVICE_PAGE_KEYWORDS) >= 2;
-
-const isGeneralCategoryPage = (text = '', seriesName = '') => {
-  const hasGeneralMarkers = countIncludedPhrases(text, GENERAL_CATEGORY_KEYWORDS) >= 2;
-
-  return hasGeneralMarkers && !hasSeriesCode(text, seriesName) && !hasHeadingSeriesName(text, seriesName);
 };
 
 const formatPageNumbers = (pageNumbers) => (pageNumbers.length > 0 ? pageNumbers.join(', ') : 'нет');
@@ -332,13 +364,23 @@ function PdfImportPanel({ onCreateSource }) {
       return [];
     }
 
-    return pages.filter((page) => page.text.toLowerCase().includes(searchTerm.toLowerCase()));
+    const normalizedTerm = normalizeSearchText(searchTerm);
+    const compactTerm = compactSearchText(searchTerm);
+
+    return pages.filter((page) => {
+      const normalizedPageText = normalizeSearchText(page.text);
+      const compactPageText = compactSearchText(page.text);
+
+      return (normalizedTerm && normalizedPageText.includes(normalizedTerm)) || (compactTerm && compactPageText.includes(compactTerm));
+    });
   }, [pages, searchTerm]);
 
   const searchDebugResults = useMemo(
     () => filteredPages.slice(0, 10).map((page) => ({
       page,
-      isMatch: page.text.toLowerCase().includes(searchTerm.toLowerCase()),
+      isMatch:
+        normalizeSearchText(page.text).includes(normalizeSearchText(searchTerm)) ||
+        compactSearchText(page.text).includes(compactSearchText(searchTerm)),
       fragment: getSearchFragment(page.text, searchTerm),
     })),
     [filteredPages, searchTerm],
@@ -499,6 +541,14 @@ function PdfImportPanel({ onCreateSource }) {
       page,
       classification: classifyPageForSeries(page, profile),
     }));
+    const diagnostics = {
+      matchedTokens: unique(
+        classifications.flatMap(({ classification }) => classification.matchedTokens || []),
+      ),
+      usedPages: [],
+      technicalPages: [],
+      excludedPages: [],
+    };
     const directMatchPages = classifications
       .filter(({ classification }) => classification.belongsToSeries)
       .map(({ page }) => page);
@@ -524,6 +574,10 @@ function PdfImportPanel({ onCreateSource }) {
         technicalPageNumbers: [],
         overviewPageNumbers: [],
         excludedPages,
+        diagnostics: {
+          ...diagnostics,
+          excludedPages,
+        },
         excludedPageNumbers: excludedPages.map((page) => page.pageNumber),
         classifiedByNumber: new Map(
           classifications.map(({ page, classification }) => [page.pageNumber, classification]),
@@ -570,6 +624,12 @@ function PdfImportPanel({ onCreateSource }) {
       technicalPageNumbers,
       overviewPageNumbers,
       excludedPages,
+      diagnostics: {
+        ...diagnostics,
+        usedPages: autoSelectedPageNumbers,
+        technicalPages: technicalPageNumbers,
+        excludedPages,
+      },
       excludedPageNumbers: excludedPages.map((page) => page.pageNumber),
       classifiedByNumber,
     });
@@ -577,7 +637,7 @@ function PdfImportPanel({ onCreateSource }) {
     setSeriesMessageKind(technicalPageNumbers.length > 0 ? 'info' : 'warning');
     setSeriesMessage(
       `${`Определена серия: ${profile.seriesName} (${profile.code}). `}Найдено страниц серии: ${directMatchPages.length}. ${
-        technicalPageNumbers.length === 0 ? 'Техническая таблица для серии не найдена.' : ''
+        technicalPageNumbers.length === 0 ? 'Техническая таблица серии не найдена.' : ''
       }`,
     );
   };
@@ -597,9 +657,9 @@ function PdfImportPanel({ onCreateSource }) {
       return;
     }
 
-    const otherMarkers = getOtherSeriesMarkers(rawText, profile);
+    const otherSeriesWithCode = getOtherSeriesMatches(rawText, profile).filter((match) => match.hasCode);
 
-    if (otherMarkers.length > 0 && !hasExactPhrase(rawText, profile.code)) {
+    if (otherSeriesWithCode.length > 0 && !hasProfileCodeMatch(rawText, profile)) {
       throw new Error('Найден текст другой серии. Карточка не создана.');
     }
   };
@@ -647,6 +707,7 @@ function PdfImportPanel({ onCreateSource }) {
       technicalPages: selectedTechnicalPageNumbers,
       overviewPages: selectedOverviewPageNumbers,
       pageDiagnostics: {
+        matchedTokens: seriesResult?.diagnostics?.matchedTokens || [],
         usedPages: selectedPagesArray,
         technicalPages: selectedTechnicalPageNumbers,
         overviewPages: selectedOverviewPageNumbers,
@@ -859,8 +920,14 @@ function PdfImportPanel({ onCreateSource }) {
                   Исключённые страницы:{' '}
                   {formatPageNumbers(seriesResult.excludedPageNumbers || [])}
                 </p>
+                <p>
+                  Совпавшие токены:{' '}
+                  {seriesResult.diagnostics?.matchedTokens?.length > 0
+                    ? seriesResult.diagnostics.matchedTokens.join(', ')
+                    : 'нет'}
+                </p>
                 {(!seriesResult.technicalPageNumbers || seriesResult.technicalPageNumbers.length === 0) && (
-                  <p className="warning-text">Техническая таблица для серии не найдена.</p>
+                  <p className="warning-text">Техническая таблица серии не найдена.</p>
                 )}
                 {seriesResult.excludedPages?.length > 0 && (
                   <ul className="pdf-excluded-list">
@@ -923,6 +990,20 @@ function PdfImportPanel({ onCreateSource }) {
                         <span>Страница {page.pageNumber}</span>
                       </label>
                       <span className="pdf-page-score">Релевантность: {scoredPagesByNumber.get(page.pageNumber) ?? 0}</span>
+                      {seriesResult.classifiedByNumber?.get(page.pageNumber)?.matchedTokens?.length > 0 && (
+                        <p className="pdf-debug-match">
+                          Токены: {seriesResult.classifiedByNumber.get(page.pageNumber).matchedTokens.join(', ')}
+                        </p>
+                      )}
+                      {seriesResult.classifiedByNumber?.get(page.pageNumber)?.matchedOtherSeries?.length > 0 && (
+                        <p className="pdf-debug-match">
+                          Другие серии:{' '}
+                          {seriesResult.classifiedByNumber
+                            .get(page.pageNumber)
+                            .matchedOtherSeries.map((match) => `${match.seriesName} (${match.code})`)
+                            .join(', ')}
+                        </p>
+                      )}
                       <p>{page.text.slice(0, 420)}{page.text.length > 420 ? '…' : ''}</p>
                     </article>
                   ))}

@@ -455,7 +455,7 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
   const mainAdvantages = legacyProfile ? pickMainAdvantages(keyFeatures, safeLegacyAdvantages) : pickMainAdvantages(keyFeatures);
   const technicalSpecs = hasTechnicalTable ? extractTechnicalSpecs(technicalRawText) : [];
   const importantSpecs = unique([...salesFeatures, ...technicalSpecs]);
-  const draftWarning = hasTechnicalTable ? '' : 'Техническая таблица для серии не найдена.';
+  const draftWarning = hasTechnicalTable ? '' : 'Техническая таблица серии не найдена.';
 
   return attachSourceRefs({
     profileId: approvedProfile.id,
@@ -521,7 +521,7 @@ export const generateSeriesDraft = (source) => {
     profileStatus: 'unknown',
     draftWarning: hasTechnicalTable
       ? 'Серия не найдена в утверждённом справочнике Ballu 2026. Проверьте серию вручную: продажное позиционирование не заполнено автоматически.'
-      : 'Серия не найдена в утверждённом справочнике Ballu 2026. Проверьте серию вручную: продажное позиционирование не заполнено автоматически. Техническая таблица для серии не найдена.',
+      : 'Серия не найдена в утверждённом справочнике Ballu 2026. Проверьте серию вручную: продажное позиционирование не заполнено автоматически. Техническая таблица серии не найдена.',
     brand: source.brand || '',
     category: source.category || '',
     group: source.group || '',
