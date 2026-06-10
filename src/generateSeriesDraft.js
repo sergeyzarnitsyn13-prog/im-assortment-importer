@@ -1,3 +1,5 @@
+import { findSeriesProfile } from './data/seriesProfiles';
+
 const FEATURE_RULES = [
   { label: 'Wi-Fi управление', patterns: [/\bwi\s*-?\s*fi\b/u, /\bwifi\b/u, /вай\s*-?\s*фай/u] },
   { label: '3D-контроль потока воздуха', patterns: [/\b3\s*d\b/u, /3d\s*-?\s*контрол/u, /3d[^\n.]{0,80}(?:поток|воздух)/u] },
@@ -64,7 +66,7 @@ const TECHNICAL_SPEC_KEYWORDS = [
   'r32',
 ];
 
-const SERIES_PROFILES = {
+const LEGACY_SALES_PROFILES = {
   BOHO: {
     name: 'BOHO',
     seriesNames: ['boho', 'бохо'],
@@ -347,7 +349,7 @@ export const getSeriesProfileByName = (seriesName = '') => {
   }
 
   return (
-    Object.values(SERIES_PROFILES).find((profile) => {
+    Object.values(LEGACY_SALES_PROFILES).find((profile) => {
       const profileNames = [profile.name, ...profile.seriesNames].filter(Boolean).map(normalizeSeriesName);
 
       return profileNames.includes(normalizedSeriesName);
@@ -379,30 +381,37 @@ const trimToSentence = (text, maxLength = MAX_SHORT_DESCRIPTION_LENGTH) => {
   return `${normalizedText.slice(0, maxLength - 1).trim()}…`;
 };
 
-const buildProfileDraft = (source, profile) => {
+const getApprovedProfileSeed = (source) => findSeriesProfile(source.seriesName || source.code || source.profileId);
+
+const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
   const rawText = source.rawText || '';
-  const keyFeatures = extractProfileKeyFeatures(profile, rawText);
+  const seriesName = approvedProfile.seriesName;
+  const keyFeatures = legacyProfile ? extractProfileKeyFeatures(legacyProfile, rawText) : extractKeyFeatures(rawText, seriesName);
   const salesFeatures = keyFeatures;
-  const mainAdvantages = pickMainAdvantages(keyFeatures, profile.mainAdvantages);
+  const mainAdvantages = legacyProfile ? pickMainAdvantages(keyFeatures, legacyProfile.mainAdvantages) : pickMainAdvantages(keyFeatures);
   const technicalSpecs = extractTechnicalSpecs(rawText);
   const importantSpecs = unique([...salesFeatures, ...technicalSpecs]);
 
   return attachSourceRefs({
-    brand: source.brand || profile.defaultBrand,
-    category: source.category || '',
-    seriesName: source.seriesName || '',
-    shortDescription: trimToSentence(profile.shortDescription),
-    positioning: profile.positioning,
-    targetClient: profile.targetClient,
-    mainSalesIdea: profile.mainSalesIdea,
+    profileId: approvedProfile.id,
+    profileStatus: approvedProfile.profileStatus,
+    brand: approvedProfile.brand,
+    category: approvedProfile.category,
+    group: approvedProfile.group,
+    code: approvedProfile.code,
+    seriesName,
+    shortDescription: legacyProfile ? trimToSentence(legacyProfile.shortDescription) : '',
+    positioning: legacyProfile?.positioning || '',
+    targetClient: legacyProfile?.targetClient || [],
+    mainSalesIdea: legacyProfile?.mainSalesIdea || '',
     keyFeatures,
     salesFeatures,
     mainAdvantages,
-    salesArguments: profile.salesArguments,
-    clientSpeech: profile.clientSpeech,
+    salesArguments: legacyProfile?.salesArguments || [],
+    clientSpeech: legacyProfile?.clientSpeech || '',
     differences: '',
-    whenRecommend: profile.whenRecommend,
-    whenNotRecommend: profile.whenNotRecommend,
+    whenRecommend: legacyProfile?.whenRecommend || [],
+    whenNotRecommend: legacyProfile?.whenNotRecommend || [],
     objections: [],
     technicalSpecs,
     importantSpecs,
@@ -411,17 +420,19 @@ const buildProfileDraft = (source, profile) => {
   }, source);
 };
 
-export const generateIcePeakDraft = (source) => buildProfileDraft(source, SERIES_PROFILES['ICE PEAK']);
+export const generateIcePeakDraft = (source) => {
+  const approvedProfile = findSeriesProfile('ICE PEAK');
+
+  return buildProfileDraft(source, approvedProfile, LEGACY_SALES_PROFILES['ICE PEAK']);
+};
 
 export const generateSeriesDraft = (source) => {
-  const profile = getSeriesProfileByName(source.seriesName);
+  const approvedProfile = getApprovedProfileSeed(source);
 
-  if (profile) {
-    const profileDraft = buildProfileDraft(source, profile);
+  if (approvedProfile) {
+    const legacyProfile = getSeriesProfileByName(approvedProfile.seriesName);
 
-    if (doesProfileMatchDraftSeriesName(profileDraft, profile)) {
-      return profileDraft;
-    }
+    return buildProfileDraft(source, approvedProfile, legacyProfile);
   }
 
   const rawText = source.rawText || '';
@@ -429,16 +440,21 @@ export const generateSeriesDraft = (source) => {
   const technicalSpecs = extractTechnicalSpecs(rawText);
 
   return attachSourceRefs({
+    profileId: source.profileId || '',
+    profileStatus: 'unknown',
+    draftWarning: 'Серия не найдена в утверждённом справочнике Ballu 2026. Проверьте серию вручную: продажное позиционирование не заполнено автоматически.',
     brand: source.brand || '',
     category: source.category || '',
+    group: source.group || '',
+    code: source.code || '',
     seriesName: source.seriesName || '',
     shortDescription: '',
     positioning: '',
     targetClient: [],
     mainSalesIdea: '',
     keyFeatures,
-    salesFeatures: keyFeatures,
-    mainAdvantages: pickMainAdvantages(keyFeatures),
+    salesFeatures: [],
+    mainAdvantages: [],
     salesArguments: [],
     clientSpeech: '',
     differences: '',
@@ -446,7 +462,7 @@ export const generateSeriesDraft = (source) => {
     whenNotRecommend: [],
     objections: [],
     technicalSpecs,
-    importantSpecs: unique([...keyFeatures, ...technicalSpecs]),
+    importantSpecs: technicalSpecs,
     sourceIds: source.id ? [source.id] : [],
     status: 'draft',
   }, source);

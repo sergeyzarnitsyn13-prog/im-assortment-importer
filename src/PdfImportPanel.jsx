@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
+import { SERIES_PROFILES, findSeriesProfile } from './data/seriesProfiles';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
@@ -10,9 +11,23 @@ const PDF_SOURCE_INITIAL = {
   category: '',
   sourceDate: '',
   seriesName: '',
+  profileId: '',
+  group: '',
+  code: '',
 };
 
 const normalizeSearchText = (value = '') => value.toLocaleLowerCase('ru-RU').trim();
+
+const getProfileOptionLabel = (profile) => `${profile.group} — ${profile.seriesName} (${profile.code})`;
+
+const getProfilePayload = (profile) => ({
+  profileId: profile.id,
+  brand: profile.brand,
+  category: profile.category,
+  group: profile.group,
+  seriesName: profile.seriesName,
+  code: profile.code,
+});
 
 const getSearchFragment = (text, searchTerm) => {
   const lowerText = text.toLowerCase();
@@ -31,37 +46,17 @@ const getSearchFragment = (text, searchTerm) => {
   return `${prefix}${text.slice(start, end)}${suffix}`;
 };
 
-const SERIES_PAGE_RULES = {
-  'ice peak': {
-    code: 'BSPKI',
-    keywords: ['тепловой насос', '-30', 'Smart Sens', 'Health Guard'],
-  },
-  boho: {
-    code: 'BSNI',
-    keywords: ['сменная панель', 'тканевые панели', '180°', 'интерьер'],
-  },
-  defender: {
-    code: 'BSHI',
-    keywords: ['УФ', 'мягкий обдув', 'Gentle Breeze'],
-  },
-  'eco smart': {
-    code: 'BSYI',
-    keywords: [],
-  },
-  'odyssey pro': {
-    code: 'BSOI',
-    keywords: [],
-  },
-};
+const SERIES_PAGE_RULES = Object.fromEntries(
+  SERIES_PROFILES.map((profile) => [
+    profile.seriesName.toLocaleLowerCase('ru-RU').trim().replace(/\s+/g, ' '),
+    {
+      code: profile.code,
+      keywords: [],
+    },
+  ]),
+);
 
-const SUMMARY_SERIES_NAMES = [
-  'BOHO',
-  'ICE PEAK',
-  'DEFENDER',
-  'PLATINUM BLACK',
-  'ECO SMART',
-  'ODYSSEY PRO',
-];
+const SUMMARY_SERIES_NAMES = SERIES_PROFILES.map((profile) => profile.seriesName);
 
 const SERVICE_PAGE_KEYWORDS = ['HOMMYN', 'совместимость', 'USB', 'Алиса', 'Маруся', 'Сбер'];
 
@@ -261,6 +256,8 @@ function PdfImportPanel({ onCreateSource }) {
   const [isSaving, setIsSaving] = useState(false);
   const [selectedPageNumbers, setSelectedPageNumbers] = useState([]);
 
+  const selectedProfile = useMemo(() => findSeriesProfile(form.profileId || form.code || form.seriesName), [form]);
+
   const pagesWithTextCount = useMemo(
     () => pages.filter((page) => page.text.trim().length > 0).length,
     [pages],
@@ -306,7 +303,50 @@ function PdfImportPanel({ onCreateSource }) {
 
   const handleFormChange = (event) => {
     const { name, value } = event.target;
-    setForm((current) => ({ ...current, [name]: value }));
+
+    setForm((current) => {
+      if (name !== 'seriesName') {
+        return { ...current, [name]: value };
+      }
+
+      const profile = findSeriesProfile(value);
+
+      return {
+        ...current,
+        seriesName: value,
+        ...(profile
+          ? getProfilePayload(profile)
+          : { profileId: '', group: '', code: '' }),
+      };
+    });
+
+    if (name === 'seriesName') {
+      const profile = findSeriesProfile(value);
+      setSeriesMessageKind(profile || !value.trim() ? 'info' : 'error');
+      setSeriesMessage(
+        profile
+          ? `Определена серия: ${profile.seriesName} (${profile.code})`
+          : value.trim()
+            ? 'Серия не найдена в утверждённом справочнике'
+            : '',
+      );
+    }
+  };
+
+  const handleSeriesProfileSelect = (event) => {
+    const profile = findSeriesProfile(event.target.value);
+
+    if (!profile) {
+      setForm((current) => ({ ...current, profileId: '' }));
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      ...getProfilePayload(profile),
+    }));
+    setSeriesMessageKind('info');
+    setSeriesMessage(`Определена серия: ${profile.seriesName} (${profile.code})`);
   };
 
   const handleFileChange = (event) => {
@@ -361,7 +401,9 @@ function PdfImportPanel({ onCreateSource }) {
   };
 
   const handleFindSeries = () => {
-    const normalizedSeries = normalizeSearchText(form.seriesName);
+    const profile = findSeriesProfile(form.seriesName || form.code || form.profileId);
+    const searchValue = profile?.seriesName || form.seriesName;
+    const normalizedSeries = normalizeSearchText(searchValue);
 
     setSeriesResult(null);
     setSelectedPageNumbers([]);
@@ -370,11 +412,11 @@ function PdfImportPanel({ onCreateSource }) {
 
     if (!normalizedSeries) {
       setSeriesMessageKind('error');
-      setSeriesMessage('Введите название серии.');
+      setSeriesMessage('Введите название серии, код или модель.');
       return;
     }
 
-    const directMatchPages = pages.filter((page) => pageHasDirectSeriesMatch(page, normalizedSeries, form.seriesName));
+    const directMatchPages = pages.filter((page) => pageHasDirectSeriesMatch(page, normalizedSeries, searchValue));
 
     if (directMatchPages.length === 0) {
       setSeriesMessageKind('error');
@@ -392,12 +434,12 @@ function PdfImportPanel({ onCreateSource }) {
       .sort((firstPage, secondPage) => firstPage - secondPage)
       .map((pageNumber) => pages.find((page) => page.pageNumber === pageNumber))
       .filter(Boolean)
-      .map((page) => ({ page, score: scoreSeriesPage(page, form.seriesName) }));
+      .map((page) => ({ page, score: scoreSeriesPage(page, searchValue) }));
     const foundPages = scoredPages.map(({ page }) => page);
-    const autoSelectedPages = getAutoSelectedPages(scoredPages, form.seriesName);
+    const autoSelectedPages = getAutoSelectedPages(scoredPages, searchValue);
     const autoSelectedPageNumbers = getSelectedPageNumbers(autoSelectedPages);
     const excludedPageNumbers = scoredPages
-      .filter(({ page, score }) => score < 0 || isExcludedByPageRules(page.text, form.seriesName))
+      .filter(({ page, score }) => score < 0 || isExcludedByPageRules(page.text, searchValue))
       .map(({ page }) => page.pageNumber);
 
     setSeriesResult({
@@ -409,7 +451,7 @@ function PdfImportPanel({ onCreateSource }) {
     });
     setSelectedPageNumbers(autoSelectedPageNumbers);
     setSeriesMessageKind('info');
-    setSeriesMessage(`Найдено прямых совпадений названия/кода: ${directMatchPages.length}`);
+    setSeriesMessage(`${profile ? `Определена серия: ${profile.seriesName} (${profile.code}). ` : ''}Найдено прямых совпадений названия/кода: ${directMatchPages.length}`);
   };
 
   const handleFoundPageToggle = (pageNumber) => {
@@ -426,12 +468,13 @@ function PdfImportPanel({ onCreateSource }) {
     const brand = form.brand.trim();
     const category = form.category.trim();
     const catalogYear = form.sourceDate.trim();
-    const seriesName = form.seriesName.trim();
+    const profile = findSeriesProfile(form.profileId || form.seriesName || form.code);
+    const seriesName = (profile?.seriesName || form.seriesName).trim();
     const selectedPagesArray = getSelectedPageNumbers(selectedPages);
     const rawText = selectedRawText.trim();
 
     if (!seriesName) {
-      throw new Error('Введите название серии.');
+      throw new Error('Введите название серии, код или модель.');
     }
 
     if (selectedPagesArray.length === 0) {
@@ -442,11 +485,17 @@ function PdfImportPanel({ onCreateSource }) {
       throw new Error('Текст выбранных страниц пустой.');
     }
 
+    const sourceBrand = profile?.brand || brand;
+    const sourceCategory = profile?.category || category;
+
     return {
-      title: `${brand} ${catalogYear} — ${seriesName}`.trim(),
+      title: `${sourceBrand} ${catalogYear} — ${seriesName}`.trim(),
       type: 'catalog',
-      brand,
-      category,
+      brand: sourceBrand,
+      category: sourceCategory,
+      profileId: profile?.id || '',
+      group: profile?.group || form.group.trim(),
+      code: profile?.code || form.code.trim(),
       seriesName,
       sourceDate: catalogYear,
       sourceRef: `PDF каталог ${catalogYear}, страницы ${selectedPagesArray.join(', ')}`,
@@ -590,13 +639,24 @@ function PdfImportPanel({ onCreateSource }) {
 
           <div className="series-search-box">
             <label>
-              Найти серию
+              Серия, код или модель
               <input
                 name="seriesName"
                 onChange={handleFormChange}
-                placeholder="ICE PEAK, BOHO, DEFENDER"
+                placeholder="BSPKI-10HN8, ICE PEAK, BOHO"
                 value={form.seriesName}
               />
+            </label>
+            <label>
+              Выбрать серию из справочника
+              <select name="profileId" onChange={handleSeriesProfileSelect} value={selectedProfile?.id || ''}>
+                <option value="">Не выбрана</option>
+                {SERIES_PROFILES.map((profile) => (
+                  <option key={profile.id} value={profile.id}>
+                    {getProfileOptionLabel(profile)}
+                  </option>
+                ))}
+              </select>
             </label>
             <div className="form-actions">
               <button className="secondary-button" onClick={handleFindSeries} type="button">
@@ -637,6 +697,12 @@ function PdfImportPanel({ onCreateSource }) {
                   <dt>Источник</dt>
                   <dd>PDF каталог {form.sourceDate.trim()}, страницы {selectedPageNumbersText || 'не выбраны'}</dd>
                 </div>
+                {selectedProfile && (
+                  <div>
+                    <dt>Профиль справочника</dt>
+                    <dd>{selectedProfile.brand} · {selectedProfile.category} · {selectedProfile.group} · {selectedProfile.seriesName} · {selectedProfile.code}</dd>
+                  </div>
+                )}
                 <div>
                   <dt>Найдено прямых совпадений названия/кода</dt>
                   <dd>{seriesResult.directMatchPages.length}</dd>
