@@ -251,11 +251,11 @@ function App() {
       setDraft(generateSeriesDraft(createdSource));
       setEditingCardId(null);
       setActiveTab('draft');
-      showMessage('Источник создан, черновик собран из найденного текста.');
+      showMessage('Источник создан, черновик собран.');
       return;
     }
 
-    showMessage('Источник из PDF сохранён.');
+    showMessage('Источник создан');
   };
 
   const handleBuildDraft = (source) => {
