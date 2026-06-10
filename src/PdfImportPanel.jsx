@@ -133,7 +133,7 @@ const SERIES_PAGE_RULES = Object.fromEntries(
 
 const SERVICE_PAGE_KEYWORDS = ['HOMMYN', 'совместимость', 'совместим', 'USB', 'Алиса', 'Маруся', 'Сбер'];
 
-function isServicePage(page) {
+const isServicePage = (page) => {
   const text = normalizeSearchText(page?.text || '');
 
   return (
@@ -145,7 +145,7 @@ function isServicePage(page) {
     text.includes('соединительный кабель') ||
     text.includes('usb')
   );
-}
+};
 
 const escapeRegExp = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
