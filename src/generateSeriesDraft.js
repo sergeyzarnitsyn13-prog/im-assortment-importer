@@ -1,4 +1,4 @@
-import { findSeriesProfile } from './data/seriesProfiles';
+import { SERIES_PROFILES, findSeriesProfile } from './data/seriesProfiles';
 
 const FEATURE_RULES = [
   { label: 'Wi-Fi управление', patterns: [/\bwi\s*-?\s*fi\b/u, /\bwifi\b/u, /вай\s*-?\s*фай/u] },
@@ -44,6 +44,16 @@ const FEATURE_PRIORITY = [
   'сменные тканевые панели',
   'самоочистка',
 ];
+
+const TECHNICAL_FEATURE_LABELS = new Set([
+  'обогрев до -20°C',
+  'обогрев до -30°C',
+  'низкий уровень шума от 19 дБ',
+  'R32',
+]);
+
+const isTechnicalFeature = (feature = '') =>
+  TECHNICAL_FEATURE_LABELS.has(feature) || /^низкий уровень шума от \d+ дБ$/u.test(feature);
 
 const TECHNICAL_SPEC_KEYWORDS = [
   'btu',
@@ -202,6 +212,39 @@ const normalizeSearchText = (value = '') =>
     .replace(/\s+/g, ' ')
     .trim();
 
+const escapeRegExp = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const hasExactPhrase = (text = '', phrase = '') => {
+  const trimmedPhrase = phrase.trim();
+
+  if (!trimmedPhrase) {
+    return false;
+  }
+
+  return new RegExp(`(^|[^0-9a-zа-яё])${escapeRegExp(trimmedPhrase)}([^0-9a-zа-яё]|$)`, 'i').test(text);
+};
+
+const getProfileMarkers = (profile) => [profile?.seriesName, profile?.code, ...(profile?.aliases || [])].filter(Boolean);
+
+const getOtherSeriesMarkers = (text = '', selectedProfile) =>
+  SERIES_PROFILES.filter((profile) => profile.id !== selectedProfile?.id)
+    .flatMap(getProfileMarkers)
+    .filter((marker) => hasExactPhrase(text, marker));
+
+const assertRawTextBelongsToSelectedSeries = (source, profile) => {
+  const rawText = source?.rawText || '';
+
+  if (!profile || !rawText) {
+    return;
+  }
+
+  const otherMarkers = getOtherSeriesMarkers(rawText, profile);
+
+  if (otherMarkers.length > 0 && !hasExactPhrase(rawText, profile.code)) {
+    throw new Error('Найден текст другой серии. Карточка не создана.');
+  }
+};
+
 const normalizeSeriesName = (seriesName = '') => normalizeText(seriesName.trim());
 
 const hasAnyKeyword = (text = '', keywords) => {
@@ -310,17 +353,28 @@ export const extractFeatureList = (rawText = '', seriesName = '') => {
   return sortFeaturesByPriority(normalizedFeatures);
 };
 
-const extractProfileKeyFeatures = (profile, rawText = '') => {
-  const featureList = extractFeatureList(rawText, profile.name);
+const extractProfileKeyFeatures = (profile, rawText = '', technicalRawText = '') => {
+  const salesFeatureList = extractFeatureList(rawText, profile.name).filter((feature) => !isTechnicalFeature(feature));
+  const technicalFeatureList = extractFeatureList(technicalRawText, profile.name).filter(isTechnicalFeature);
+  const featureList = unique([...salesFeatureList, ...technicalFeatureList]);
 
   if (featureList.length === 0) {
-    return profile.fallbackSalesFeatures || profile.mainAdvantages;
+    const fallbackFeatures = profile.fallbackSalesFeatures || profile.mainAdvantages || [];
+
+    return technicalRawText.trim()
+      ? fallbackFeatures
+      : fallbackFeatures.filter((feature) => !isTechnicalFeature(feature));
   }
 
-  return featureList;
+  return sortFeaturesByPriority(featureList);
 };
 
-const extractKeyFeatures = (rawText = '', seriesName = '') => extractFeatureList(rawText, seriesName);
+const extractKeyFeatures = (rawText = '', seriesName = '', technicalRawText = '') => {
+  const salesFeatureList = extractFeatureList(rawText, seriesName).filter((feature) => !isTechnicalFeature(feature));
+  const technicalFeatureList = extractFeatureList(technicalRawText, seriesName).filter(isTechnicalFeature);
+
+  return sortFeaturesByPriority(unique([...salesFeatureList, ...technicalFeatureList]));
+};
 
 const pickMainAdvantages = (features = [], fallback = []) => {
   const normalizedFeatures = unique(features);
@@ -384,17 +438,29 @@ const trimToSentence = (text, maxLength = MAX_SHORT_DESCRIPTION_LENGTH) => {
 const getApprovedProfileSeed = (source) => findSeriesProfile(source.seriesName || source.code || source.profileId);
 
 const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
+  assertRawTextBelongsToSelectedSeries(source, approvedProfile);
+
   const rawText = source.rawText || '';
+  const overviewRawText = source.overviewRawText || rawText;
+  const technicalRawText = source.technicalRawText || '';
+  const hasTechnicalTable = technicalRawText.trim().length > 0;
   const seriesName = approvedProfile.seriesName;
-  const keyFeatures = legacyProfile ? extractProfileKeyFeatures(legacyProfile, rawText) : extractKeyFeatures(rawText, seriesName);
-  const salesFeatures = keyFeatures;
-  const mainAdvantages = legacyProfile ? pickMainAdvantages(keyFeatures, legacyProfile.mainAdvantages) : pickMainAdvantages(keyFeatures);
-  const technicalSpecs = extractTechnicalSpecs(rawText);
+  const keyFeatures = legacyProfile
+    ? extractProfileKeyFeatures(legacyProfile, overviewRawText, technicalRawText)
+    : extractKeyFeatures(overviewRawText, seriesName, technicalRawText);
+  const salesFeatures = keyFeatures.filter((feature) => !isTechnicalFeature(feature));
+  const safeLegacyAdvantages = hasTechnicalTable
+    ? legacyProfile?.mainAdvantages || []
+    : (legacyProfile?.mainAdvantages || []).filter((feature) => !isTechnicalFeature(feature));
+  const mainAdvantages = legacyProfile ? pickMainAdvantages(keyFeatures, safeLegacyAdvantages) : pickMainAdvantages(keyFeatures);
+  const technicalSpecs = hasTechnicalTable ? extractTechnicalSpecs(technicalRawText) : [];
   const importantSpecs = unique([...salesFeatures, ...technicalSpecs]);
+  const draftWarning = hasTechnicalTable ? '' : 'Техническая таблица для серии не найдена.';
 
   return attachSourceRefs({
     profileId: approvedProfile.id,
     profileStatus: approvedProfile.profileStatus,
+    draftWarning,
     brand: approvedProfile.brand,
     category: approvedProfile.category,
     group: approvedProfile.group,
@@ -435,14 +501,27 @@ export const generateSeriesDraft = (source) => {
     return buildProfileDraft(source, approvedProfile, legacyProfile);
   }
 
+  assertRawTextBelongsToSelectedSeries(source, {
+    id: source.profileId || '',
+    seriesName: source.seriesName || '',
+    code: source.code || '',
+    aliases: [],
+  });
+
   const rawText = source.rawText || '';
-  const keyFeatures = extractKeyFeatures(rawText, source.seriesName);
-  const technicalSpecs = extractTechnicalSpecs(rawText);
+  const overviewRawText = source.overviewRawText || rawText;
+  const technicalRawText = source.technicalRawText || '';
+  const hasTechnicalTable = technicalRawText.trim().length > 0;
+  const keyFeatures = extractKeyFeatures(overviewRawText, source.seriesName, technicalRawText);
+  const salesFeatures = keyFeatures.filter((feature) => !isTechnicalFeature(feature));
+  const technicalSpecs = hasTechnicalTable ? extractTechnicalSpecs(technicalRawText) : [];
 
   return attachSourceRefs({
     profileId: source.profileId || '',
     profileStatus: 'unknown',
-    draftWarning: 'Серия не найдена в утверждённом справочнике Ballu 2026. Проверьте серию вручную: продажное позиционирование не заполнено автоматически.',
+    draftWarning: hasTechnicalTable
+      ? 'Серия не найдена в утверждённом справочнике Ballu 2026. Проверьте серию вручную: продажное позиционирование не заполнено автоматически.'
+      : 'Серия не найдена в утверждённом справочнике Ballu 2026. Проверьте серию вручную: продажное позиционирование не заполнено автоматически. Техническая таблица для серии не найдена.',
     brand: source.brand || '',
     category: source.category || '',
     group: source.group || '',
@@ -453,7 +532,7 @@ export const generateSeriesDraft = (source) => {
     targetClient: [],
     mainSalesIdea: '',
     keyFeatures,
-    salesFeatures: [],
+    salesFeatures,
     mainAdvantages: [],
     salesArguments: [],
     clientSpeech: '',

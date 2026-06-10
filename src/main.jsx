@@ -272,17 +272,25 @@ function App() {
   };
 
   const handleBuildDraft = (source) => {
-    setDraft(generateSeriesDraft(source));
-    setEditingCardId(null);
-    setActiveTab('draft');
-    showMessage('Черновик собран из источника.');
+    try {
+      setDraft(generateSeriesDraft(source));
+      setEditingCardId(null);
+      setActiveTab('draft');
+      showMessage('Черновик собран из источника.');
+    } catch (error) {
+      showMessage(error.message);
+    }
   };
 
   const handleIcePeakTest = () => {
-    setDraft(generateIcePeakDraft(sourceForm));
-    setEditingCardId(null);
-    setActiveTab('draft');
-    showMessage('Черновик ICE PEAK заполнен правилами.');
+    try {
+      setDraft(generateIcePeakDraft(sourceForm));
+      setEditingCardId(null);
+      setActiveTab('draft');
+      showMessage('Черновик ICE PEAK заполнен правилами.');
+    } catch (error) {
+      showMessage(error.message);
+    }
   };
 
   const handleOpenCard = (card) => {
