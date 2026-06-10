@@ -33,11 +33,15 @@ const FEATURE_PRIORITY = [
   '7 скоростей вентилятора',
   'стабильная работа на обогрев',
   'низкий уровень шума от 19 дБ',
+  'низкий уровень шума от 20 дБ',
+  'низкий уровень шума от 21 дБ',
+  'низкий уровень шума от 23 дБ',
   'УФ-обработка воздуха',
   'Gentle Breeze / мягкий обдув',
   'самоочистка со стерилизацией',
   'обогрев до -30°C',
   'обогрев до -20°C',
+  'обогрев до -15°C',
   'Health Guard',
   'Smart Sens',
   'тепловой насос',
@@ -51,17 +55,31 @@ const FEATURE_PRIORITY = [
   'Full DC inverter',
   'инвертор',
   'R32',
+  'A++/A+++',
 ];
 
 const TECHNICAL_FEATURE_LABELS = new Set([
   'обогрев до -20°C',
+  'обогрев до -15°C',
   'обогрев до -30°C',
   'низкий уровень шума от 19 дБ',
+  'низкий уровень шума от 20 дБ',
+  'низкий уровень шума от 21 дБ',
+  'низкий уровень шума от 23 дБ',
   'R32',
+  'A++/A+++',
 ]);
 
-const isTechnicalFeature = (feature = '') =>
-  TECHNICAL_FEATURE_LABELS.has(feature) || /^низкий уровень шума от \d+ дБ$/u.test(feature);
+const isTechnicalFeature = (feature = '') => {
+  const normalizedFeature = normalizeSearchText(feature);
+
+  return (
+    TECHNICAL_FEATURE_LABELS.has(feature) ||
+    /^низкий уровень шума от \d+ дб$/u.test(normalizedFeature) ||
+    /^обогрев до -\d+°c$/u.test(normalizedFeature) ||
+    /^a\+\+\/?a\+\+\+$/u.test(normalizedFeature)
+  );
+};
 
 const TECHNICAL_SPEC_KEYWORDS = [
   'btu',
@@ -181,6 +199,35 @@ const MIN_MAIN_ADVANTAGES = 5;
 
 const buildSourceRef = (source) => [source.title, source.sourceRef].filter(Boolean).join(' · ');
 
+const buildTechnicalSourceRef = (source) => {
+  const technicalPages = source?.technicalPages || source?.pageDiagnostics?.technicalPages || [];
+
+  if (!technicalPages.length) {
+    return '';
+  }
+
+  const technicalPageRef = `PDF каталог ${source?.sourceDate || ''}, technicalPages ${technicalPages.join(', ')}`.replace(/\s+,/u, ',').trim();
+
+  return [source?.title, technicalPageRef].filter(Boolean).join(' · ');
+};
+
+const TECHNICAL_ONLY_REF_FIELDS = new Set(['technicalSpecs']);
+const MIXED_TECHNICAL_REF_FIELDS = new Set(['keyFeatures', 'salesFeatures', 'mainAdvantages', 'importantSpecs']);
+
+const shouldUseTechnicalSourceRef = (field, value) => {
+  if (TECHNICAL_ONLY_REF_FIELDS.has(field)) {
+    return true;
+  }
+
+  if (!MIXED_TECHNICAL_REF_FIELDS.has(field)) {
+    return false;
+  }
+
+  const values = Array.isArray(value) ? value : [value];
+
+  return values.some((item) => isTechnicalFeature(String(item || '')) || hasAnyKeyword(String(item || ''), TECHNICAL_SPEC_KEYWORDS));
+};
+
 const hasDraftValue = (value) => {
   if (Array.isArray(value)) {
     return value.length > 0;
@@ -191,6 +238,7 @@ const hasDraftValue = (value) => {
 
 const attachSourceRefs = (draft, source) => {
   const sourceRef = buildSourceRef(source);
+  const technicalSourceRef = buildTechnicalSourceRef(source);
 
   if (!sourceRef) {
     return { ...draft, sourceRefs: {} };
@@ -203,7 +251,7 @@ const attachSourceRefs = (draft, source) => {
         .filter(
           ([field, value]) => !['sourceIds', 'sourceRefs', 'status'].includes(field) && hasDraftValue(value),
         )
-        .map(([field]) => [field, sourceRef]),
+        .map(([field, value]) => [field, shouldUseTechnicalSourceRef(field, value) && technicalSourceRef ? technicalSourceRef : sourceRef]),
     ),
   };
 };
@@ -299,53 +347,110 @@ const sortFeaturesByPriority = (features) => {
   });
 };
 
-const collectNoiseValues = (text = '') => {
-  const values = [];
+const getTechnicalValueSegment = (text = '', markerPattern, maxLength = 360) => {
+  const normalizedText = String(text || '').replace(/[‐‑‒–—−]/gu, '-');
+  const match = markerPattern.exec(normalizedText);
 
-  for (const match of text.matchAll(/(?:от\s*)?(1[5-9]|2\d|30)\s*дб/gu)) {
+  if (!match) {
+    return '';
+  }
+
+  const afterMarker = normalizedText.slice(match.index);
+  const lineEnd = afterMarker.search(/\r?\n/u);
+
+  if (lineEnd > 0) {
+    const currentLine = afterMarker.slice(0, lineEnd);
+    const nextLine = afterMarker.slice(lineEnd + 1).split(/\r?\n/u)[0] || '';
+
+    return `${currentLine} ${nextLine}`.slice(0, maxLength);
+  }
+
+  return afterMarker.slice(0, maxLength);
+};
+
+const collectIndoorNoiseValues = (text = '') => {
+  const values = [];
+  const normalizedText = String(text || '').replace(/,/gu, '.');
+
+  for (const match of normalizedText.matchAll(/\b(1[5-9]|2\d|3\d)\s*\/\s*\d{2}(?:\.\d+)?\b/gu)) {
     values.push(Number(match[1]));
   }
 
-  for (const match of text.matchAll(/\b(1[5-9]|2\d|30)\s*\/\s*\d{2}\b/gu)) {
+  if (values.length > 0) {
+    return values;
+  }
+
+  for (const match of normalizedText.matchAll(/(?:от\s*)?(1[5-9]|2\d|3\d)\s*дб/giu)) {
     values.push(Number(match[1]));
   }
 
   return values;
 };
 
-const extractNoiseFeature = (normalizedText = '') => {
-  const noiseText = normalizedText.includes('шум') || normalizedText.includes('дб');
+export const extractNoiseLevel = (technicalText = '') => {
+  const segment = getTechnicalValueSegment(technicalText, /уровень\s+шума/iu);
 
-  if (!noiseText) {
-    return [];
+  if (!segment) {
+    return '';
   }
 
-  const noiseLines = normalizedText.split(/\r?\n/u).filter((line) => line.includes('шум') || line.includes('дб'));
-  const indoorNoiseValues = noiseLines
-    .filter((line) => /внутрен|вн\.?\s*блок|indoor/u.test(line))
-    .flatMap(collectNoiseValues);
-  const noiseValues = indoorNoiseValues.length > 0 ? indoorNoiseValues : collectNoiseValues(normalizedText);
+  const noiseValues = collectIndoorNoiseValues(segment);
 
   if (noiseValues.length === 0) {
-    return [];
+    return '';
   }
 
-  const minNoise = Math.min(...noiseValues);
-
-  return [`низкий уровень шума от ${minNoise} дБ`];
+  return `низкий уровень шума от ${Math.min(...noiseValues)} дБ`;
 };
 
-const extractHeatingFeatures = (normalizedText = '') => {
-  const hasHeatingContext = /обогрев|отоплен|нагрев|heat|heating|теплов(?:ой|ои)\s+насос/u.test(normalizedText);
+const extractNoiseFeature = (technicalText = '') => {
+  const noiseLevel = extractNoiseLevel(technicalText);
 
-  if (!hasHeatingContext) {
-    return [];
+  return noiseLevel ? [noiseLevel] : [];
+};
+
+export const extractHeatingRange = (technicalText = '') => {
+  const segment = getTechnicalValueSegment(technicalText, /диапазон\s+рабочих\s+температур/iu);
+
+  if (!segment) {
+    return '';
   }
 
-  return [
-    /(?:-|минус\s*)30\s*(?:°?c|с|град)?/u.test(normalizedText) ? 'обогрев до -30°C' : null,
-    /(?:-|минус\s*)20\s*(?:°?c|с|град)?/u.test(normalizedText) ? 'обогрев до -20°C' : null,
-  ].filter(Boolean);
+  const heatingMinimums = [];
+  const compactSegment = segment.replace(/\s+/gu, ' ');
+
+  for (const match of compactSegment.matchAll(/\/\s*(-\s*\d{1,2})\s*(?:…|\.\.|\.\.\.|-)\s*\+?\s*\d{1,2}\s*(?:°\s*c|°с|c|с)?/giu)) {
+    heatingMinimums.push(Number(match[1].replace(/\s+/gu, '')));
+  }
+
+  if (heatingMinimums.length === 0) {
+    const slashIndex = compactSegment.indexOf('/');
+    const heatingPart = slashIndex >= 0 ? compactSegment.slice(slashIndex + 1) : '';
+
+    for (const match of heatingPart.matchAll(/-\s*(\d{1,2})\s*(?:°\s*c|°с|c|с)?/giu)) {
+      heatingMinimums.push(-Number(match[1]));
+    }
+  }
+
+  if (heatingMinimums.length === 0) {
+    return '';
+  }
+
+  return `обогрев до ${Math.min(...heatingMinimums)}°C`;
+};
+
+const extractHeatingFeatures = (technicalText = '') => {
+  const heatingRange = extractHeatingRange(technicalText);
+
+  return heatingRange ? [heatingRange] : [];
+};
+
+const extractEnergyClassFeatures = (technicalText = '') => {
+  const normalizedText = normalizeSearchText(technicalText);
+
+  return /a\s*\+\s*\+\s*\/\s*a\s*\+\s*\+\s*\+/iu.test(normalizedText) || /a\+\+\/?a\+\+\+/iu.test(normalizedText)
+    ? ['A++/A+++']
+    : [];
 };
 
 export const extractFeatureList = (rawText = '', seriesName = '') => {
@@ -353,8 +458,9 @@ export const extractFeatureList = (rawText = '', seriesName = '') => {
   const normalizedSeriesName = normalizeSeriesName(seriesName);
   const features = [
     ...FEATURE_RULES.filter((rule) => hasAnyPattern(normalizedText, rule.patterns)).map((rule) => rule.label),
-    ...extractHeatingFeatures(normalizedText),
-    ...extractNoiseFeature(normalizedText),
+    ...extractHeatingFeatures(rawText),
+    ...extractNoiseFeature(rawText),
+    ...extractEnergyClassFeatures(rawText),
   ];
 
   const uniqueFeatures = unique(features);
@@ -529,17 +635,17 @@ const buildDraftWarning = ({ hasExactSeriesPages, hasTechnicalTable, prefix = ''
   const warnings = [
     prefix,
     hasExactSeriesPages ? '' : 'Точные страницы серии не найдены.',
-    hasTechnicalTable ? '' : 'Техническая таблица серии не найдена.',
+    hasTechnicalTable ? '' : 'Техническая таблица выбранной серии не найдена. Числовые характеристики не заполнены.',
   ].filter(Boolean);
 
   return warnings.join(' ');
 };
 
 const getIsolatedSourceTexts = (source) => {
-  const exactSeriesText = source.exactSeriesRawText || source.overviewRawText || '';
-  const technicalText = source.technicalRawText || '';
-  const summaryText = source.summaryRawText || '';
-  const serviceText = source.serviceRawText || '';
+  const exactSeriesText = source.exactSeriesText || source.exactSeriesRawText || source.overviewRawText || '';
+  const technicalText = source.technicalText || source.technicalRawText || '';
+  const summaryText = source.summaryText || source.summaryRawText || '';
+  const serviceText = source.serviceText || source.serviceRawText || '';
 
   return {
     exactSeriesText,

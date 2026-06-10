@@ -598,6 +598,12 @@ function PdfImportPanel({ onCreateSource }) {
           className: classification.pageClass,
           reason: classification.excludeReason,
         }));
+      const diagnosticsWarnings = [
+        exactSeriesPageNumbers.length === 0 ? 'Точные страницы серии не найдены.' : '',
+        technicalPageNumbers.length === 0
+          ? 'Техническая таблица выбранной серии не найдена. Числовые характеристики не заполнены.'
+          : '',
+      ].filter(Boolean);
       const diagnostics = {
         matchedTokens: unique(
           classifications.flatMap(({ classification }) => classification.matchedTokens || []),
@@ -607,6 +613,7 @@ function PdfImportPanel({ onCreateSource }) {
         summaryPages: summaryPageNumbers,
         servicePages: servicePageNumbers,
         excludedPages,
+        warnings: diagnosticsWarnings,
       };
       const directMatchPages = classifications
         .filter(({ classification }) => classification.belongsToSeries)
@@ -665,7 +672,7 @@ function PdfImportPanel({ onCreateSource }) {
       setSeriesMessageKind(technicalPageNumbers.length > 0 ? 'info' : 'warning');
       setSeriesMessage(
         `${`Определена серия: ${profile.seriesName} (${profile.code}). `}Найдено страниц серии: ${directMatchPages.length}. ${
-          technicalPageNumbers.length === 0 ? 'Техническая таблица серии не найдена.' : ''
+          technicalPageNumbers.length === 0 ? 'Техническая таблица выбранной серии не найдена. Числовые характеристики не заполнены.' : ''
         }`,
       );
     } catch (findError) {
@@ -741,11 +748,16 @@ function PdfImportPanel({ onCreateSource }) {
       overviewRawText: selectedOverviewRawText.trim(),
       summaryRawText: selectedSummaryRawText.trim(),
       serviceRawText: selectedServiceRawText.trim(),
+      exactSeriesText: selectedExactSeriesRawText.trim(),
+      technicalText: selectedTechnicalRawText.trim(),
+      summaryText: selectedSummaryRawText.trim(),
+      serviceText: selectedServiceRawText.trim(),
       exactSeriesPages: selectedExactSeriesPageNumbers,
       technicalPages: selectedTechnicalPageNumbers,
       overviewPages: selectedOverviewPageNumbers,
       summaryPages: selectedSummaryPageNumbers,
       servicePages: selectedServicePageNumbers,
+      excludedPages: seriesResult?.excludedPages || [],
       pageDiagnostics: {
         matchedTokens: seriesResult?.diagnostics?.matchedTokens || [],
         usedPages: selectedPagesArray,
@@ -755,6 +767,7 @@ function PdfImportPanel({ onCreateSource }) {
         summaryPages: selectedSummaryPageNumbers,
         servicePages: selectedServicePageNumbers,
         excludedPages: seriesResult?.excludedPages || [],
+        warnings: seriesResult?.diagnostics?.warnings || [],
       },
       pages: selectedPagesArray,
     };
@@ -981,8 +994,14 @@ function PdfImportPanel({ onCreateSource }) {
                   <p className="warning-text">Точные страницы серии не найдены.</p>
                 )}
                 {(!seriesResult.technicalPageNumbers || seriesResult.technicalPageNumbers.length === 0) && (
-                  <p className="warning-text">Техническая таблица серии не найдена.</p>
+                  <p className="warning-text">Техническая таблица выбранной серии не найдена. Числовые характеристики не заполнены.</p>
                 )}
+                <p>
+                  warnings:{' '}
+                  {seriesResult.diagnostics?.warnings?.length > 0
+                    ? seriesResult.diagnostics.warnings.join(' | ')
+                    : 'нет'}
+                </p>
                 {seriesResult.excludedPages?.length > 0 && (
                   <ul className="pdf-excluded-list">
                     {seriesResult.excludedPages.slice(0, 30).map((page) => (
