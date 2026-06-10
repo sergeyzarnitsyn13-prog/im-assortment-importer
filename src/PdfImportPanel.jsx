@@ -2,6 +2,13 @@ import React, { useMemo, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { SERIES_PROFILES, findSeriesProfile } from './data/seriesProfiles';
+import {
+  classifyPageForSeries,
+  compactSearchText,
+  getOtherSeriesMatches,
+  hasProfileCodeMatch,
+  normalizeSearchText,
+} from './seriesPageClassifier';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
@@ -14,26 +21,6 @@ const PDF_SOURCE_INITIAL = {
   profileId: '',
   group: '',
   code: '',
-};
-
-const normalizeSearchText = (value = '') =>
-  String(value)
-    .toLocaleLowerCase('ru-RU')
-    .trim()
-    .replace(/ё/g, 'е')
-    .replace(/[\-/\\_‐‑‒–—−]+/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-const compactSearchText = (value = '') => normalizeSearchText(value).replace(/\s+/g, '');
-
-const getSearchTextForms = (value = '') => {
-  const normalized = normalizeSearchText(value);
-
-  return {
-    normalized,
-    compact: normalized.replace(/\s+/g, ''),
-  };
 };
 
 const getProfileOptionLabel = (profile) => `${profile.group} — ${profile.seriesName} (${profile.code})`;
@@ -65,272 +52,6 @@ const getSearchFragment = (text, searchTerm) => {
 };
 
 const unique = (items) => [...new Set(items)];
-
-const buildSearchTokens = (profile) => {
-  if (!profile) {
-    return [];
-  }
-
-  const baseTokens = [
-    { value: profile.seriesName, kind: 'seriesName' },
-    { value: profile.code, kind: 'code' },
-    ...(profile.aliases || []).map((alias) => ({ value: alias, kind: 'alias' })),
-    { value: compactSearchText(profile.seriesName), kind: 'compactSeriesName' },
-    { value: compactSearchText(profile.code), kind: 'compactCode' },
-  ];
-  const prefixTokens = ['in', 'out'].flatMap((suffix) => [
-    { value: `${profile.code}/${suffix}`, kind: 'modelPrefix' },
-    { value: `${profile.code}-${suffix}`, kind: 'modelPrefix' },
-    { value: `${profile.code}_${suffix}`, kind: 'modelPrefix' },
-  ]);
-
-  const seen = new Set();
-
-  return [...baseTokens, ...prefixTokens]
-    .filter(({ value }) => Boolean(String(value || '').trim()))
-    .map((token) => {
-      const forms = getSearchTextForms(token.value);
-
-      return {
-        ...token,
-        normalized: forms.normalized,
-        compact: forms.compact,
-        label: String(token.value).trim(),
-      };
-    })
-    .filter((token) => {
-      const key = `${token.kind}:${token.normalized}:${token.compact}`;
-
-      if (!token.normalized && !token.compact) {
-        return false;
-      }
-
-      if (seen.has(key)) {
-        return false;
-      }
-
-      seen.add(key);
-      return true;
-    });
-};
-
-const isServicePage = (page) => {
-  const text = normalizeSearchText(page?.text || '');
-
-  return (
-    text.includes('hommyn') ||
-    text.includes('алиса') ||
-    text.includes('маруся') ||
-    text.includes('сбер') ||
-    text.includes('совместим') ||
-    text.includes('соединительный кабель') ||
-    text.includes('usb')
-  );
-};
-
-const escapeRegExp = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-const getNormalizedBoundaryPattern = (normalizedPhrase = '') =>
-  new RegExp(`(^|[^0-9a-zа-яе])${escapeRegExp(normalizedPhrase)}([^0-9a-zа-яе]|$)`, 'iu');
-
-const hasNormalizedPhrase = (normalizedText = '', normalizedPhrase = '') =>
-  Boolean(normalizedPhrase) && getNormalizedBoundaryPattern(normalizedPhrase).test(normalizedText);
-
-const includesNormalizedPhrase = (text = '', phrase = '') =>
-  hasNormalizedPhrase(normalizeSearchText(text), normalizeSearchText(phrase));
-
-const tokenMatchesPage = ({ normalizedText, compactText }, token) => {
-  if (!token?.normalized && !token?.compact) {
-    return false;
-  }
-
-  if (token.normalized && hasNormalizedPhrase(normalizedText, token.normalized)) {
-    return true;
-  }
-
-  return Boolean(token.compact && token.compact.length >= 4 && compactText.includes(token.compact));
-};
-
-const getProfileSearchTokens = (profile) => buildSearchTokens(profile);
-
-const getMatchedTokens = (text = '', profile) => {
-  const forms = getSearchTextForms(text);
-  const pageForms = { normalizedText: forms.normalized, compactText: forms.compact };
-
-  return getProfileSearchTokens(profile)
-    .filter((token) => tokenMatchesPage(pageForms, token))
-    .map((token) => token.label);
-};
-
-const getMatchedTokenObjects = (text = '', profile) => {
-  const forms = getSearchTextForms(text);
-  const pageForms = { normalizedText: forms.normalized, compactText: forms.compact };
-
-  return getProfileSearchTokens(profile).filter((token) => tokenMatchesPage(pageForms, token));
-};
-
-const hasProfileCodeMatch = (text = '', profile) =>
-  getMatchedTokenObjects(text, profile).some((token) => ['code', 'compactCode', 'modelPrefix'].includes(token.kind));
-
-const getOtherSeriesMatches = (text = '', selectedProfile, allProfiles = SERIES_PROFILES) =>
-  allProfiles
-    .filter((profile) => profile.id !== selectedProfile?.id)
-    .map((profile) => ({
-      profile,
-      matchedTokens: getMatchedTokens(text, profile),
-      hasCode: hasProfileCodeMatch(text, profile),
-    }))
-    .filter((match) => match.matchedTokens.length > 0);
-
-const hasTechnicalMarker = (text = '') =>
-  includesNormalizedPhrase(text, 'Технические характеристики') || includesNormalizedPhrase(text, 'Параметр / Модель');
-
-const PAGE_CLASSES = {
-  exactSeriesPage: 'exactSeriesPage',
-  servicePage: 'servicePage',
-  summaryPage: 'summaryPage',
-  otherSeriesPage: 'otherSeriesPage',
-  categoryPage: 'categoryPage',
-};
-
-const PAGE_CLASS_LABELS = {
-  [PAGE_CLASSES.exactSeriesPage]: 'точная страница серии',
-  [PAGE_CLASSES.servicePage]: 'servicePage: HOMMYN/совместимость',
-  [PAGE_CLASSES.summaryPage]: 'summaryPage: сводная страница нескольких серий',
-  [PAGE_CLASSES.otherSeriesPage]: 'otherSeriesPage: другая серия',
-  [PAGE_CLASSES.categoryPage]: 'categoryPage: общая страница категории',
-};
-
-function scoreSeriesPage(page, profile, allProfiles = []) {
-  const text = page?.text || '';
-  const selectedTokens = getMatchedTokenObjects(text, profile);
-  const otherSeriesMatches = getOtherSeriesMatches(text, profile, allProfiles);
-
-  let score = 0;
-
-  for (const token of selectedTokens) {
-    if (token.kind === 'seriesName' || token.kind === 'compactSeriesName') score += 10;
-    else if (token.kind === 'code' || token.kind === 'compactCode' || token.kind === 'modelPrefix') score += 8;
-    else score += 4;
-  }
-
-  if (hasTechnicalMarker(text)) score += 3;
-
-  if (otherSeriesMatches.length >= 4) score -= 10;
-
-  if (isServicePage(page)) {
-    score -= 8;
-  }
-
-  return score;
-}
-
-const getPageSeriesMatchCount = (matchedTokens, matchedOtherSeries) =>
-  matchedOtherSeries.length + (matchedTokens.length > 0 ? 1 : 0);
-
-const getPageClass = ({ matchedTokens, matchedOtherSeries, isHommynPage }) => {
-  const hasSelectedSeries = matchedTokens.length > 0;
-  const seriesMatchCount = getPageSeriesMatchCount(matchedTokens, matchedOtherSeries);
-
-  if (isHommynPage) {
-    return PAGE_CLASSES.servicePage;
-  }
-
-  if (seriesMatchCount >= 4) {
-    return PAGE_CLASSES.summaryPage;
-  }
-
-  if (hasSelectedSeries) {
-    return PAGE_CLASSES.exactSeriesPage;
-  }
-
-  if (matchedOtherSeries.length > 0) {
-    return PAGE_CLASSES.otherSeriesPage;
-  }
-
-  return PAGE_CLASSES.categoryPage;
-};
-
-const buildExcludeReason = ({ profile, pageClass, matchedOtherSeries }) => {
-  if (pageClass === PAGE_CLASSES.servicePage) {
-    return 'servicePage: страница HOMMYN/совместимости используется только для Wi‑Fi/HOMMYN';
-  }
-
-  if (pageClass === PAGE_CLASSES.summaryPage) {
-    return 'summaryPage: сводная страница используется только для обнаружения серии';
-  }
-
-  if (pageClass === PAGE_CLASSES.otherSeriesPage) {
-    const otherCodes = unique(matchedOtherSeries.filter((match) => match.hasCode).map((match) => match.profile.code));
-    const otherNames = unique(matchedOtherSeries.map((match) => match.profile.seriesName));
-    const markers = otherCodes.length > 0 ? otherCodes : otherNames;
-
-    return `otherSeriesPage: страница другой серии${markers.length > 0 ? ` (${markers.join(' / ')})` : ''}`;
-  }
-
-  if (pageClass === PAGE_CLASSES.categoryPage) {
-    return `categoryPage: общая страница без точного токена ${profile.seriesName} / ${profile.code}`;
-  }
-
-  return '';
-};
-
-export const classifyPageForSeries = (page, profile, allProfiles = SERIES_PROFILES) => {
-  const text = page?.text || '';
-  const matchedTokenObjects = getMatchedTokenObjects(text, profile);
-  const matchedTokens = unique(matchedTokenObjects.map((token) => token.label));
-  const matchedOtherSeries = getOtherSeriesMatches(text, profile, allProfiles);
-  const hasSelectedCode = matchedTokenObjects.some((token) => ['code', 'compactCode', 'modelPrefix'].includes(token.kind));
-  const isHommynPage = isServicePage(page);
-  const pageClass = getPageClass({ matchedTokens, matchedOtherSeries, isHommynPage });
-  const belongsToSeries = pageClass === PAGE_CLASSES.exactSeriesPage;
-  const isMultiSeriesSummaryPage = pageClass === PAGE_CLASSES.summaryPage;
-  const isTechnicalPage = belongsToSeries && hasTechnicalMarker(text) && hasSelectedCode;
-  const isOverviewPage = belongsToSeries && !isTechnicalPage;
-  const excluded = pageClass !== PAGE_CLASSES.exactSeriesPage;
-  let score = scoreSeriesPage(page, profile, allProfiles);
-
-  if (hasSelectedCode) {
-    score += 10;
-  } else if (matchedTokens.length > 0) {
-    score += 6;
-  }
-
-  if (isTechnicalPage) {
-    score += 5;
-  }
-
-  if (excluded) {
-    score = Math.min(score, -1);
-  }
-
-  return {
-    pageNumber: page?.pageNumber,
-    pageClass,
-    pageClassLabel: PAGE_CLASS_LABELS[pageClass],
-    score,
-    belongsToSeries,
-    isTechnicalPage,
-    isOverviewPage,
-    isServicePage: pageClass === PAGE_CLASSES.servicePage,
-    isSummaryPage: pageClass === PAGE_CLASSES.summaryPage,
-    isOtherSeriesPage: pageClass === PAGE_CLASSES.otherSeriesPage,
-    isCategoryPage: pageClass === PAGE_CLASSES.categoryPage,
-    excluded,
-    excludeReason: excluded
-      ? buildExcludeReason({ profile, pageClass, matchedOtherSeries })
-      : '',
-    matchedTokens,
-    matchedOtherSeries: matchedOtherSeries.map((match) => ({
-      seriesName: match.profile.seriesName,
-      code: match.profile.code,
-      matchedTokens: unique(match.matchedTokens),
-      hasCode: match.hasCode,
-    })),
-    isMultiSeriesSummaryPage,
-    hasSelectedCode,
-  };
-};
 
 const formatPageNumbers = (pageNumbers) => (pageNumbers.length > 0 ? pageNumbers.join(', ') : 'нет');
 
@@ -597,6 +318,7 @@ function PdfImportPanel({ onCreateSource }) {
           pageNumber: page.pageNumber,
           className: classification.pageClass,
           reason: classification.excludeReason,
+          matchedTokens: classification.matchedTokens || [],
         }));
       const diagnosticsWarnings = [
         exactSeriesPageNumbers.length === 0 ? 'Точные страницы серии не найдены.' : '',
@@ -604,10 +326,18 @@ function PdfImportPanel({ onCreateSource }) {
           ? 'Техническая таблица выбранной серии не найдена. Числовые характеристики не заполнены.'
           : '',
       ].filter(Boolean);
+      const pageMatches = classifications
+        .filter(({ classification }) => classification.matchedTokens?.length > 0)
+        .map(({ page, classification }) => ({
+          pageNumber: page.pageNumber,
+          pageClass: classification.pageClass,
+          matchedTokens: classification.matchedTokens,
+        }));
       const diagnostics = {
         matchedTokens: unique(
           classifications.flatMap(({ classification }) => classification.matchedTokens || []),
         ),
+        pageMatches,
         exactSeriesPages: exactSeriesPageNumbers,
         technicalPages: technicalPageNumbers,
         summaryPages: summaryPageNumbers,
@@ -1007,6 +737,7 @@ function PdfImportPanel({ onCreateSource }) {
                     {seriesResult.excludedPages.slice(0, 30).map((page) => (
                       <li key={page.pageNumber}>
                         Страница {page.pageNumber} исключена: {page.reason}.
+                        {page.matchedTokens?.length > 0 ? ` matchedTokens: ${page.matchedTokens.join(', ')}` : ''}
                       </li>
                     ))}
                   </ul>
