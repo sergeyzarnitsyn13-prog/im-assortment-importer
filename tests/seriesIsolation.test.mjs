@@ -225,10 +225,41 @@ const icePeakTechnicalClassification = classifyPageForSeries(icePeakTechnicalPag
 assert.equal(icePeakOverviewClassification.belongsToSeries, true, 'ICE PEAK page 8 must be an exactSeriesPage');
 assert.equal(icePeakTechnicalClassification.belongsToSeries, true, 'ICE PEAK page 9 must be an exactSeriesPage');
 assert.equal(icePeakTechnicalClassification.isTechnicalPage, true, 'ICE PEAK page 9 must be a technicalPage');
+assert.match(
+  icePeakTechnicalClassification.reasonTechnicalPage.join(' | '),
+  /technicalTable: .*Параметр \/ Модель.*modelPrefix: .*BSPKI\/in.*BSPKI\/out/u,
+  'ICE PEAK page 9 diagnostics must explain reasonTechnicalPage',
+);
 assert.deepEqual(
   icePeakTechnicalClassification.matchedTokens,
   ['ICE PEAK', 'BSPKI', 'BSPKI/in', 'BSPKI/out'],
   'ICE PEAK page 9 diagnostics must include matched series and model-prefix tokens',
+);
+
+
+const icePeakServiceTechnicalPage = {
+  pageNumber: 9,
+  text: `
+    ICE PEAK HOMMYN Wi-Fi совместимость
+    Параметр / Модель BSPKI/in-10HN8 BSPKI/out-10HN8
+    Уровень шума внутреннего блока 19 дБ
+  `,
+};
+const icePeakServiceTechnicalClassification = classifyPageForSeries(icePeakServiceTechnicalPage, icePeakProfile);
+assert.equal(
+  icePeakServiceTechnicalClassification.isTechnicalPage,
+  true,
+  'ICE PEAK page with HOMMYN and technical table must keep technical priority over servicePage',
+);
+assert.equal(
+  icePeakServiceTechnicalClassification.isServicePage,
+  false,
+  'ICE PEAK technical table must not be sent to servicePage even when service markers are present',
+);
+assert.match(
+  icePeakServiceTechnicalClassification.reasonTechnicalPage.join(' | '),
+  /technicalTable: .*Параметр \/ Модель/u,
+  'ICE PEAK technical/service diagnostics must expose reasonTechnicalPage',
 );
 
 for (const foreignProfile of [ecoSmartProfile, discoveryProfile, defenderProfile]) {

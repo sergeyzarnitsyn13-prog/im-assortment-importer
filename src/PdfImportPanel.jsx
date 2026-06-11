@@ -312,6 +312,12 @@ function PdfImportPanel({ onCreateSource }) {
       const technicalPageNumbers = getPagesByClassFlag('isTechnicalPage');
       const summaryPageNumbers = getPagesByClassFlag('isSummaryPage');
       const servicePageNumbers = getPagesByClassFlag('isServicePage');
+      const reasonTechnicalPage = classifications
+        .filter(({ classification }) => classification.isTechnicalPage && classification.reasonTechnicalPage?.length > 0)
+        .map(({ page, classification }) => ({
+          pageNumber: page.pageNumber,
+          reasons: classification.reasonTechnicalPage,
+        }));
       const excludedPages = classifications
         .filter(({ classification }) => classification.excluded && classification.excludeReason)
         .map(({ page, classification }) => ({
@@ -332,6 +338,7 @@ function PdfImportPanel({ onCreateSource }) {
           pageNumber: page.pageNumber,
           pageClass: classification.pageClass,
           matchedTokens: classification.matchedTokens,
+          reasonTechnicalPage: classification.reasonTechnicalPage || [],
         }));
       const diagnostics = {
         matchedTokens: unique(
@@ -342,6 +349,7 @@ function PdfImportPanel({ onCreateSource }) {
         technicalPages: technicalPageNumbers,
         summaryPages: summaryPageNumbers,
         servicePages: servicePageNumbers,
+        reasonTechnicalPage,
         excludedPages,
         warnings: diagnosticsWarnings,
       };
@@ -487,6 +495,7 @@ function PdfImportPanel({ onCreateSource }) {
       overviewPages: selectedOverviewPageNumbers,
       summaryPages: selectedSummaryPageNumbers,
       servicePages: selectedServicePageNumbers,
+      reasonTechnicalPage: seriesResult?.diagnostics?.reasonTechnicalPage || [],
       excludedPages: seriesResult?.excludedPages || [],
       pageDiagnostics: {
         matchedTokens: seriesResult?.diagnostics?.matchedTokens || [],
@@ -496,6 +505,7 @@ function PdfImportPanel({ onCreateSource }) {
         overviewPages: selectedOverviewPageNumbers,
         summaryPages: selectedSummaryPageNumbers,
         servicePages: selectedServicePageNumbers,
+        reasonTechnicalPage: seriesResult?.diagnostics?.reasonTechnicalPage || [],
         excludedPages: seriesResult?.excludedPages || [],
         warnings: seriesResult?.diagnostics?.warnings || [],
       },
@@ -713,6 +723,14 @@ function PdfImportPanel({ onCreateSource }) {
                 <p>
                   excludedPages:{' '}
                   {formatPageNumbers(seriesResult.excludedPageNumbers || [])}
+                </p>
+                <p>
+                  reasonTechnicalPage:{' '}
+                  {seriesResult.diagnostics?.reasonTechnicalPage?.length > 0
+                    ? seriesResult.diagnostics.reasonTechnicalPage
+                      .map(({ pageNumber, reasons }) => `${pageNumber}: ${reasons.join('; ')}`)
+                      .join(' | ')
+                    : 'нет'}
                 </p>
                 <p>
                   Совпавшие токены:{' '}
