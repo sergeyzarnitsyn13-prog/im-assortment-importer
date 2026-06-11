@@ -224,7 +224,7 @@ const shouldUseTechnicalSourceRef = (field, value) => {
 
   const values = Array.isArray(value) ? value : [value];
 
-  return values.some((item) => isTechnicalFeature(String(item || '')) || hasAnyKeyword(String(item || ''), TECHNICAL_SPEC_KEYWORDS));
+  return values.some((item) => isTechnicalFeature(String(item ?? '')) || hasAnyKeyword(String(item ?? ''), TECHNICAL_SPEC_KEYWORDS));
 };
 
 const hasDraftValue = (value) => {
@@ -288,7 +288,7 @@ const extractDiagnosticModelCodes = (source, draftCode = '') => {
     });
 
   return unique([draftCode, ...matchedTokens, ...diagnosticCodes]
-    .map((item) => String(item || '').replace(/\s+/g, ' ').trim())
+    .map((item) => String(item ?? '').replace(/\s+/g, ' ').trim())
     .filter(Boolean));
 };
 
@@ -306,7 +306,7 @@ const getDiagnosticsWarnings = ({ diagnostics, draft }) => [
 ].filter(Boolean);
 
 const buildDraftDiagnostics = (source, draft) => {
-  const technicalText = source?.technicalText || source?.technicalRawText || '';
+  const technicalText = String(source?.technicalText ?? source?.technicalRawText ?? '');
   const descriptionPages = unique([
     ...getSourcePages(source, 'exactSeriesPages'),
     ...getSourcePages(source, 'overviewPages'),
@@ -331,9 +331,9 @@ const buildDraftDiagnostics = (source, draft) => {
   };
 };
 
-const normalizeLine = (line) => line.trim().replace(/^[-–—•*\d.)\s]+/, '').trim();
+const normalizeLine = (line = '') => String(line ?? '').trim().replace(/^[-–—•*\d.)\s]+/, '').trim();
 
-const normalizeText = (value = '') => value.toLocaleLowerCase('ru-RU');
+const normalizeText = (value = '') => String(value ?? '').toLocaleLowerCase('ru-RU');
 
 const normalizeSearchText = (value = '') =>
   normalizeText(value)
@@ -343,10 +343,10 @@ const normalizeSearchText = (value = '') =>
     .replace(/\s+/g, ' ')
     .trim();
 
-const escapeRegExp = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRegExp = (value = '') => String(value ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const hasExactPhrase = (text = '', phrase = '') => {
-  const trimmedPhrase = phrase.trim();
+  const trimmedPhrase = String(phrase ?? '').trim();
 
   if (!trimmedPhrase) {
     return false;
@@ -363,7 +363,7 @@ const getOtherSeriesMarkers = (text = '', selectedProfile) =>
     .filter((marker) => hasExactPhrase(text, marker));
 
 const assertRawTextBelongsToSelectedSeries = (source, profile) => {
-  const rawText = source?.exactSeriesRawText || source?.overviewRawText || source?.rawText || '';
+  const rawText = String(source?.exactSeriesRawText ?? source?.overviewRawText ?? source?.rawText ?? '');
 
   if (!profile || !rawText) {
     return;
@@ -376,7 +376,7 @@ const assertRawTextBelongsToSelectedSeries = (source, profile) => {
   }
 };
 
-const normalizeSeriesName = (seriesName = '') => normalizeText(seriesName.trim());
+const normalizeSeriesName = (seriesName = '') => normalizeText(String(seriesName ?? '').trim());
 
 const hasAnyKeyword = (text = '', keywords) => {
   const normalizedText = normalizeSearchText(text);
@@ -427,7 +427,7 @@ const sortFeaturesByPriority = (features) => {
 };
 
 const getTechnicalValueSegment = (text = '', markerPattern, maxLength = 360) => {
-  const normalizedText = String(text || '').replace(/[‐‑‒–—−]/gu, '-');
+  const normalizedText = String(text ?? '').replace(/[‐‑‒–—−]/gu, '-');
   const match = markerPattern.exec(normalizedText);
 
   if (!match) {
@@ -449,7 +449,7 @@ const getTechnicalValueSegment = (text = '', markerPattern, maxLength = 360) => 
 
 const collectIndoorNoiseValues = (text = '') => {
   const values = [];
-  const normalizedText = String(text || '').replace(/,/gu, '.');
+  const normalizedText = String(text ?? '').replace(/,/gu, '.');
 
   for (const match of normalizedText.matchAll(/\b(1[5-9]|2\d|3\d)\s*\/\s*\d{2}(?:\.\d+)?\b/gu)) {
     values.push(Number(match[1]));
@@ -525,7 +525,7 @@ const extractHeatingFeatures = (technicalText = '') => {
 };
 
 const getEnergyClassComparisonKey = (value = '') =>
-  String(value || '')
+  String(value ?? '')
     .toLocaleUpperCase('ru-RU')
     .replace(/[А]/gu, 'A')
     .replace(/\\/gu, '/')
@@ -539,7 +539,7 @@ const isEnergyClassValue = (value = '') => {
 };
 
 const normalizeEnergyClassDisplayValue = (value = '') =>
-  String(value || '')
+  String(value ?? '')
     .replace(/\\/gu, '/')
     .replace(/\s+/gu, '');
 
@@ -560,7 +560,7 @@ const uniqueEnergyClassValues = (values = []) => {
 
 const collectEnergyClassValues = (text = '') => {
   const values = [];
-  const sourceText = String(text || '');
+  const sourceText = String(text ?? '');
 
   for (const match of sourceText.matchAll(/(?:^|[^A-ZА-ЯЁ])([AА]\s*\+*\s*[/\\]\s*[AА]\s*\+*)(?=$|[^A-ZА-ЯЁ+])/giu)) {
     const value = normalizeEnergyClassDisplayValue(match[1]);
@@ -575,7 +575,7 @@ const collectEnergyClassValues = (text = '') => {
 
 const collectStandaloneEnergyClassValues = (text = '') => {
   const values = [];
-  const sourceText = String(text || '');
+  const sourceText = String(text ?? '');
 
   for (const match of sourceText.matchAll(/(?:^|[^A-ZА-ЯЁ\/])([AА]\s*\+{1,3})(?=$|[^A-ZА-ЯЁ+\/])/giu)) {
     const value = normalizeEnergyClassDisplayValue(match[1]);
@@ -631,7 +631,7 @@ const buildEnergyClassDecision = (values = [], reasonPrefix = 'accepted') => {
 };
 
 export const diagnoseEnergyClass = (technicalText = '') => {
-  const normalizedText = String(technicalText || '').replace(/[‐‑‒–—−]/gu, '-');
+  const normalizedText = String(technicalText ?? '').replace(/[‐‑‒–—−]/gu, '-');
   const sourceSegment = normalizedText;
   const markerMatch = ENERGY_CLASS_ROW_MARKER.exec(sourceSegment);
 
@@ -680,7 +680,7 @@ export const getEnergyClassSegment = (text = '') => diagnoseEnergyClass(text).se
 const limitEnergyClassSegment = getEnergyClassSegment;
 
 const extractEnergyClassFeatureValues = (feature = '') => {
-  const normalizedFeature = String(feature || '')
+  const normalizedFeature = String(feature ?? '')
     .replace(/[‐‑‒–—−]/gu, '→')
     .replace(/\\/gu, '/')
     .replace(/\s*(?:→|->|—|–|-|to)\s*/giu, ' → ')
@@ -715,7 +715,7 @@ export const isEnergyClassFeature = (feature = '') => {
     return false;
   }
 
-  const normalizedFeature = String(feature || '')
+  const normalizedFeature = String(feature ?? '')
     .replace(/[‐‑‒–—−]/gu, '→')
     .replace(/\\/gu, '/')
     .replace(/\s*(?:→|->|—|–|-|to)\s*/giu, ' → ')
@@ -856,7 +856,7 @@ const extractProfileKeyFeatures = (profile, rawText = '', technicalRawText = '')
   if (featureList.length === 0) {
     const fallbackFeatures = profile.fallbackSalesFeatures || profile.mainAdvantages || [];
 
-    return technicalRawText.trim()
+    return String(technicalRawText ?? '').trim()
       ? fallbackFeatures
       : fallbackFeatures.filter((feature) => !isTechnicalFeature(feature));
   }
@@ -889,7 +889,7 @@ const normalizeTechnicalSpecLine = (line = '') => {
 
 const extractTechnicalSpecs = (rawText = '') =>
   unique(
-    rawText
+    String(rawText ?? '')
       .split(/\r?\n/)
       .map(normalizeTechnicalSpecLine)
       .filter(Boolean)
@@ -920,7 +920,7 @@ const doesProfileMatchDraftSeriesName = (draft, profile) => {
 };
 
 const trimToSentence = (text, maxLength = MAX_SHORT_DESCRIPTION_LENGTH) => {
-  const normalizedText = text.replace(/\s+/g, ' ').trim();
+  const normalizedText = String(text ?? '').replace(/\s+/g, ' ').trim();
 
   if (normalizedText.length <= maxLength) {
     return normalizedText;
@@ -949,10 +949,10 @@ const buildDraftWarning = ({ hasExactSeriesPages, hasTechnicalTable, prefix = ''
 };
 
 const getIsolatedSourceTexts = (source) => {
-  const exactSeriesText = source.exactSeriesText || source.exactSeriesRawText || source.overviewRawText || '';
-  const technicalText = source.technicalText || source.technicalRawText || '';
-  const summaryText = source.summaryText || source.summaryRawText || '';
-  const serviceText = source.serviceText || source.serviceRawText || '';
+  const exactSeriesText = String(source.exactSeriesText ?? source.exactSeriesRawText ?? source.overviewRawText ?? '');
+  const technicalText = String(source.technicalText ?? source.technicalRawText ?? '');
+  const summaryText = String(source.summaryText ?? source.summaryRawText ?? '');
+  const serviceText = String(source.serviceText ?? source.serviceRawText ?? '');
 
   return {
     exactSeriesText,
