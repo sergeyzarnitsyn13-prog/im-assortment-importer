@@ -66,6 +66,56 @@ const featurePatterns = [
 ];
 
 
+const NO_DUCT_MOBILE_PATTERNS = [
+  /без\s+воздуховод/iu,
+  /подключени[ея]\s+без\s+воздуховод/iu,
+  /необходимост[ьи]\s+отвода\s+горячего\s+воздуха/iu,
+  /использует\s+воду\s+из\s+встроенного\s+бака/iu,
+  /встроенного\s+бака\s+для\s+охлаждения\s+конденсатора/iu,
+  /eco\s*cool/iu,
+  /bpac[-\s_]*cc/iu,
+];
+
+const isNoDuctMobileText = (rawText = '') => NO_DUCT_MOBILE_PATTERNS.some((pattern) => pattern.test(String(rawText ?? '')));
+
+const extractAreaLimit = (rawText = '') => {
+  const text = String(rawText ?? '').replace(/,/gu, '.');
+  const match = /(?:площад[ьи]|помещени[яй])[\s\S]{0,80}?до\s*(\d+(?:\.\d+)?)\s*м\s*(?:²|2|кв)/iu.exec(text);
+
+  return match ? match[1].replace('.', ',') : '';
+};
+
+const hasPower250 = (rawText = '') => /250\s*вт/iu.test(String(rawText ?? ''));
+const hasAPlusPlus = (rawText = '') => /[AА]\s*\+\+/u.test(String(rawText ?? ''));
+const hasR290 = (rawText = '') => /r\s*290|эко\s*-?\s*фреон/iu.test(String(rawText ?? ''));
+const hasAutoMode = (rawText = '') => /\bauto\b[\s\S]{0,40}режим|режим[\s\S]{0,40}\bauto\b/iu.test(String(rawText ?? ''));
+const hasAutoSwing = (rawText = '') => /auto\s*-?\s*swing|авто[\s-]*качан|жалюз/iu.test(String(rawText ?? ''));
+const hasRemote = (rawText = '') => /пульт[\s\S]{0,80}(?:комплект|управлен)/iu.test(String(rawText ?? ''));
+const hasCompact = (rawText = '') => /compact|компакт|минимальн[а-яё\s]+габарит/iu.test(String(rawText ?? ''));
+
+const extractNoDuctMobileFeatures = (rawText = '') => {
+  if (!isNoDuctMobileText(rawText)) {
+    return [];
+  }
+
+  const area = extractAreaLimit(rawText);
+
+  return [
+    'без воздуховода',
+    'подключение без воздуховода',
+    'использует воду из встроенного бака',
+    'минимальное тепловыделение',
+    area ? `площадь до ${area} м²` : '',
+    hasPower250(rawText) ? 'энергопотребление 250 Вт' : '',
+    hasAPlusPlus(rawText) ? 'энергоэффективность A++' : '',
+    hasR290(rawText) ? 'R290 эко-фреон' : '',
+    hasAutoMode(rawText) ? 'AUTO режим' : '',
+    hasAutoSwing(rawText) ? 'Auto-Swing' : '',
+    hasRemote(rawText) ? 'пульт в комплекте' : '',
+    hasCompact(rawText) ? 'Compact / минимальные габариты' : '',
+  ].filter(Boolean);
+};
+
 const MOBILE_NARRATIVE_FEATURE_RULES = [
   { label: 'инверторная технология', patterns: [/инверт[ое]рн(ая|ой|ую|ым)[^\n.]{0,120}технолог/iu] },
   { label: 'инверторный компрессор', patterns: [/инверторн(ый|ого)[^\n.]{0,120}компрессор/iu] },
@@ -97,9 +147,12 @@ const MOBILE_NARRATIVE_FEATURE_RULES = [
 
 export const extractMobileNarrativeFeatures = (rawText = '') => {
   const text = String(rawText ?? '');
-  const features = MOBILE_NARRATIVE_FEATURE_RULES
-    .filter((rule) => rule.patterns.some((pattern) => pattern.test(text)))
-    .map((rule) => rule.label);
+  const features = [
+    ...extractNoDuctMobileFeatures(text),
+    ...MOBILE_NARRATIVE_FEATURE_RULES
+      .filter((rule) => rule.patterns.some((pattern) => pattern.test(text)))
+      .map((rule) => rule.label),
+  ];
 
   if (/[AА]\s*\+\+/u.test(text)) {
     features.push('энергоэффективность A++');
@@ -660,8 +713,8 @@ const CATEGORY_EXTRACTION_PROFILES = {
     id: 'mobileAirConditioner',
     categoryMatchers: [/бытов[а-яё\s]*мобильн[а-яё\s]*кондиционер/u, /мобильн[а-яё\s]*кондиционер/u],
     codeMatchers: [/\b(?:BPAC|BPHS)(?:[\s_-]*[A-Z0-9]+)*\b/iu],
-    featureAllow: [/инвертор|компрессор/u, /точн[а-яё]*\s+поддержан|экономичн[а-яё]*\s+поддержан/u, /тих|шумоизоляц|шум|40\s*дб|тангенциальн/u, /управлен|смартфон|wi-?fi|touch|сенсорн|пульт/u, /энергоэффектив|класс|энергопотреблен|экономичн|экономия|электроэнерг/u, /хладагент|r\s*32|r\s*290|эко-?фреон/u, /режим|таймер/u, /мобильн|монтаж|перемещ|установк|включен/u, /охлажд/u, /обогрев/u, /вентиляц/u, /осуш/u, /площад/u, /холодопроизводительность|btu/u, /smart/u, /turbo/u, /auto\s*swing/u, /текстильн|дизайн/u, /без\s+воздуховод/u, /температур|погрешност/u, /2\s+независим/u, /расход воздуха/u],
-    importantSpecKeywords: ['холодопроизводительность', 'btu', 'класс энергоэффективности', 'хладагент', 'r290', 'r32', 'расход воздуха', 'уровень шума', 'потребляемая мощность', 'номинальная мощность', 'номинальный ток', 'электропитание', 'напряжение питания', 'габарит', 'размер', 'вес', 'нетто', 'брутто', 'площадь'],
+    featureAllow: [/инвертор|компрессор/u, /точн[а-яё]*\s+поддержан|экономичн[а-яё]*\s+поддержан/u, /тих|шумоизоляц|шум|40\s*дб|тангенциальн/u, /управлен|смартфон|wi-?fi|touch|сенсорн|пульт/u, /энергоэффектив|класс|энергопотреблен|экономичн|экономия|электроэнерг/u, /хладагент|r\s*32|r\s*290|эко-?фреон/u, /режим|таймер/u, /мобильн|монтаж|перемещ|установк|включен/u, /охлажд/u, /обогрев/u, /вентиляц/u, /осуш/u, /площад/u, /холодопроизводительность|btu/u, /smart/u, /turbo/u, /auto\s*swing/u, /текстильн|дизайн/u, /без\s+воздуховод|встроенн[а-яё]*\s+бак|тепловыделен|auto\s*-?\s*swing|compact/u, /температур|погрешност/u, /2\s+независим/u, /расход воздуха/u],
+    importantSpecKeywords: ['холодопроизводительность', 'btu', 'класс энергоэффективности', 'хладагент', 'r290', 'r32', 'расход воздуха', 'уровень шума', 'потребляемая мощность', 'номинальная мощность', 'номинальный ток', 'электропитание', 'напряжение питания', 'габарит', 'размер', 'вес', 'нетто', 'брутто', 'площадь', 'воздуховод', 'диаметр воздуховода', 'длина воздуховода'],
     arguments: [
       { text: 'не требует профессионального монтажа', requires: [/монтаж/u] },
       { text: 'можно перемещать между комнатами', requires: [/перемещ|мобильн/u] },
@@ -1228,6 +1281,26 @@ const pickMobileAirConditionerMainAdvantages = (features = []) => {
   const featureList = unique(features);
   const selected = [];
 
+  if (hasFeatureMatching(featureList, /без\s+воздуховод/u)) {
+    [
+      { feature: 'без воздуховода', pattern: /без\s+воздуховод/u },
+      { feature: 'не требует профессионального монтажа', pattern: null },
+      { feature: 'использует воду из встроенного бака', pattern: /воду\s+из\s+встроенного\s+бака/u },
+      { feature: 'минимальное тепловыделение', pattern: /тепловыделен/u },
+      { feature: 'площадь до 7 м²', pattern: /площад[ьи]\s+до\s+7\s+м/u },
+      { feature: 'энергопотребление 250 Вт', pattern: /250\s*вт/u },
+      { feature: 'энергоэффективность A++', pattern: /a\+\+|энергоэффективност/u },
+      { feature: 'R290 эко-фреон', pattern: /r\s*290|эко-?фреон/u },
+      { feature: 'Auto-Swing', pattern: /auto\s*-?\s*swing/u },
+    ].forEach(({ feature, pattern }) => {
+      if (!pattern || hasFeatureMatching(featureList, pattern)) {
+        selected.push(feature);
+      }
+    });
+
+    return unique([...selected, ...featureList]).slice(0, MAX_MAIN_ADVANTAGES);
+  }
+
   if (hasFeatureMatching(featureList, /инверторн[а-я]*\s+технолог|инвертор/u)) {
     selected.push('инверторная технология');
   }
@@ -1327,9 +1400,104 @@ const filterCategoryFeatures = (features = [], categoryProfile = null) => {
   return features.filter((feature) => matchesAnyProfilePattern(feature, categoryProfile.featureAllow) || isTechnicalFeature(feature));
 };
 
+
+const formatRange = (values = []) => {
+  const numericValues = values.map((value) => Number(String(value).replace(',', '.'))).filter((value) => Number.isFinite(value));
+
+  if (numericValues.length === 0) {
+    return '';
+  }
+
+  const min = Math.min(...numericValues);
+  const max = Math.max(...numericValues);
+
+  return min === max ? String(min) : `${min}–${max}`;
+};
+
+const extractAirDuctSpecs = (rawText = '') => {
+  if (isNoDuctMobileText(rawText)) {
+    return ['воздуховод не требуется'];
+  }
+
+  const text = String(rawText ?? '').replace(/[,;]/gu, ' ').replace(/\s+/gu, ' ').trim();
+
+  if (!/(?:\bL\s*,?\s*мм\b[\s\S]{0,40}\bD\s*,?\s*мм\b|\bL\b[\s\S]{0,20}\bD\b)/iu.test(text)) {
+    return [];
+  }
+
+  const lengths = [];
+  const diameters = [];
+  const modelRows = text.matchAll(/\b(?:BPAC|BPHS)[-\s_]*\d{2,3}\s+[A-ZА-ЯЁ]+(?:\/N\d+)?\s+(\d{2,4})\s+(\d{2,4})\s+(\d{2,4})\s+(\d{3,4})\s+(\d{2,3})\b/giu);
+
+  for (const match of modelRows) {
+    const length = Number(match[4]);
+    const diameter = Number(match[5]);
+
+    if (length >= 500 && length <= 3000 && diameter >= 50 && diameter <= 300) {
+      lengths.push(length);
+      diameters.push(diameter);
+    }
+  }
+
+  if (lengths.length === 0 || diameters.length === 0) {
+    return [];
+  }
+
+  const lengthRange = formatRange(lengths);
+  const diameterRange = formatRange(diameters);
+
+  if (lengthRange && diameterRange && !lengthRange.includes('–') && !diameterRange.includes('–')) {
+    return [`воздуховод: ${lengthRange} мм, Ø${diameterRange} мм`];
+  }
+
+  return [
+    lengthRange ? `длина воздуховода ${lengthRange} мм` : '',
+    diameterRange ? `диаметр воздуховода ${diameterRange} мм` : '',
+  ].filter(Boolean);
+};
+
+const extractFirstMatchValue = (rawText = '', pattern, formatter) => {
+  const match = pattern.exec(String(rawText ?? '').replace(/\s+/gu, ' '));
+
+  return match ? formatter(...match.slice(1)) : '';
+};
+
+const extractMobileTableSpecs = (rawText = '') => {
+  const specs = [
+    extractFirstMatchValue(rawText, /холодопроизводительность\s*вт\s*(\d{2,5})/iu, (value) => `холодопроизводительность ${value} Вт`),
+    extractFirstMatchValue(rawText, /холодопроизводительность\s*btu\s*(\d{3,6})/iu, (value) => `холодопроизводительность ${value} BTU`),
+    extractFirstMatchValue(rawText, /класс\s+энергоэффективности\s*\([^)]*охлаждение[^)]*\)\s*([AА]\+*)/iu, (value) => `класс энергоэффективности ${String(value).replace('А', 'A')}`),
+    extractFirstMatchValue(rawText, /хладагент\s*(R\s*\d{2,3})/iu, (value) => `хладагент ${value.replace(/\s+/gu, '')}`),
+    extractFirstMatchValue(rawText, /расход\s+воздуха\s*(?:м(?:³|3)\s*\/\s*ч)?\s*(\d{2,5})/iu, (value) => `расход воздуха ${value} м³/ч`),
+    extractFirstMatchValue(rawText, /уровень\s+шума\s*(?:дб[аa]?)?\s*(\d{2,3})/iu, (value) => `уровень шума ${value} дБА`),
+    extractFirstMatchValue(rawText, /потребляемая\s+мощность\s*\([^)]*охлаждение[^)]*\)\s*вт\s*(\d{2,5})/iu, (value) => `потребляемая мощность ${value} Вт`),
+    extractFirstMatchValue(rawText, /номинальн(?:ый|ая)\s+ток\s*\([^)]*охлаждение[^)]*\)\s*a\s*(\d+(?:[,.]\d+)?)/iu, (value) => `номинальный ток ${value} А`),
+    extractFirstMatchValue(rawText, /электропитание\s*в\s*-\s*гц\s*([0-9]{3}\s*-\s*[0-9]{3}\s*v?\s*[0-9]{2}\s*hz)/iu, (value) => `электропитание ${value.replace(/\s*-\s*/gu, '–').replace(/\s+/gu, ' ')}`),
+    extractFirstMatchValue(rawText, /габариты\s*\([^)]*\)\s*мм\s*(\d{2,4}\s*[×xх]\s*\d{2,4}\s*[×xх]\s*\d{2,4})/iu, (value) => `габариты ${value.replace(/\s*[xх]\s*/giu, '×')} мм`),
+    extractFirstMatchValue(rawText, /габариты\s+в\s+упаковке\s*\([^)]*\)\s*мм\s*(\d{2,4}\s*[×xх]\s*\d{2,4}\s*[×xх]\s*\d{2,4})/iu, (value) => `габариты упаковки ${value.replace(/\s*[xх]\s*/giu, '×')} мм`),
+    extractFirstMatchValue(rawText, /вес\s+нетто\s*\/\s*брутто\s*кг\s*(\d+(?:[,.]\d+)?\s*\/\s*\d+(?:[,.]\d+)?)/iu, (value) => `вес нетто/брутто ${value.replace(/\s*\/\s*/gu, '/')} кг`),
+  ];
+
+  return unique(specs.filter(Boolean));
+};
+
+const extractMobileAirConditionerImportantSpecs = (rawText = '') => unique([
+  ...extractMobileTableSpecs(rawText),
+  ...extractAirDuctSpecs(rawText),
+  ...String(rawText ?? '')
+    .split(/\r?\n/)
+    .map(normalizeTechnicalSpecLine)
+    .filter(Boolean)
+    .filter((line) => hasAnyKeyword(line, CATEGORY_EXTRACTION_PROFILES.mobileAirConditioner.importantSpecKeywords || TECHNICAL_SPEC_KEYWORDS)),
+]);
+
 const extractCategoryImportantSpecs = (rawText = '', categoryProfile = null) => {
   if (!categoryProfile) {
     return extractTechnicalSpecs(rawText);
+  }
+
+  if (isMobileAirConditionerProfile(categoryProfile)) {
+    return extractMobileAirConditionerImportantSpecs(rawText);
   }
 
   return unique(
@@ -1348,6 +1516,21 @@ const buildCategorySalesArguments = ({ categoryProfile = null, salesFeatures = [
 
   const haystack = normalizeSearchText([...salesFeatures, ...importantSpecs, sourceText].join(' '));
 
+  if (isMobileAirConditionerProfile(categoryProfile) && /без\s+воздуховод/u.test(haystack)) {
+    const noDuctArguments = [
+      'не нужно выводить воздуховод в окно',
+      /площад[ьи]\s+до\s+7\s+м/u.test(haystack) ? 'подходит для небольших помещений до 7 м²' : '',
+      'можно быстро включить без монтажа и подготовки окна',
+      /250\s*вт/u.test(haystack) ? 'низкое энергопотребление 250 Вт снижает расходы' : '',
+      /r\s*290|эко-?фреон/u.test(haystack) ? 'R290 — современный эко-фреон' : '',
+      /auto\s*-?\s*swing|жалюз/u.test(haystack) ? 'Auto-Swing помогает распределять поток воздуха' : '',
+    ].filter(Boolean);
+
+    return unique([...noDuctArguments, ...categoryProfile.arguments
+      .filter((argument) => !argument.requires || argument.requires.some((pattern) => pattern.test(haystack)))
+      .map((argument) => argument.text)]).slice(0, 6);
+  }
+
   return categoryProfile.arguments
     .filter((argument) => !argument.requires || argument.requires.some((pattern) => pattern.test(haystack)))
     .map((argument) => argument.text)
@@ -1362,7 +1545,13 @@ const buildCategoryPositioning = ({ categoryProfile = null, approvedProfile = {}
   }
 
   if (categoryProfile.id === 'mobileAirConditioner') {
-    const hasInverter = hasFeatureMatching([...(approvedProfile?.salesFeatures || []), cleanSeriesName], /инвертор|inverter/u);
+    const profileFeatures = [...(approvedProfile?.salesFeatures || []), cleanSeriesName, approvedProfile?.code || ''];
+
+    if (hasFeatureMatching(profileFeatures, /без\s+воздуховод|eco\s*cool|bpac[-\s_]*cc/u)) {
+      return `${cleanSeriesName} — компактное мобильное решение для комнаты, кабинета, дачи или временного рабочего места, когда нужен кондиционер без монтажа и без воздуховода.`;
+    }
+
+    const hasInverter = hasFeatureMatching(profileFeatures, /инвертор|inverter/u);
     const solution = hasInverter ? 'мобильное инверторное решение' : 'мобильное решение';
     const conditioner = hasInverter ? 'тихий кондиционер' : 'кондиционер';
 
@@ -1386,6 +1575,14 @@ const buildCategoryShortDescription = ({ categoryProfile = null, approvedProfile
   }
 
   if (categoryProfile.id === 'mobileAirConditioner') {
+    if (hasFeatureMatching([...allFeatures, approvedProfile?.code || '', cleanSeriesName], /без\s+воздуховод|eco\s*cool|bpac[-\s_]*cc/u)) {
+      const areaFeature = [...allFeatures, ...importantSpecs].find((feature) => /площад[ьи]\s+до\s+\d+/u.test(normalizeSearchText(feature)));
+      const areaMatch = areaFeature ? /до\s+(\d+(?:[,.]\d+)?)\s*м/u.exec(normalizeSearchText(areaFeature)) : null;
+      const areaText = areaMatch ? ` до ${areaMatch[1]} м²` : '';
+
+      return trimToSentence(`${cleanSeriesName} — мобильный кондиционер Ballu без воздуховода для небольших помещений${areaText}. Прибор использует воду из встроенного бака для охлаждения конденсатора, снижает тепловыделение и не требует вывода горячего воздуха в окно.`);
+    }
+
     if (allFeatures.length === 0) return '';
 
     const hasInverter = hasFeatureMatching(allFeatures, /инвертор/u);
@@ -1644,7 +1841,8 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
     legacyProfile?.mainAdvantages?.filter((feature) => !isEnergyClassFeature(feature)) || [],
     categoryProfile,
   ).filter((feature) => isMobileAirConditionerProfile(categoryProfile) || !isEnergyClassFeature(feature));
-  const technicalSpecs = hasTechnicalTable ? extractCategoryImportantSpecs(technicalText, categoryProfile) : [];
+  const categoryImportantSpecsText = isMobileAirConditionerProfile(categoryProfile) ? [exactSeriesText, summaryText, technicalText].join('\n') : technicalText;
+  const technicalSpecs = hasTechnicalTable ? extractCategoryImportantSpecs(categoryImportantSpecsText, categoryProfile) : [];
   const importantSpecs = sanitizeCategoryFeatureClasses(unique([...salesFeatures, ...technicalSpecs]), technicalText, categoryProfile);
   const draftWarning = buildDraftWarning({
     hasExactSeriesPages: hasEnoughDescriptionSource,
@@ -1726,7 +1924,8 @@ export const generateSeriesDraft = (source) => {
     technicalText,
   );
   const keyFeatures = sanitizeCategoryFeatureClasses(sortFeaturesByPriority(unique([...salesFeatures, ...technicalFeatures])), technicalText, categoryProfile);
-  const technicalSpecs = hasTechnicalTable ? extractCategoryImportantSpecs(technicalText, categoryProfile) : [];
+  const categoryImportantSpecsText = isMobileAirConditionerProfile(categoryProfile) ? [exactSeriesText, summaryText, technicalText].join('\n') : technicalText;
+  const technicalSpecs = hasTechnicalTable ? extractCategoryImportantSpecs(categoryImportantSpecsText, categoryProfile) : [];
   const importantSpecs = sanitizeCategoryFeatureClasses(unique([...salesFeatures, ...technicalSpecs]), technicalText, categoryProfile);
   const categoryDescriptionContext = { categoryProfile, approvedProfile: source, seriesName: source.seriesName, salesFeatures, keyFeatures, importantSpecs };
   const categorySalesArguments = buildCategorySalesArguments({ categoryProfile, salesFeatures, importantSpecs, sourceText: [exactSeriesText, summaryText, technicalText].join(' ') });
