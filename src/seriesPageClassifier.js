@@ -169,6 +169,25 @@ export const getOtherSeriesMatches = (text = '', selectedProfile, allProfiles = 
 const hasTechnicalMarker = (text = '') =>
   includesNormalizedPhrase(text, 'Технические характеристики') || includesNormalizedPhrase(text, 'Параметр / Модель');
 
+const getTechnicalPageReasons = ({ matchedTokenObjects = [], hasTechnicalTableMarker = false }) => {
+  const reasons = [];
+  const modelPrefixes = unique(
+    matchedTokenObjects
+      .filter((token) => token.kind === 'modelPrefix')
+      .map((token) => token.label),
+  );
+
+  if (hasTechnicalTableMarker) {
+    reasons.push('technicalTable: Параметр / Модель или Технические характеристики');
+  }
+
+  if (modelPrefixes.length > 0) {
+    reasons.push(`modelPrefix: ${modelPrefixes.join(', ')}`);
+  }
+
+  return reasons;
+};
+
 const PAGE_CLASSES = {
   exactSeriesPage: 'exactSeriesPage',
   servicePage: 'servicePage',
@@ -209,9 +228,17 @@ function scoreSeriesPage(page, profile, allProfiles = []) {
   return score;
 }
 
-const getPageClass = ({ matchedTokens, matchedOtherSeries, hasSelectedCode, isHommynPage, hasTechnicalTableMarker }) => {
+const getPageClass = ({ matchedTokens, matchedOtherSeries, hasSelectedCode, isHommynPage, hasTechnicalTableMarker, reasonTechnicalPage }) => {
   const hasSelectedSeries = matchedTokens.length > 0;
   const hasManyOtherSeries = matchedOtherSeries.length >= 4;
+
+  if (hasSelectedSeries && reasonTechnicalPage.length > 0) {
+    return PAGE_CLASSES.exactSeriesPage;
+  }
+
+  if (hasSelectedSeries && hasManyOtherSeries) {
+    return PAGE_CLASSES.summaryPage;
+  }
 
   if (isHommynPage) {
     return PAGE_CLASSES.servicePage;
@@ -219,10 +246,6 @@ const getPageClass = ({ matchedTokens, matchedOtherSeries, hasSelectedCode, isHo
 
   if (hasSelectedSeries && (!hasManyOtherSeries || hasSelectedCode || hasTechnicalTableMarker)) {
     return PAGE_CLASSES.exactSeriesPage;
-  }
-
-  if (hasSelectedSeries && hasManyOtherSeries) {
-    return PAGE_CLASSES.summaryPage;
   }
 
   if (matchedOtherSeries.length > 0) {
@@ -264,10 +287,18 @@ export const classifyPageForSeries = (page, profile, allProfiles = SERIES_PROFIL
   const hasSelectedCode = matchedTokenObjects.some((token) => ['code', 'compactCode', 'modelPrefix'].includes(token.kind));
   const isHommynPage = isServicePage(page);
   const hasTechnicalTableMarker = hasTechnicalMarker(text);
-  const pageClass = getPageClass({ matchedTokens, matchedOtherSeries, hasSelectedCode, isHommynPage, hasTechnicalTableMarker });
+  const reasonTechnicalPage = getTechnicalPageReasons({ matchedTokenObjects, hasTechnicalTableMarker });
+  const pageClass = getPageClass({
+    matchedTokens,
+    matchedOtherSeries,
+    hasSelectedCode,
+    isHommynPage,
+    hasTechnicalTableMarker,
+    reasonTechnicalPage,
+  });
   const belongsToSeries = pageClass === PAGE_CLASSES.exactSeriesPage;
   const isMultiSeriesSummaryPage = pageClass === PAGE_CLASSES.summaryPage;
-  const isTechnicalPage = belongsToSeries && hasTechnicalTableMarker && hasSelectedCode;
+  const isTechnicalPage = belongsToSeries && reasonTechnicalPage.length > 0;
   const isOverviewPage = belongsToSeries && !isTechnicalPage;
   const excluded = pageClass !== PAGE_CLASSES.exactSeriesPage;
   let score = scoreSeriesPage(page, profile, allProfiles);
@@ -311,5 +342,6 @@ export const classifyPageForSeries = (page, profile, allProfiles = SERIES_PROFIL
     })),
     isMultiSeriesSummaryPage,
     hasSelectedCode,
+    reasonTechnicalPage,
   };
 };
