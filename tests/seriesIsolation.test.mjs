@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { extractEnergyClass, generateSeriesDraft, sanitizeEnergyClasses } from '../src/generateSeriesDraft.js';
+import { diagnoseEnergyClass, extractEnergyClass, generateSeriesDraft, sanitizeEnergyClasses } from '../src/generateSeriesDraft.js';
 import { SERIES_PROFILES } from '../src/data/seriesProfiles.js';
 import { classifyPageForSeries, getMatchedTokens } from '../src/seriesPageClassifier.js';
 
@@ -216,6 +216,39 @@ assert.equal(
   /A\+\+\/A\+\+\+/u.test(extractEnergyClass(lagoonFlatPdfTechnicalRawText)),
   false,
   'flat PDF text energy extractor must not include SEER/SCOP A++/A+++ values',
+);
+
+const lagoonFlatPdfEnergyDiagnostic = diagnoseEnergyClass(lagoonFlatPdfTechnicalRawText);
+assert.equal(
+  lagoonFlatPdfEnergyDiagnostic.stopMarker,
+  'SEER',
+  'energy diagnostic must expose the row marker that cut off SEER/SCOP values',
+);
+assert.deepEqual(
+  lagoonFlatPdfEnergyDiagnostic.values,
+  ['A/A', 'A++/A+'],
+  'energy diagnostic must expose strict values collected before SEER/SCOP rows',
+);
+assert.match(
+  lagoonFlatPdfEnergyDiagnostic.rawSegment,
+  /A\+\+\/A\+\+\+/u,
+  'energy diagnostic must expose the original segment where the foreign A+++ value appeared',
+);
+
+assert.equal(
+  extractEnergyClass('Класс энергоэффективности (EER/COP) A/A'),
+  'A/A',
+  'single-row energy extractor must return one confident value',
+);
+assert.equal(
+  extractEnergyClass('Класс энергоэффективности (EER/COP) A/A A++/A+'),
+  'A/A → A++/A+',
+  'two-value energy extractor must return a two-point range',
+);
+assert.equal(
+  extractEnergyClass('Класс энергоэффективности (EER/COP) A/A A/A A/A A++/A+ A++/A+ A++/A+++'),
+  '',
+  'energy extractor must reject more than two distinct values as ambiguous',
 );
 
 const lagoonFlatPdfEnergyDraft = buildTechnicalOnlyDraft({

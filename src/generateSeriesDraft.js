@@ -513,48 +513,80 @@ const collectStandaloneEnergyClassValues = (text = '') => {
 };
 
 const formatEnergyClassFeature = (values = []) => {
-  if (values.length === 0) {
+  if (values.length === 0 || values.length > 2) {
     return '';
   }
 
-  return values.length === 1 ? values[0] : `${values[0]} → ${values[values.length - 1]}`;
+  return values.length === 1 ? values[0] : `${values[0]} → ${values[1]}`;
 };
 
 const ENERGY_CLASS_ROW_MARKER = /класс\s+энергоэффективности(?:\s*\(?\s*eer\s*\/\s*cop\s*\)?)?/iu;
 const ENERGY_CLASS_SEGMENT_MAX_LENGTH = 240;
-const ENERGY_CLASS_NEXT_ROW_MARKER = /\bSEER\b|\bSCOP\b|мощность|потребляемая|потребление|коэффициент|уровень\s+шума|расход\s+воздуха|диапазон\s+рабочих\s+температур|размер|габарит|вес|хладагент|электропитание|класс\s+пылевлагозащиты/iu;
+const ENERGY_CLASS_NEXT_ROW_MARKER = /\bSEER\b|\bSCOP\b|сезонн(?:ый|ого|ые|ых)?\s+коэффициент|мощность|потребляемая|потребление|коэффициент|уровень\s+шума|расход\s+воздуха|диапазон\s+рабочих\s+температур|размер|габарит|вес|хладагент|электропитание|класс\s+пылевлагозащиты/iu;
 
-const limitEnergyClassSegment = (text = '') => {
-  const segment = String(text || '').slice(0, ENERGY_CLASS_SEGMENT_MAX_LENGTH);
-  const markerMatch = ENERGY_CLASS_ROW_MARKER.exec(segment);
-  const stopSearchStart = markerMatch ? markerMatch.index + markerMatch[0].length : 0;
-  const stopMatch = ENERGY_CLASS_NEXT_ROW_MARKER.exec(segment.slice(stopSearchStart));
+const buildEnergyClassDecision = (values = [], reasonPrefix = 'accepted') => {
+  const valueCount = values.length;
 
-  if (!stopMatch) {
-    return segment.trim();
+  if (valueCount === 0) {
+    return { value: '', reason: `${reasonPrefix}: no energy class values`, ambiguous: false };
   }
 
-  return segment.slice(0, stopSearchStart + stopMatch.index).trim();
+  if (valueCount > 2) {
+    return { value: '', reason: 'rejected: ambiguous energy class segment has more than 2 distinct values', ambiguous: true };
+  }
+
+  return { value: formatEnergyClassFeature(values), reason: `${reasonPrefix}: ${valueCount} distinct value(s) in strict energy row`, ambiguous: false };
 };
 
-const getEnergyClassSegment = (technicalText = '') => {
+export const diagnoseEnergyClass = (technicalText = '') => {
   const normalizedText = String(technicalText || '').replace(/[‐‑‒–—−]/gu, '-');
   const lines = normalizedText.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
-
-  if (lines.length > 1) {
-    const energyClassLine = lines.find((line) => ENERGY_CLASS_ROW_MARKER.test(line));
-
-    return energyClassLine ? limitEnergyClassSegment(energyClassLine) : '';
-  }
-
-  const markerMatch = ENERGY_CLASS_ROW_MARKER.exec(normalizedText);
+  const sourceSegment = lines.length > 1
+    ? lines.find((line) => ENERGY_CLASS_ROW_MARKER.test(line)) || ''
+    : normalizedText;
+  const markerMatch = ENERGY_CLASS_ROW_MARKER.exec(sourceSegment);
 
   if (!markerMatch) {
-    return '';
+    return {
+      markerFound: false,
+      rawSegment: '',
+      segment: '',
+      stopMarker: '',
+      values: [],
+      value: '',
+      reason: 'rejected: energy class row marker not found',
+      ambiguous: false,
+    };
   }
 
-  return limitEnergyClassSegment(normalizedText.slice(markerMatch.index));
+  const rawSegment = sourceSegment.slice(markerMatch.index, markerMatch.index + ENERGY_CLASS_SEGMENT_MAX_LENGTH).trim();
+  const stopSearchStart = markerMatch[0].length;
+  const stopMatch = ENERGY_CLASS_NEXT_ROW_MARKER.exec(rawSegment.slice(stopSearchStart));
+  const segment = stopMatch
+    ? rawSegment.slice(0, stopSearchStart + stopMatch.index).trim()
+    : rawSegment;
+  const values = collectEnergyClassValues(segment);
+  const decision = buildEnergyClassDecision(values);
+
+  return {
+    markerFound: true,
+    rawSegment,
+    segment,
+    stopMarker: stopMatch ? stopMatch[0] : '',
+    values,
+    ...decision,
+  };
 };
+
+const maybeLogEnergyClassDiagnostic = (diagnostic) => {
+  if (typeof process === 'undefined' || process.env?.DEBUG_ENERGY_CLASS !== '1') {
+    return;
+  }
+
+  console.log('[energy-class]', JSON.stringify(diagnostic));
+};
+
+const limitEnergyClassSegment = (text = '') => diagnoseEnergyClass(text).segment;
 
 const extractEnergyClassFeatureValues = (feature = '') => {
   const normalizedFeature = String(feature || '')
@@ -605,9 +637,12 @@ const isEnergyClassFeature = (feature = '') => {
   );
 };
 
-const getAllowedEnergyClassValues = (technicalText = '') => collectEnergyClassValues(getEnergyClassSegment(technicalText));
+export const extractEnergyClass = (technicalText = '') => {
+  const diagnostic = diagnoseEnergyClass(technicalText);
 
-export const extractEnergyClass = (technicalText = '') => formatEnergyClassFeature(getAllowedEnergyClassValues(technicalText));
+  maybeLogEnergyClassDiagnostic(diagnostic);
+  return diagnostic.value;
+};
 
 export const sanitizeEnergyClasses = (features = [], technicalText = '') => {
   const sourceFeatures = Array.isArray(features) ? features : [];
