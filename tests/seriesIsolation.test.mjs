@@ -790,4 +790,73 @@ assert.ok(waterHeaterDraft.shortDescription, 'waterHeater shortDescription must 
 assert.ok(waterHeaterDraft.positioning, 'waterHeater positioning must not be empty');
 assert.match(waterHeaterDraft.importantSpecs.join('\n'), /Объём|Мощность|ТЭН|Защита|Монтаж/iu, 'waterHeater importantSpecs must include volume/power/heater/protection/mounting');
 
+
+const ecoCoolProfile = SERIES_PROFILES.find((profile) => profile.seriesName === 'ECO COOL');
+const ecoCoolDraft = generateSeriesDraft({
+  profileId: ecoCoolProfile.id,
+  category: ecoCoolProfile.category,
+  group: ecoCoolProfile.group,
+  seriesName: 'ECO COOL',
+  code: 'BPAC-CC',
+  exactSeriesRawText: `
+    Ballu Eco Cool — первый мобильный кондиционер, работающий без воздуховода. Вместо этого он использует воду из встроенного бака для охлаждения конденсатора. Инженерное решение позволило минимизировать тепловыделение: температура воздуха с конденсатора всего на 2–3°C выше комнатной. Прибор способен создать и поддерживать комфортный микроклимат на площади до 7 м². Минимальное энергопотребление в 250 Вт делает прибор не только эффективным, но и экономичным.
+  `,
+  technicalRawText: `
+    ECO COOL A++ класс энергоэффективности Подключение без воздуховода AUTO режим работы COMPACT минимальные габариты R290 эко фреон AUTO-SWING жалюзи Пульт управления в комплекте
+    Параметр / Модель BPAC-02 CC/N6 Холодопроизводительность Вт 600 Холодопроизводительность BTU 2000 Класс энергоэффективности (охлаждение) A Хладагент R290 Расход воздуха м³/ч 150 Уровень шума ДБа 42 Потребляемая мощность (охлаждение) Вт 250 Номинальный ток (охлаждение) A 4,1 Электропитание В-Гц 220-240V 50Hz Габариты (Ш×Г×В) мм 325×275×585 Габариты в упаковке (Ш×Г×В) мм 380×310×632 Вес нетто/брутто кг 14/15
+  `,
+  exactSeriesPages: [120],
+  technicalPages: [121],
+});
+const ecoCoolSpecsText = ecoCoolDraft.importantSpecs.join('\n');
+assert.ok(ecoCoolDraft.salesFeatures.includes('без воздуховода'), 'ECO COOL salesFeatures must include no duct');
+assert.ok(ecoCoolDraft.salesFeatures.includes('использует воду из встроенного бака'), 'ECO COOL salesFeatures must include built-in tank water');
+assert.ok(ecoCoolDraft.salesFeatures.includes('площадь до 7 м²'), 'ECO COOL salesFeatures must include 7 m² area');
+assert.ok(ecoCoolDraft.salesFeatures.includes('энергопотребление 250 Вт'), 'ECO COOL salesFeatures must include 250 W power use');
+assert.ok(ecoCoolDraft.mainAdvantages.includes('без воздуховода'), 'ECO COOL mainAdvantages must include no duct');
+assert.ok(ecoCoolDraft.mainAdvantages.includes('использует воду из встроенного бака'), 'ECO COOL mainAdvantages must include built-in tank water');
+assert.match(ecoCoolDraft.shortDescription, /без воздуховода/iu, 'ECO COOL shortDescription must mention no duct');
+assert.match(ecoCoolDraft.positioning, /без воздуховода|без монтажа/iu, 'ECO COOL positioning must mention no duct/no installation');
+assert.match(ecoCoolSpecsText, /воздуховод не требуется/iu, 'ECO COOL importantSpecs must say duct is not required');
+assert.equal(/длина воздуховода|диаметр воздуховода/iu.test(ecoCoolSpecsText), false, 'ECO COOL importantSpecs must not include fake duct dimensions');
+assert.match(ecoCoolSpecsText, /600 Вт/iu, 'ECO COOL importantSpecs must include 600 W cooling capacity');
+assert.match(ecoCoolSpecsText, /2000 BTU/iu, 'ECO COOL importantSpecs must include 2000 BTU');
+assert.match(ecoCoolSpecsText, /R290/iu, 'ECO COOL importantSpecs must include R290');
+assert.match(ecoCoolSpecsText, /42 дБ/iu, 'ECO COOL importantSpecs must include 42 dB');
+assert.match(ecoCoolSpecsText, /250 Вт/iu, 'ECO COOL importantSpecs must include 250 W');
+assert.match(ecoCoolSpecsText, /325×275×585/iu, 'ECO COOL importantSpecs must include product dimensions');
+assert.match(ecoCoolSpecsText, /14\/15 кг/iu, 'ECO COOL importantSpecs must include net/gross weight');
+assert.equal(/undefined|null|\[object Object\]/iu.test(stringifyDraft(ecoCoolDraft)), false, 'ECO COOL draft must not contain garbage placeholders');
+
+const orbisDuctDraft = generateSeriesDraft({
+  brand: 'Ballu',
+  category: 'Кондиционирование',
+  group: 'Бытовые мобильные кондиционеры',
+  seriesName: 'ORBIS',
+  code: 'BPAC-OR',
+  exactSeriesRawText: 'ORBIS мобильные кондиционеры Ballu не требуют профессионального монтажа.',
+  technicalRawText: 'Модель A, мм B, мм C, мм L, мм D, мм ORBIS BPAC-07 OR/N6 310 680 350 1500 150 BPAC-09 OR/N6 310 680 350 1500 150',
+  exactSeriesPages: [130],
+  technicalPages: [131],
+});
+const orbisDuctSpecsText = orbisDuctDraft.importantSpecs.join('\n');
+assert.equal(/воздуховод:\s*1500 мм, Ø150 мм|длина воздуховода 1500 мм[\s\S]*диаметр воздуховода 150 мм/iu.test(orbisDuctSpecsText), true, 'ORBIS importantSpecs must include duct L/D dimensions');
+assert.equal(/воздуховод не требуется/iu.test(orbisDuctSpecsText), false, 'ORBIS importantSpecs must not say duct is not required');
+
+const variableDuctDraft = generateSeriesDraft({
+  brand: 'Ballu',
+  category: 'Кондиционирование',
+  group: 'Бытовые мобильные кондиционеры',
+  seriesName: 'TEST MOBILE',
+  code: 'BPAC-X',
+  exactSeriesRawText: 'TEST MOBILE бытовые мобильные кондиционеры Ballu.',
+  technicalRawText: 'Модель A, мм B, мм C, мм L, мм D, мм BPAC-07 X 310 680 350 1200 136 BPAC-09 X 310 680 350 1500 154',
+  exactSeriesPages: [140],
+  technicalPages: [141],
+});
+const variableDuctSpecsText = variableDuctDraft.importantSpecs.join('\n');
+assert.match(variableDuctSpecsText, /длина воздуховода 1200–1500 мм/iu, 'variable duct importantSpecs must include length range');
+assert.match(variableDuctSpecsText, /диаметр воздуховода 136–154 мм/iu, 'variable duct importantSpecs must include diameter range');
+assert.equal(/undefined|null|\[object Object\]/iu.test(`${orbisDuctSpecsText}\n${variableDuctSpecsText}`), false, 'duct specs must not contain garbage placeholders');
+
 console.log(`series isolation ok: ${SERIES_PROFILES.length} profiles checked`);
