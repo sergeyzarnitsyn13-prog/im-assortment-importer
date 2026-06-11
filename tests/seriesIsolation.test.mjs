@@ -145,6 +145,34 @@ assert.deepEqual(
   'service HOMMYN must reference the selected series before adding Wi-Fi',
 );
 
+
+const olympioLegendProfile = SERIES_PROFILES.find((profile) => profile.seriesName === 'OLYMPIO LEGEND');
+const olympioLegendNumericPagesDraft = generateSeriesDraft({
+  profileId: olympioLegendProfile.id,
+  seriesName: 'OLYMPIO LEGEND',
+  code: 'BSW',
+  exactSeriesRawText: 'OLYMPIO LEGEND BSW Wi-Fi управление',
+  technicalRawText: 'Технические характеристики BSW\nУровень шума 24/50\nМощность охлаждения 2.5 кВт',
+  exactSeriesPages: [31],
+  technicalPages: [31],
+  summaryPages: [4, 28],
+  servicePages: [3, 8, 9],
+  excludedPages: [{ pageNumber: 1, reason: 'foreign series' }, 2],
+  pageDiagnostics: {
+    exactSeriesPages: [31],
+    technicalPages: [31],
+    summaryPages: [4, 28],
+    servicePages: [3, 8, 9],
+    excludedPages: [{ pageNumber: 1, reason: 'foreign series' }, 2],
+  },
+});
+assert.equal(olympioLegendNumericPagesDraft.seriesName, 'OLYMPIO LEGEND', 'OLYMPIO LEGEND draft must be generated with numeric page arrays');
+assert.deepEqual(
+  olympioLegendNumericPagesDraft.diagnostics.descriptionPages,
+  [31],
+  'draft diagnostics must safely normalize numeric exactSeriesPages',
+);
+
 const buildTechnicalOnlyDraft = ({ seriesName, technicalRawText, rawText = '', exactSeriesRawText = '' }) => {
   const profile = SERIES_PROFILES.find((item) => item.seriesName === seriesName);
 
