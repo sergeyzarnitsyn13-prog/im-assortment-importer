@@ -173,6 +173,40 @@ assert.deepEqual(
   'draft diagnostics must safely normalize numeric exactSeriesPages',
 );
 
+const olympioLegendAutoDescriptionDraft = generateSeriesDraft({
+  profileId: olympioLegendProfile.id,
+  seriesName: 'OLYMPIO LEGEND',
+  code: 'BSW',
+  exactSeriesRawText: `
+    OLYMPIO LEGEND BSW
+    Wi-Fi управление
+    3D-контроль потока воздуха
+    i-FEEL
+    самоочистка
+  `,
+  technicalRawText: `
+    Технические характеристики BSW
+    Уровень шума внутреннего блока 23/35/41 дБ
+    Диапазон рабочих температур -15…+50°C/-7…+24°C
+  `,
+  exactSeriesPages: [31],
+  technicalPages: [31],
+});
+assert.ok(olympioLegendAutoDescriptionDraft.shortDescription, 'OLYMPIO LEGEND approved profile must get auto shortDescription without legacyProfile');
+assert.ok(olympioLegendAutoDescriptionDraft.positioning, 'OLYMPIO LEGEND approved profile must get auto positioning without legacyProfile');
+assert.match(olympioLegendAutoDescriptionDraft.shortDescription, /OLYMPIO LEGEND/u, 'auto shortDescription must contain OLYMPIO LEGEND');
+assert.match(olympioLegendAutoDescriptionDraft.positioning, /OLYMPIO LEGEND/u, 'auto positioning must contain OLYMPIO LEGEND');
+assert.equal(
+  olympioLegendAutoDescriptionDraft.diagnostics.warnings.includes('Краткое описание не заполнено.'),
+  false,
+  'auto shortDescription must suppress missing-description diagnostic warning',
+);
+assert.equal(
+  olympioLegendAutoDescriptionDraft.diagnostics.warnings.includes('Позиционирование не заполнено.'),
+  false,
+  'auto positioning must suppress missing-positioning diagnostic warning',
+);
+
 const buildTechnicalOnlyDraft = ({ seriesName, technicalRawText, rawText = '', exactSeriesRawText = '' }) => {
   const profile = SERIES_PROFILES.find((item) => item.seriesName === seriesName);
 
