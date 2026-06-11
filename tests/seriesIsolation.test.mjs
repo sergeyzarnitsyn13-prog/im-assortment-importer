@@ -213,6 +213,20 @@ const singleEnergyDraft = buildTechnicalOnlyDraft({
 assert.ok(singleEnergyDraft.salesFeatures.includes('A/A'), 'single energy class must be shown unchanged');
 assert.equal(/→/u.test(singleEnergyDraft.salesFeatures.join(' ')), false, 'single energy class must not be rendered as a range');
 
+const exactEnergyClassWithoutEerDraft = buildTechnicalOnlyDraft({
+  seriesName: 'LAGOON',
+  technicalRawText: 'Технические характеристики BSDI\nКласс энергоэффективности A++/A+ A++/A+',
+});
+assert.ok(
+  exactEnergyClassWithoutEerDraft.salesFeatures.includes('A++/A+'),
+  'energy class row without EER/COP must preserve the exact A++/A+ value from technical text',
+);
+assert.equal(
+  /A\+\+\/A\+\+\+/u.test(stringifyDraft(exactEnergyClassWithoutEerDraft)),
+  false,
+  'A++/A+ from technical text must not be upgraded to A++/A+++',
+);
+
 const icePeakProfile = SERIES_PROFILES.find((profile) => profile.seriesName === 'ICE PEAK');
 const ecoSmartProfile = SERIES_PROFILES.find((profile) => profile.seriesName === 'ECO SMART');
 const defenderProfile = SERIES_PROFILES.find((profile) => profile.seriesName === 'DEFENDER');
