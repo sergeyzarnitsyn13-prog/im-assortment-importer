@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { diagnoseEnergyClass, extractEnergyClass, generateSeriesDraft, sanitizeEnergyClasses } from '../src/generateSeriesDraft.js';
+import { diagnoseEnergyClass, extractEnergyClass, generateSeriesDraft, isEnergyClassFeature, sanitizeEnergyClasses } from '../src/generateSeriesDraft.js';
 import { SERIES_PROFILES } from '../src/data/seriesProfiles.js';
 import { classifyPageForSeries, getMatchedTokens } from '../src/seriesPageClassifier.js';
 
@@ -205,6 +205,33 @@ const lagoonEnergyDraft = buildTechnicalOnlyDraft({
 });
 assert.ok(lagoonEnergyDraft.salesFeatures.includes('A/A → A++/A+'), 'LAGOON energy feature must show only actual table classes range');
 assert.equal(/A\+\+\/A\+\+\+/u.test(stringifyDraft(lagoonEnergyDraft)), false, 'LAGOON must not synthesize A++/A+++');
+
+const lagoonMainAdvantagesEnergyDraft = buildTechnicalOnlyDraft({
+  seriesName: 'LAGOON',
+  exactSeriesRawText: `
+    LAGOON BSDI
+    обогрев до -15°C
+    Golden Fin
+    фильтрация воздуха
+    инвертор
+    R32
+  `,
+  technicalRawText: 'Технические характеристики BSDI\nКласс энергоэффективности (EER/COP) A/A A++/A+++\nУровень шума 23/49',
+});
+const lagoonMainAdvantagesText = JSON.stringify(lagoonMainAdvantagesEnergyDraft.mainAdvantages);
+assert.equal(/A\/A/u.test(lagoonMainAdvantagesText), false, 'LAGOON mainAdvantages must not contain A/A energy class');
+assert.equal(/A\+\+/u.test(lagoonMainAdvantagesText), false, 'LAGOON mainAdvantages must not contain A++ energy class');
+assert.equal(/A\+\+\+/u.test(lagoonMainAdvantagesText), false, 'LAGOON mainAdvantages must not contain A+++ energy class');
+assert.equal(
+  lagoonMainAdvantagesEnergyDraft.mainAdvantages.some((feature) => isEnergyClassFeature(feature)),
+  false,
+  'LAGOON mainAdvantages must not contain any energy class feature',
+);
+assert.equal(
+  lagoonMainAdvantagesText.includes('A/A → A++/A+++'),
+  false,
+  'LAGOON mainAdvantages JSON must not contain the extracted energy class range',
+);
 
 const lagoonFlatPdfTechnicalRawText = 'Технические характеристики BSDI Класс энергоэффективности (EER/COP) A/A A/A A/A A++/A+ A++/A+ SEER A++/A+++ SCOP A++/A+++ Уровень шума 23/49';
 assert.equal(
