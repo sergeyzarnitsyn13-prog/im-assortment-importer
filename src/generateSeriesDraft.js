@@ -513,16 +513,36 @@ const collectStandaloneEnergyClassValues = (text = '') => {
 };
 
 const formatEnergyClassFeature = (values = []) => {
-  if (values.length === 0 || values.length > 2) {
+  if (values.length === 0) {
     return '';
   }
 
-  return values.length === 1 ? values[0] : `${values[0]} → ${values[1]}`;
+  return values.length === 1 ? values[0] : `${values[0]} → ${values[values.length - 1]}`;
 };
 
-const ENERGY_CLASS_ROW_MARKER = /класс\s+энергоэффективности(?:\s*\(?\s*eer\s*\/\s*cop\s*\)?)?/iu;
-const ENERGY_CLASS_SEGMENT_MAX_LENGTH = 240;
-const ENERGY_CLASS_NEXT_ROW_MARKER = /\bSEER\b|\bSCOP\b|сезонн(?:ый|ого|ые|ых)?\s+коэффициент|мощность|потребляемая|потребление|коэффициент|уровень\s+шума|расход\s+воздуха|диапазон\s+рабочих\s+температур|размер|габарит|вес|хладагент|электропитание|класс\s+пылевлагозащиты/iu;
+const ENERGY_CLASS_ROW_MARKER = /класс\s+энергоэффективности\s*\(\s*eer\s*\/\s*cop\s*\)/iu;
+const ENERGY_CLASS_SEGMENT_MAX_LENGTH = 360;
+const ENERGY_CLASS_NEXT_ROW_MARKERS = [
+  'Расход воздуха',
+  'Уровень шума',
+  'Напряжение питания',
+  'Потребляемая мощность',
+  'Номинальный ток',
+  'Размер',
+  'Вес',
+  'Диаметр труб',
+  'Максимальная длина',
+  'Хладагент',
+  'Диапазон рабочих температур',
+  'Марка компрессора',
+  'SEER',
+  'SCOP',
+];
+const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+const ENERGY_CLASS_NEXT_ROW_MARKER = new RegExp(
+  ENERGY_CLASS_NEXT_ROW_MARKERS.map((marker) => escapeRegex(marker).replace(/\s+/gu, '\\s+')).join('|'),
+  'iu',
+);
 
 const buildEnergyClassDecision = (values = [], reasonPrefix = 'accepted') => {
   const valueCount = values.length;
@@ -531,19 +551,12 @@ const buildEnergyClassDecision = (values = [], reasonPrefix = 'accepted') => {
     return { value: '', reason: `${reasonPrefix}: no energy class values`, ambiguous: false };
   }
 
-  if (valueCount > 2) {
-    return { value: '', reason: 'rejected: ambiguous energy class segment has more than 2 distinct values', ambiguous: true };
-  }
-
   return { value: formatEnergyClassFeature(values), reason: `${reasonPrefix}: ${valueCount} distinct value(s) in strict energy row`, ambiguous: false };
 };
 
 export const diagnoseEnergyClass = (technicalText = '') => {
   const normalizedText = String(technicalText || '').replace(/[‐‑‒–—−]/gu, '-');
-  const lines = normalizedText.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
-  const sourceSegment = lines.length > 1
-    ? lines.find((line) => ENERGY_CLASS_ROW_MARKER.test(line)) || ''
-    : normalizedText;
+  const sourceSegment = normalizedText;
   const markerMatch = ENERGY_CLASS_ROW_MARKER.exec(sourceSegment);
 
   if (!markerMatch) {
@@ -586,7 +599,9 @@ const maybeLogEnergyClassDiagnostic = (diagnostic) => {
   console.log('[energy-class]', JSON.stringify(diagnostic));
 };
 
-const limitEnergyClassSegment = (text = '') => diagnoseEnergyClass(text).segment;
+export const getEnergyClassSegment = (text = '') => diagnoseEnergyClass(text).segment;
+
+const limitEnergyClassSegment = getEnergyClassSegment;
 
 const extractEnergyClassFeatureValues = (feature = '') => {
   const normalizedFeature = String(feature || '')

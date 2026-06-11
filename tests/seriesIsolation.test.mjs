@@ -201,10 +201,11 @@ assert.equal(/обогрев до -30°C/iu.test(stringifyDraft(ecoSmartTechnica
 
 const lagoonEnergyDraft = buildTechnicalOnlyDraft({
   seriesName: 'LAGOON',
-  technicalRawText: 'Технические характеристики BSDI\nКласс энергоэффективности (EER/COP) A/A A/A A/A A++/A+ A++/A+',
+  technicalRawText: 'Технические характеристики BSDI\nКласс энергоэффективности (EER/COP) A/A A/A A/A A++/A+++ A++/A+++ Расход воздуха 480/1300 520/1800',
 });
-assert.ok(lagoonEnergyDraft.salesFeatures.includes('A/A → A++/A+'), 'LAGOON energy feature must show only actual table classes range');
-assert.equal(/A\+\+\/A\+\+\+/u.test(stringifyDraft(lagoonEnergyDraft)), false, 'LAGOON must not synthesize A++/A+++');
+assert.ok(lagoonEnergyDraft.salesFeatures.includes('A/A → A++/A+++'), 'LAGOON energy feature must show actual EER/COP table classes range');
+assert.ok(lagoonEnergyDraft.keyFeatures.includes('A/A → A++/A+++'), 'LAGOON keyFeatures must include confident EER/COP energy range');
+assert.ok(lagoonEnergyDraft.importantSpecs.includes('A/A → A++/A+++'), 'LAGOON importantSpecs must include confident EER/COP energy range');
 
 const lagoonMainAdvantagesEnergyDraft = buildTechnicalOnlyDraft({
   seriesName: 'LAGOON',
@@ -233,23 +234,23 @@ assert.equal(
   'LAGOON mainAdvantages JSON must not contain the extracted energy class range',
 );
 
-const lagoonFlatPdfTechnicalRawText = 'Технические характеристики BSDI Класс энергоэффективности (EER/COP) A/A A/A A/A A++/A+ A++/A+ SEER A++/A+++ SCOP A++/A+++ Уровень шума 23/49';
+const lagoonFlatPdfTechnicalRawText = 'Технические характеристики BSDI Класс энергоэффективности (EER/COP) A/A A/A A++/A+ Расход воздуха 480/1300 SEER A++/A+++ SCOP A++/A+++ Уровень шума 23/49';
 assert.equal(
   extractEnergyClass(lagoonFlatPdfTechnicalRawText),
   'A/A → A++/A+',
-  'flat PDF text energy extractor must stop before SEER/SCOP rows',
+  'flat PDF text energy extractor must stop before neighboring rows',
 );
 assert.equal(
   /A\+\+\/A\+\+\+/u.test(extractEnergyClass(lagoonFlatPdfTechnicalRawText)),
   false,
-  'flat PDF text energy extractor must not include SEER/SCOP A++/A+++ values',
+  'flat PDF text energy extractor must not include SEER/SCOP A++/A+++ values after Расход воздуха',
 );
 
 const lagoonFlatPdfEnergyDiagnostic = diagnoseEnergyClass(lagoonFlatPdfTechnicalRawText);
 assert.equal(
   lagoonFlatPdfEnergyDiagnostic.stopMarker,
-  'SEER',
-  'energy diagnostic must expose the row marker that cut off SEER/SCOP values',
+  'Расход воздуха',
+  'energy diagnostic must expose the nearest technical marker that cut off neighboring values',
 );
 assert.deepEqual(
   lagoonFlatPdfEnergyDiagnostic.values,
@@ -259,7 +260,7 @@ assert.deepEqual(
 assert.match(
   lagoonFlatPdfEnergyDiagnostic.rawSegment,
   /A\+\+\/A\+\+\+/u,
-  'energy diagnostic must expose the original segment where the foreign A+++ value appeared',
+  'energy diagnostic must expose the original segment where the SEER/SCOP A+++ value appeared',
 );
 
 assert.equal(
@@ -274,8 +275,8 @@ assert.equal(
 );
 assert.equal(
   extractEnergyClass('Класс энергоэффективности (EER/COP) A/A A/A A/A A++/A+ A++/A+ A++/A+++'),
-  '',
-  'energy extractor must reject more than two distinct values as ambiguous',
+  'A/A → A++/A+++',
+  'energy extractor must format several distinct row values as first-to-last range',
 );
 
 const lagoonFlatPdfEnergyDraft = buildTechnicalOnlyDraft({
@@ -284,12 +285,12 @@ const lagoonFlatPdfEnergyDraft = buildTechnicalOnlyDraft({
 });
 assert.ok(
   lagoonFlatPdfEnergyDraft.salesFeatures.includes('A/A → A++/A+'),
-  'LAGOON flat PDF card must show only the energy class row range',
+  'LAGOON flat PDF card must show only the EER/COP energy class row range',
 );
 assert.equal(
   /A\+\+\/A\+\+\+/u.test(stringifyDraft(lagoonFlatPdfEnergyDraft)),
   false,
-  'LAGOON flat PDF card must not include A++/A+++ anywhere in the draft JSON',
+  'LAGOON flat PDF card must not include A++/A+++ from SEER/SCOP anywhere in the draft JSON',
 );
 
 const singleEnergyDraft = buildTechnicalOnlyDraft({
@@ -303,14 +304,10 @@ const exactEnergyClassWithoutEerDraft = buildTechnicalOnlyDraft({
   seriesName: 'LAGOON',
   technicalRawText: 'Технические характеристики BSDI\nКласс энергоэффективности A++/A+ A++/A+',
 });
-assert.ok(
-  exactEnergyClassWithoutEerDraft.salesFeatures.includes('A++/A+'),
-  'energy class row without EER/COP must preserve the exact A++/A+ value from technical text',
-);
 assert.equal(
-  /A\+\+\/A\+\+\+/u.test(stringifyDraft(exactEnergyClassWithoutEerDraft)),
+  exactEnergyClassWithoutEerDraft.salesFeatures.includes('A++/A+'),
   false,
-  'A++/A+ from technical text must not be upgraded to A++/A+++',
+  'energy class row without EER/COP must not be used as confident EER/COP source',
 );
 
 const sanitizedLagoonEnergyFeatures = sanitizeEnergyClasses(
@@ -333,21 +330,21 @@ assert.deepEqual(
 assert.equal(
   extractEnergyClass(`Технические характеристики BSDI
 Класс энергоэффективности (EER/COP) А/А А/А А++/А+ А++/А+
-Другой показатель A++/A+++`),
+Расход воздуха 480/1300 Другой показатель A++/A+++`),
   'А/А → А++/А+',
   'strict energy extractor must support Cyrillic A and ignore classes on following lines',
 );
 assert.equal(
   extractEnergyClass(`Технические характеристики BSPKI
 Класс энергоэффективности A++/A+++`),
-  'A++/A+++',
-  'strict energy extractor must preserve a single Latin energy class unchanged',
+  '',
+  'strict energy extractor must ignore an energy class row without EER/COP marker',
 );
 assert.equal(
   extractEnergyClass(`Технические характеристики BSHI
 Класс энергоэффективности А++/А+++`),
-  'А++/А+++',
-  'strict energy extractor must preserve a single Cyrillic energy class unchanged',
+  '',
+  'strict energy extractor must ignore a Cyrillic energy class row without EER/COP marker',
 );
 assert.equal(
   extractEnergyClass(`Технические характеристики BSVI
