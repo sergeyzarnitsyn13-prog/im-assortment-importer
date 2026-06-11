@@ -654,6 +654,74 @@ th {
   font-weight: 800;
 }
 
+.recognition-diagnostics {
+  background: #f8fbff;
+  border: 1px solid #d8e1ef;
+  border-radius: 12px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.recognition-diagnostics h3 {
+  color: #162033;
+  margin: 0;
+}
+
+.recognition-diagnostics-list {
+  border: 1px solid #d8e1ef;
+  border-radius: 12px;
+  margin: 0;
+  overflow: hidden;
+}
+
+.recognition-diagnostics-list div {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.45fr) minmax(0, 1fr);
+}
+
+.recognition-diagnostics-list div + div {
+  border-top: 1px solid #d8e1ef;
+}
+
+.recognition-diagnostics-list dt,
+.recognition-diagnostics-list dd {
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.recognition-diagnostics-list dt {
+  background: #eef5ff;
+  color: #21466f;
+  font-weight: 800;
+}
+
+.recognition-diagnostics-list dd {
+  background: #ffffff;
+  border-left: 1px solid #d8e1ef;
+  overflow-wrap: anywhere;
+}
+
+.recognition-diagnostics-warning {
+  margin: 0;
+}
+
+.recognition-diagnostics-warning ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+@media (max-width: 720px) {
+  .recognition-diagnostics-list div {
+    grid-template-columns: 1fr;
+  }
+
+  .recognition-diagnostics-list dd {
+    border-left: 0;
+    border-top: 1px solid #d8e1ef;
+  }
+}
+
 .warning-notice {
   background: #fff7ed;
   border-color: #fed7aa;

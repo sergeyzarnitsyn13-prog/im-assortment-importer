@@ -446,6 +446,31 @@ const icePeakCardDraft = generateSeriesDraft({
   `,
   technicalPages: [9],
 });
+assert.deepEqual(
+  icePeakCardDraft.diagnostics.technicalPages,
+  [9],
+  'draft diagnostics must expose technicalPages',
+);
+assert.equal(
+  icePeakCardDraft.diagnostics.technicalRawTextLength > 0,
+  true,
+  'draft diagnostics must expose technicalRawText length',
+);
+assert.equal(
+  icePeakCardDraft.diagnostics.modelCodes.includes('BSPKI/in-10HN8'),
+  true,
+  'draft diagnostics must expose found models/codes for selected series',
+);
+assert.equal(
+  icePeakCardDraft.diagnostics.salesFeatures.includes('тепловой насос'),
+  true,
+  'draft diagnostics must expose found sales features',
+);
+assert.equal(
+  icePeakCardDraft.diagnostics.technicalSpecs.length > 0,
+  true,
+  'draft diagnostics must expose found technical specs',
+);
 const icePeakCardText = stringifyDraft(icePeakCardDraft);
 for (const requiredIcePeakFeature of [
   /тепловой насос/iu,
