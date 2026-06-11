@@ -55,14 +55,78 @@ const unique = (items) => [...new Set(items)];
 
 const formatPageNumbers = (pageNumbers) => (pageNumbers.length > 0 ? pageNumbers.join(', ') : 'нет');
 
+const PDF_TEXT_ROW_Y_TOLERANCE = 3;
+
+const normalizePdfLineText = (text) => String(text || '').replace(/\s+/g, ' ').trim();
+
+const getTextItemPosition = (item) => {
+  const transform = Array.isArray(item?.transform) ? item.transform : [];
+  const x = Number(transform[4]);
+  const y = Number(transform[5]);
+
+  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+};
+
+const buildPageTextFromItems = (items = []) => {
+  const textItems = items
+    .map((item, index) => ({
+      index,
+      text: normalizePdfLineText('str' in item ? item.str : ''),
+      position: getTextItemPosition(item),
+    }))
+    .filter((item) => item.text);
+
+  if (textItems.length === 0) {
+    return '';
+  }
+
+  if (textItems.some((item) => !item.position)) {
+    return normalizePdfLineText(textItems.map((item) => item.text).join(' '));
+  }
+
+  const lines = [];
+  const sortedItems = [...textItems].sort((left, right) => {
+    const yDiff = right.position.y - left.position.y;
+
+    if (Math.abs(yDiff) > PDF_TEXT_ROW_Y_TOLERANCE) {
+      return yDiff;
+    }
+
+    const xDiff = left.position.x - right.position.x;
+    return xDiff || left.index - right.index;
+  });
+
+  for (const item of sortedItems) {
+    const line = lines.find((candidate) => Math.abs(candidate.y - item.position.y) <= PDF_TEXT_ROW_Y_TOLERANCE);
+
+    if (line) {
+      line.items.push(item);
+      line.y = (line.y * (line.items.length - 1) + item.position.y) / line.items.length;
+      continue;
+    }
+
+    lines.push({ y: item.position.y, items: [item] });
+  }
+
+  return lines
+    .sort((left, right) => right.y - left.y)
+    .map((line) =>
+      normalizePdfLineText(
+        line.items
+          .sort((left, right) => left.position.x - right.position.x || left.index - right.index)
+          .map((item) => item.text)
+          .join(' '),
+      ),
+    )
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+};
+
 const getPageText = async (page) => {
   const textContent = await page.getTextContent();
 
-  return textContent.items
-    .map((item) => ('str' in item ? item.str : ''))
-    .join(' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return buildPageTextFromItems(textContent.items);
 };
 
 const getQualityWarning = (pages) => {

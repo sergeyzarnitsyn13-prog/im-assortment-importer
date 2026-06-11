@@ -521,14 +521,39 @@ const formatEnergyClassFeature = (values = []) => {
 };
 
 const ENERGY_CLASS_ROW_MARKER = /класс\s+энергоэффективности(?:\s*\(?\s*eer\s*\/\s*cop\s*\)?)?/iu;
+const ENERGY_CLASS_SEGMENT_MAX_LENGTH = 240;
+const ENERGY_CLASS_NEXT_ROW_MARKER = /\bSEER\b|\bSCOP\b|мощность|потребляемая|потребление|коэффициент|уровень\s+шума|расход\s+воздуха|диапазон\s+рабочих\s+температур|размер|габарит|вес|хладагент|электропитание|класс\s+пылевлагозащиты/iu;
+
+const limitEnergyClassSegment = (text = '') => {
+  const segment = String(text || '').slice(0, ENERGY_CLASS_SEGMENT_MAX_LENGTH);
+  const markerMatch = ENERGY_CLASS_ROW_MARKER.exec(segment);
+  const stopSearchStart = markerMatch ? markerMatch.index + markerMatch[0].length : 0;
+  const stopMatch = ENERGY_CLASS_NEXT_ROW_MARKER.exec(segment.slice(stopSearchStart));
+
+  if (!stopMatch) {
+    return segment.trim();
+  }
+
+  return segment.slice(0, stopSearchStart + stopMatch.index).trim();
+};
 
 const getEnergyClassSegment = (technicalText = '') => {
   const normalizedText = String(technicalText || '').replace(/[‐‑‒–—−]/gu, '-');
-  const energyClassLine = normalizedText
-    .split(/\r?\n/u)
-    .find((line) => ENERGY_CLASS_ROW_MARKER.test(line));
+  const lines = normalizedText.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
 
-  return energyClassLine || '';
+  if (lines.length > 1) {
+    const energyClassLine = lines.find((line) => ENERGY_CLASS_ROW_MARKER.test(line));
+
+    return energyClassLine ? limitEnergyClassSegment(energyClassLine) : '';
+  }
+
+  const markerMatch = ENERGY_CLASS_ROW_MARKER.exec(normalizedText);
+
+  if (!markerMatch) {
+    return '';
+  }
+
+  return limitEnergyClassSegment(normalizedText.slice(markerMatch.index));
 };
 
 const extractEnergyClassFeatureValues = (feature = '') => {
@@ -730,11 +755,17 @@ const pickMainAdvantages = (features = [], fallback = []) => {
   return unique([...normalizedFeatures, ...fallback]).slice(0, MAX_MAIN_ADVANTAGES);
 };
 
+const normalizeTechnicalSpecLine = (line = '') => {
+  const normalizedLine = normalizeLine(line);
+
+  return ENERGY_CLASS_ROW_MARKER.test(normalizedLine) ? limitEnergyClassSegment(normalizedLine) : normalizedLine;
+};
+
 const extractTechnicalSpecs = (rawText = '') =>
   unique(
     rawText
       .split(/\r?\n/)
-      .map(normalizeLine)
+      .map(normalizeTechnicalSpecLine)
       .filter(Boolean)
       .filter((line) => hasAnyKeyword(line, TECHNICAL_SPEC_KEYWORDS)),
   );
