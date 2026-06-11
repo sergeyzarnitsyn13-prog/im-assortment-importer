@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { generateSeriesDraft } from '../src/generateSeriesDraft.js';
+import { generateSeriesDraft, sanitizeEnergyClasses } from '../src/generateSeriesDraft.js';
 import { SERIES_PROFILES } from '../src/data/seriesProfiles.js';
 import { classifyPageForSeries, getMatchedTokens } from '../src/seriesPageClassifier.js';
 
@@ -225,6 +225,23 @@ assert.equal(
   /A\+\+\/A\+\+\+/u.test(stringifyDraft(exactEnergyClassWithoutEerDraft)),
   false,
   'A++/A+ from technical text must not be upgraded to A++/A+++',
+);
+
+const sanitizedLagoonEnergyFeatures = sanitizeEnergyClasses(
+  ['Wi-Fi управление', 'A/A → A++/A+', 'A++/A+++', 'A+++', 'А++/А+++', 'А+++'],
+  `Технические характеристики BSDI
+Класс энергоэффективности (EER/COP) A/A A/A A++/A+ A++/A+`,
+);
+assert.deepEqual(
+  sanitizedLagoonEnergyFeatures,
+  ['Wi-Fi управление', 'A/A → A++/A+'],
+  'energy sanitizer must keep only classes present in the selected technical row',
+);
+assert.deepEqual(
+  sanitizeEnergyClasses(['A++/A+++', 'А+++'], `Технические характеристики BSDI
+Мощность охлаждения 2.5 кВт`),
+  [],
+  'energy sanitizer must drop energy features when the energy class row is missing',
 );
 
 const icePeakProfile = SERIES_PROFILES.find((profile) => profile.seriesName === 'ICE PEAK');

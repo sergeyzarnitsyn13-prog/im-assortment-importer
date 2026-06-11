@@ -497,6 +497,21 @@ const collectEnergyClassValues = (text = '') => {
   return uniqueEnergyClassValues(values);
 };
 
+const collectStandaloneEnergyClassValues = (text = '') => {
+  const values = [];
+  const sourceText = String(text || '');
+
+  for (const match of sourceText.matchAll(/(?:^|[^A-ZА-ЯЁ\/])([AА]\s*\+{1,3})(?=$|[^A-ZА-ЯЁ+\/])/giu)) {
+    const value = normalizeEnergyClassDisplayValue(match[1]);
+
+    if (/^A\+{1,3}$/u.test(getEnergyClassComparisonKey(value))) {
+      values.push(value);
+    }
+  }
+
+  return uniqueEnergyClassValues(values);
+};
+
 const formatEnergyClassFeature = (values = []) => {
   if (values.length === 0) {
     return '';
@@ -505,24 +520,84 @@ const formatEnergyClassFeature = (values = []) => {
   return values.length === 1 ? values[0] : `${values[0]} → ${values[values.length - 1]}`;
 };
 
-const isEnergyClassFeature = (feature = '') => {
+const ENERGY_CLASS_ROW_MARKER = /класс\s+энергоэффективности(?:\s*\(?\s*eer\s*\/\s*cop\s*\)?)?/iu;
+
+const getEnergyClassSegment = (technicalText = '') =>
+  getTechnicalValueSegment(technicalText, ENERGY_CLASS_ROW_MARKER, 720);
+
+const extractEnergyClassFeatureValues = (feature = '') => {
   const normalizedFeature = String(feature || '')
     .replace(/[‐‑‒–—−]/gu, '→')
     .replace(/\\/gu, '/')
     .replace(/\s*(?:→|->|—|–|-|to)\s*/giu, ' → ')
     .trim();
-  const values = normalizedFeature.split(/\s+→\s+/u);
 
-  return values.length > 0 && values.every((part) => isEnergyClassValue(part));
+  const rangeParts = normalizedFeature.split(/\s+→\s+/u).filter(Boolean);
+
+  if (rangeParts.length > 1 && rangeParts.every((part) => isEnergyClassValue(part))) {
+    return uniqueEnergyClassValues(rangeParts.map(normalizeEnergyClassDisplayValue));
+  }
+
+  return uniqueEnergyClassValues([
+    ...collectEnergyClassValues(normalizedFeature),
+    ...collectStandaloneEnergyClassValues(normalizedFeature),
+  ]);
+};
+
+const containsEnergyClassReference = (feature = '') => {
+  const normalizedFeature = normalizeSearchText(feature);
+
+  return (
+    /энергоэффективност/u.test(normalizedFeature) ||
+    /класс[а-яё\s]*(?:eer|cop|энерго)/u.test(normalizedFeature) ||
+    extractEnergyClassFeatureValues(feature).length > 0
+  );
+};
+
+const isEnergyClassFeature = (feature = '') => {
+  const values = extractEnergyClassFeatureValues(feature);
+
+  if (values.length === 0) {
+    return false;
+  }
+
+  const normalizedFeature = String(feature || '')
+    .replace(/[‐‑‒–—−]/gu, '→')
+    .replace(/\\/gu, '/')
+    .replace(/\s*(?:→|->|—|–|-|to)\s*/giu, ' → ')
+    .trim();
+
+  return (
+    values.every((part) => isEnergyClassValue(part)) ||
+    values.every((part) => /^A\+{1,3}$/u.test(getEnergyClassComparisonKey(part))) ||
+    /энергоэффективност|класс/iu.test(normalizedFeature)
+  );
+};
+
+const getAllowedEnergyClassValues = (technicalText = '') => collectEnergyClassValues(getEnergyClassSegment(technicalText));
+
+export const sanitizeEnergyClasses = (features = [], technicalText = '') => {
+  const sourceFeatures = Array.isArray(features) ? features : [];
+  const allowedValues = getAllowedEnergyClassValues(technicalText);
+  const allowedValueKeys = new Set(allowedValues.map(getEnergyClassComparisonKey));
+
+  return sourceFeatures.filter((feature) => {
+    if (!containsEnergyClassReference(feature)) {
+      return true;
+    }
+
+    const featureValues = extractEnergyClassFeatureValues(feature);
+
+    return (
+      allowedValueKeys.size > 0 &&
+      featureValues.length > 0 &&
+      featureValues.every((value) => allowedValueKeys.has(getEnergyClassComparisonKey(value)))
+    );
+  });
 };
 
 const extractEnergyClassFeatures = (technicalText = '') => {
-  const segment = getTechnicalValueSegment(
-    technicalText,
-    /класс\s+энергоэффективности(?:\s*\(?\s*eer\s*\/\s*cop\s*\)?)?/iu,
-    720,
-  );
-  const values = collectEnergyClassValues(segment);
+  const values = getAllowedEnergyClassValues(technicalText);
   const feature = formatEnergyClassFeature(values);
 
   return feature ? [feature] : [];
@@ -619,7 +694,10 @@ const buildSalesFeatureList = ({ exactSeriesText = '', technicalText = '', summa
     ? extractFeatureList(technicalText, seriesName).filter(isTechnicalFeature)
     : [];
 
-  return sortSalesFeatures(unique([...exactSeriesFeatures, ...auxiliaryWifiFeatures, ...technicalFeatures]));
+  return sanitizeEnergyClasses(
+    sortSalesFeatures(unique([...exactSeriesFeatures, ...auxiliaryWifiFeatures, ...technicalFeatures])),
+    technicalText,
+  );
 };
 
 const extractProfileKeyFeatures = (profile, rawText = '', technicalRawText = '') => {
@@ -745,13 +823,14 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
     hasExactSeriesPages,
     hasTechnicalTable,
   });
-  const technicalFeatures = hasTechnicalTable
-    ? extractFeatureList(technicalText, seriesName).filter(isTechnicalFeature)
-    : [];
-  const keyFeatures = sortFeaturesByPriority(unique([...salesFeatures, ...technicalFeatures]));
-  const mainAdvantages = pickMainAdvantages(salesFeatures);
+  const technicalFeatures = sanitizeEnergyClasses(
+    hasTechnicalTable ? extractFeatureList(technicalText, seriesName).filter(isTechnicalFeature) : [],
+    technicalText,
+  );
+  const keyFeatures = sanitizeEnergyClasses(sortFeaturesByPriority(unique([...salesFeatures, ...technicalFeatures])), technicalText);
+  const mainAdvantages = sanitizeEnergyClasses(pickMainAdvantages(salesFeatures), technicalText);
   const technicalSpecs = hasTechnicalTable ? extractTechnicalSpecs(technicalText) : [];
-  const importantSpecs = unique([...salesFeatures, ...technicalSpecs]);
+  const importantSpecs = sanitizeEnergyClasses(unique([...salesFeatures, ...technicalSpecs]), technicalText);
   const draftWarning = buildDraftWarning({ hasExactSeriesPages, hasTechnicalTable });
 
   return attachSourceRefs({
@@ -809,10 +888,11 @@ export const generateSeriesDraft = (source) => {
     hasExactSeriesPages,
     hasTechnicalTable,
   });
-  const technicalFeatures = hasTechnicalTable
-    ? extractFeatureList(technicalText, source.seriesName).filter(isTechnicalFeature)
-    : [];
-  const keyFeatures = sortFeaturesByPriority(unique([...salesFeatures, ...technicalFeatures]));
+  const technicalFeatures = sanitizeEnergyClasses(
+    hasTechnicalTable ? extractFeatureList(technicalText, source.seriesName).filter(isTechnicalFeature) : [],
+    technicalText,
+  );
+  const keyFeatures = sanitizeEnergyClasses(sortFeaturesByPriority(unique([...salesFeatures, ...technicalFeatures])), technicalText);
   const technicalSpecs = hasTechnicalTable ? extractTechnicalSpecs(technicalText) : [];
 
   return attachSourceRefs({
@@ -842,7 +922,7 @@ export const generateSeriesDraft = (source) => {
     whenNotRecommend: [],
     objections: [],
     technicalSpecs,
-    importantSpecs: unique([...salesFeatures, ...technicalSpecs]),
+    importantSpecs: sanitizeEnergyClasses(unique([...salesFeatures, ...technicalSpecs]), technicalText),
     sourceIds: source.id ? [source.id] : [],
     status: 'draft',
   }, source);
