@@ -199,6 +199,20 @@ const ecoSmartTechnicalDraft = buildTechnicalOnlyDraft({
 assert.ok(ecoSmartTechnicalDraft.salesFeatures.includes('низкий уровень шума от 20 дБ'), 'ECO SMART noise must be 20 dB');
 assert.equal(/обогрев до -30°C/iu.test(stringifyDraft(ecoSmartTechnicalDraft)), false, 'ECO SMART must not use -30°C from foreign rawText');
 
+const lagoonEnergyDraft = buildTechnicalOnlyDraft({
+  seriesName: 'LAGOON',
+  technicalRawText: 'Технические характеристики BSDI\nКласс энергоэффективности (EER/COP) A/A A/A A/A A++/A+ A++/A+',
+});
+assert.ok(lagoonEnergyDraft.salesFeatures.includes('A/A → A++/A+'), 'LAGOON energy feature must show only actual table classes range');
+assert.equal(/A\+\+\/A\+\+\+/u.test(stringifyDraft(lagoonEnergyDraft)), false, 'LAGOON must not synthesize A++/A+++');
+
+const singleEnergyDraft = buildTechnicalOnlyDraft({
+  seriesName: 'LAGOON',
+  technicalRawText: 'Технические характеристики BSDI\nКласс энергоэффективности (EER/COP) A/A A/A A/A',
+});
+assert.ok(singleEnergyDraft.salesFeatures.includes('A/A'), 'single energy class must be shown unchanged');
+assert.equal(/→/u.test(singleEnergyDraft.salesFeatures.join(' ')), false, 'single energy class must not be rendered as a range');
+
 const icePeakProfile = SERIES_PROFILES.find((profile) => profile.seriesName === 'ICE PEAK');
 const ecoSmartProfile = SERIES_PROFILES.find((profile) => profile.seriesName === 'ECO SMART');
 const defenderProfile = SERIES_PROFILES.find((profile) => profile.seriesName === 'DEFENDER');

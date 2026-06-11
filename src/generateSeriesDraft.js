@@ -55,7 +55,7 @@ const FEATURE_PRIORITY = [
   'Full DC inverter',
   'инвертор',
   'R32',
-  'A++/A+++',
+  'A/A → A++/A+',
 ];
 
 const TECHNICAL_FEATURE_LABELS = new Set([
@@ -67,7 +67,6 @@ const TECHNICAL_FEATURE_LABELS = new Set([
   'низкий уровень шума от 21 дБ',
   'низкий уровень шума от 23 дБ',
   'R32',
-  'A++/A+++',
 ]);
 
 const isTechnicalFeature = (feature = '') => {
@@ -77,7 +76,7 @@ const isTechnicalFeature = (feature = '') => {
     TECHNICAL_FEATURE_LABELS.has(feature) ||
     /^низкий уровень шума от \d+ дб$/u.test(normalizedFeature) ||
     /^обогрев до -\d+°c$/u.test(normalizedFeature) ||
-    /^a\+\+\/?a\+\+\+$/u.test(normalizedFeature)
+    isEnergyClassFeature(feature)
   );
 };
 
@@ -333,6 +332,10 @@ const getFeaturePriorityKey = (feature = '') => {
     return normalizeSearchText('низкий уровень шума от 19 дБ');
   }
 
+  if (isEnergyClassFeature(feature)) {
+    return normalizeSearchText('A/A → A++/A+');
+  }
+
   return normalizedFeature;
 };
 
@@ -445,12 +448,66 @@ const extractHeatingFeatures = (technicalText = '') => {
   return heatingRange ? [heatingRange] : [];
 };
 
-const extractEnergyClassFeatures = (technicalText = '') => {
-  const normalizedText = normalizeSearchText(technicalText);
+const normalizeEnergyClassValue = (value = '') => {
+  const normalizedValue = String(value || '')
+    .toLocaleUpperCase('ru-RU')
+    .replace(/[А]/gu, 'A')
+    .replace(/\\/gu, '/')
+    .replace(/\s+/gu, '');
 
-  return /a\s*\+\s*\+\s*\/\s*a\s*\+\s*\+\s*\+/iu.test(normalizedText) || /a\+\+\/?a\+\+\+/iu.test(normalizedText)
-    ? ['A++/A+++']
-    : [];
+  const parts = normalizedValue.split('/');
+
+  if (parts.length !== 2 || parts.some((part) => !/^A\+*$/u.test(part))) {
+    return '';
+  }
+
+  return parts.join('/');
+};
+
+const collectEnergyClassValues = (text = '') => {
+  const values = [];
+  const normalizedText = String(text || '').replace(/[‐‑‒–—−]/gu, '-');
+
+  for (const match of normalizedText.matchAll(/(?:^|[^A-ZА-ЯЁ])([AА]\s*\+*\s*[/\\]\s*[AА]\s*\+*)(?=$|[^A-ZА-ЯЁ+])/giu)) {
+    const value = normalizeEnergyClassValue(match[1]);
+
+    if (value) {
+      values.push(value);
+    }
+  }
+
+  return unique(values);
+};
+
+const formatEnergyClassFeature = (values = []) => {
+  if (values.length === 0) {
+    return '';
+  }
+
+  return values.length === 1 ? values[0] : `${values[0]} → ${values[values.length - 1]}`;
+};
+
+const isEnergyClassFeature = (feature = '') => {
+  const normalizedFeature = String(feature || '')
+    .replace(/[‐‑‒–—−]/gu, '→')
+    .replace(/\\/gu, '/')
+    .replace(/\s*(?:→|->|—|–|-|to)\s*/giu, ' → ')
+    .trim();
+  const values = normalizedFeature.split(/\s+→\s+/u);
+
+  return values.length > 0 && values.every((part) => Boolean(normalizeEnergyClassValue(part)));
+};
+
+const extractEnergyClassFeatures = (technicalText = '') => {
+  const segment = getTechnicalValueSegment(
+    technicalText,
+    /класс\s+энергоэффективности\s*\(?\s*eer\s*\/\s*cop\s*\)?/iu,
+    720,
+  );
+  const values = collectEnergyClassValues(segment);
+  const feature = formatEnergyClassFeature(values);
+
+  return feature ? [feature] : [];
 };
 
 export const extractFeatureList = (rawText = '', seriesName = '') => {
