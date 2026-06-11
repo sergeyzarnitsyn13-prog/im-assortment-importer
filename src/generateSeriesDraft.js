@@ -617,7 +617,7 @@ const containsEnergyClassReference = (feature = '') => {
   );
 };
 
-const isEnergyClassFeature = (feature = '') => {
+export const isEnergyClassFeature = (feature = '') => {
   const values = extractEnergyClassFeatureValues(feature);
 
   if (values.length === 0) {
@@ -891,7 +891,10 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
     technicalText,
   );
   const keyFeatures = sanitizeEnergyClasses(sortFeaturesByPriority(unique([...salesFeatures, ...technicalFeatures])), technicalText);
-  const mainAdvantages = sanitizeEnergyClasses(pickMainAdvantages(salesFeatures), technicalText);
+  const mainAdvantages = pickMainAdvantages(
+    salesFeatures.filter((feature) => !isEnergyClassFeature(feature)),
+    legacyProfile?.mainAdvantages?.filter((feature) => !isEnergyClassFeature(feature)) || [],
+  ).filter((feature) => !isEnergyClassFeature(feature));
   const technicalSpecs = hasTechnicalTable ? extractTechnicalSpecs(technicalText) : [];
   const importantSpecs = sanitizeEnergyClasses(unique([...salesFeatures, ...technicalSpecs]), technicalText);
   const draftWarning = buildDraftWarning({ hasExactSeriesPages, hasTechnicalTable });
