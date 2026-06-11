@@ -522,8 +522,14 @@ const formatEnergyClassFeature = (values = []) => {
 
 const ENERGY_CLASS_ROW_MARKER = /класс\s+энергоэффективности(?:\s*\(?\s*eer\s*\/\s*cop\s*\)?)?/iu;
 
-const getEnergyClassSegment = (technicalText = '') =>
-  getTechnicalValueSegment(technicalText, ENERGY_CLASS_ROW_MARKER, 720);
+const getEnergyClassSegment = (technicalText = '') => {
+  const normalizedText = String(technicalText || '').replace(/[‐‑‒–—−]/gu, '-');
+  const energyClassLine = normalizedText
+    .split(/\r?\n/u)
+    .find((line) => ENERGY_CLASS_ROW_MARKER.test(line));
+
+  return energyClassLine || '';
+};
 
 const extractEnergyClassFeatureValues = (feature = '') => {
   const normalizedFeature = String(feature || '')
@@ -576,29 +582,20 @@ const isEnergyClassFeature = (feature = '') => {
 
 const getAllowedEnergyClassValues = (technicalText = '') => collectEnergyClassValues(getEnergyClassSegment(technicalText));
 
+export const extractEnergyClass = (technicalText = '') => formatEnergyClassFeature(getAllowedEnergyClassValues(technicalText));
+
 export const sanitizeEnergyClasses = (features = [], technicalText = '') => {
   const sourceFeatures = Array.isArray(features) ? features : [];
-  const allowedValues = getAllowedEnergyClassValues(technicalText);
-  const allowedValueKeys = new Set(allowedValues.map(getEnergyClassComparisonKey));
+  const energyClass = extractEnergyClass(technicalText);
+  const nonEnergyFeatures = sourceFeatures.filter((feature) => !containsEnergyClassReference(feature));
 
-  return sourceFeatures.filter((feature) => {
-    if (!containsEnergyClassReference(feature)) {
-      return true;
-    }
-
-    const featureValues = extractEnergyClassFeatureValues(feature);
-
-    return (
-      allowedValueKeys.size > 0 &&
-      featureValues.length > 0 &&
-      featureValues.every((value) => allowedValueKeys.has(getEnergyClassComparisonKey(value)))
-    );
-  });
+  return energyClass ? unique([...nonEnergyFeatures, energyClass]) : nonEnergyFeatures;
 };
 
+export const sanitizeEnergyClass = sanitizeEnergyClasses;
+
 const extractEnergyClassFeatures = (technicalText = '') => {
-  const values = getAllowedEnergyClassValues(technicalText);
-  const feature = formatEnergyClassFeature(values);
+  const feature = extractEnergyClass(technicalText);
 
   return feature ? [feature] : [];
 };

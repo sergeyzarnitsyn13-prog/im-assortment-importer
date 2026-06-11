@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { generateSeriesDraft, sanitizeEnergyClasses } from '../src/generateSeriesDraft.js';
+import { extractEnergyClass, generateSeriesDraft, sanitizeEnergyClasses } from '../src/generateSeriesDraft.js';
 import { SERIES_PROFILES } from '../src/data/seriesProfiles.js';
 import { classifyPageForSeries, getMatchedTokens } from '../src/seriesPageClassifier.js';
 
@@ -242,6 +242,32 @@ assert.deepEqual(
 Мощность охлаждения 2.5 кВт`),
   [],
   'energy sanitizer must drop energy features when the energy class row is missing',
+);
+
+assert.equal(
+  extractEnergyClass(`Технические характеристики BSDI
+Класс энергоэффективности (EER/COP) А/А А/А А++/А+ А++/А+
+Другой показатель A++/A+++`),
+  'А/А → А++/А+',
+  'strict energy extractor must support Cyrillic A and ignore classes on following lines',
+);
+assert.equal(
+  extractEnergyClass(`Технические характеристики BSPKI
+Класс энергоэффективности A++/A+++`),
+  'A++/A+++',
+  'strict energy extractor must preserve a single Latin energy class unchanged',
+);
+assert.equal(
+  extractEnergyClass(`Технические характеристики BSHI
+Класс энергоэффективности А++/А+++`),
+  'А++/А+++',
+  'strict energy extractor must preserve a single Cyrillic energy class unchanged',
+);
+assert.equal(
+  extractEnergyClass(`Технические характеристики BSVI
+Энергопотребление A++/A+++`),
+  '',
+  'strict energy extractor must return nothing without the energy class row marker',
 );
 
 const icePeakProfile = SERIES_PROFILES.find((profile) => profile.seriesName === 'ICE PEAK');
