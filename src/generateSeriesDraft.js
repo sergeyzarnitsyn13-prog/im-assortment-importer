@@ -964,6 +964,118 @@ const getIsolatedSourceTexts = (source) => {
   };
 };
 
+
+const MAX_AUTO_FEATURE_LENGTH = 70;
+const MAX_AUTO_POSITIONING_FEATURES = 3;
+const MAX_AUTO_DESCRIPTION_FEATURES = 6;
+const MIN_AUTO_DESCRIPTION_FEATURES = 4;
+
+const sanitizeAutoTextSegment = (value = '', maxLength = MAX_AUTO_FEATURE_LENGTH) => {
+  if (value === null || value === undefined || typeof value === 'object') {
+    return '';
+  }
+
+  const normalizedValue = String(value)
+    .replace(/\s+/g, ' ')
+    .replace(/^[,;:—–\-\s]+|[,;:—–\-\s]+$/gu, '')
+    .trim();
+
+  if (!normalizedValue || /^\[object\s+object\]$/iu.test(normalizedValue)) {
+    return '';
+  }
+
+  return normalizedValue.length <= maxLength ? normalizedValue : '';
+};
+
+const getAutoFeatureCandidates = ({ salesFeatures = [], technicalFeatures = [], keyFeatures = [] }, { includeEnergy = true } = {}) => {
+  const orderedFeatures = [
+    ...keyFeatures,
+    ...salesFeatures,
+    ...technicalFeatures,
+  ];
+
+  return unique(
+    orderedFeatures
+      .map((feature) => sanitizeAutoTextSegment(feature))
+      .filter(Boolean)
+      .filter((feature) => includeEnergy || !isEnergyClassFeature(feature)),
+  );
+};
+
+const getAutoProfileGroup = (approvedProfile = {}) => {
+  const group = sanitizeAutoTextSegment(approvedProfile.group, 90);
+  const category = sanitizeAutoTextSegment(approvedProfile.category, 90);
+  const normalizedGroup = normalizeSearchText(group);
+
+  if (/сплит-системы\s+on\/off/u.test(normalizedGroup)) {
+    return 'сплит-систем Ballu ON/OFF';
+  }
+
+  if (/dc-инверторные\s+сплит-системы/u.test(normalizedGroup)) {
+    return 'DC-инверторных сплит-систем Ballu';
+  }
+
+  if (/бытовые\s+мобильные\s+кондиционеры/u.test(normalizedGroup)) {
+    return 'бытовых мобильных кондиционеров Ballu';
+  }
+
+  if (/промышленные\s+мобильные\s+кондиционеры/u.test(normalizedGroup)) {
+    return 'промышленных мобильных кондиционеров Ballu';
+  }
+
+  if (group) {
+    return `${group.toLocaleLowerCase('ru-RU')} Ballu`;
+  }
+
+  return category ? `${category.toLocaleLowerCase('ru-RU')} Ballu` : 'климатической техники Ballu';
+};
+
+const joinRussianList = (items = []) => {
+  const cleanItems = items.map((item) => sanitizeAutoTextSegment(item)).filter(Boolean);
+
+  if (cleanItems.length <= 2) {
+    return cleanItems.join(' и ');
+  }
+
+  return `${cleanItems.slice(0, -1).join(', ')} и ${cleanItems.at(-1)}`;
+};
+
+const buildAutoPositioning = ({ approvedProfile, salesFeatures = [], technicalFeatures = [], keyFeatures = [] }) => {
+  const seriesName = sanitizeAutoTextSegment(approvedProfile?.seriesName, 90);
+  const features = getAutoFeatureCandidates(
+    { salesFeatures, technicalFeatures, keyFeatures },
+    { includeEnergy: false },
+  ).slice(0, MAX_AUTO_POSITIONING_FEATURES);
+
+  if (!seriesName || features.length === 0) {
+    return '';
+  }
+
+  return trimToSentence(
+    `${seriesName} — серия ${getAutoProfileGroup(approvedProfile)} для бытового комфорта с акцентом на ${joinRussianList(features)}.`,
+    260,
+  );
+};
+
+const buildAutoShortDescription = ({ approvedProfile, salesFeatures = [], technicalFeatures = [], keyFeatures = [] }) => {
+  const seriesName = sanitizeAutoTextSegment(approvedProfile?.seriesName, 90);
+  const group = getAutoProfileGroup(approvedProfile);
+  const features = getAutoFeatureCandidates({ salesFeatures, technicalFeatures, keyFeatures })
+    .sort((left, right) => Number(isEnergyClassFeature(left)) - Number(isEnergyClassFeature(right)))
+    .slice(0, MAX_AUTO_DESCRIPTION_FEATURES);
+
+  if (!seriesName || features.length === 0) {
+    return '';
+  }
+
+  const featureLimit = Math.max(Math.min(features.length, MAX_AUTO_DESCRIPTION_FEATURES), Math.min(features.length, MIN_AUTO_DESCRIPTION_FEATURES));
+  const selectedFeatures = features.slice(0, featureLimit);
+
+  return trimToSentence(
+    `${seriesName} — серия ${group} для квартиры, дома или офиса. Серия делает акцент на ежедневном охлаждении и обогреве, удобном управлении и комфорте: ${joinRussianList(selectedFeatures)}.`,
+  );
+};
+
 const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
   const { exactSeriesText, technicalText, summaryText, serviceText, hasExactSeriesPages, hasTechnicalTable } = getIsolatedSourceTexts(source);
   const seriesName = approvedProfile.seriesName;
@@ -989,6 +1101,9 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
   const technicalSpecs = hasTechnicalTable ? extractTechnicalSpecs(technicalText) : [];
   const importantSpecs = sanitizeEnergyClasses(unique([...salesFeatures, ...technicalSpecs]), technicalText);
   const draftWarning = buildDraftWarning({ hasExactSeriesPages, hasTechnicalTable });
+  const legacyShortDescription = trimToSentence(legacyProfile?.shortDescription);
+  const legacyPositioning = sanitizeAutoTextSegment(legacyProfile?.positioning, 260);
+  const autoDescriptionContext = { approvedProfile, salesFeatures, technicalFeatures, keyFeatures };
 
   const draft = {
     profileId: approvedProfile.id,
@@ -999,8 +1114,8 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
     group: approvedProfile.group,
     code: approvedProfile.code,
     seriesName,
-    shortDescription: hasExactSeriesPages && legacyProfile ? trimToSentence(legacyProfile.shortDescription) : '',
-    positioning: hasExactSeriesPages ? legacyProfile?.positioning || '' : '',
+    shortDescription: legacyShortDescription || (hasExactSeriesPages ? buildAutoShortDescription(autoDescriptionContext) : ''),
+    positioning: legacyPositioning || (hasExactSeriesPages ? buildAutoPositioning(autoDescriptionContext) : ''),
     targetClient: legacyProfile?.targetClient || [],
     mainSalesIdea: legacyProfile?.mainSalesIdea || '',
     keyFeatures,
