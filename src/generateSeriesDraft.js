@@ -2,6 +2,22 @@ import { SERIES_PROFILES, findSeriesProfile } from './data/seriesProfiles.js';
 
 const featurePatterns = [
   { label: 'Wi-Fi управление', patterns: [/\bwi\s*-?\s*fi\b/u, /\bwifi\b/u, /вай\s*-?\s*фай/u, /\bhommyn\b/u, /работает\s+с\s+hommyn/u] },
+  { label: 'управление со смартфона', patterns: [/управлен[а-яё\s]+(?:с\s+помощью\s+)?смартфон/u] },
+  { label: 'инверторная технология', patterns: [/инверторн[а-яё]+\s+технолог/u] },
+  { label: 'инверторный компрессор', patterns: [/инверторн[а-яё]+\s+компрессор/u] },
+  { label: 'точное поддержание температуры', patterns: [/точн[а-яё\s]{0,80}поддержан[а-яё\s]{0,80}(?:комфортн[а-яё\s]+)?температур/u] },
+  { label: 'экономичное поддержание температуры', patterns: [/экономичн[а-яё\s]{0,80}поддержан[а-яё\s]{0,80}(?:комфортн[а-яё\s]+)?температур/u] },
+  { label: 'тихая работа', patterns: [/(?:исключительно\s+)?тих[а-яё]+\s+работ/u] },
+  { label: 'низкий уровень шума 40 дБ', patterns: [/(?:уров[а-яё]+\s+шума[а-яё\s]+(?:всего\s+)?)?40\s*дб[а]?/u] },
+  { label: 'дополнительная шумоизоляция', patterns: [/дополнительн[а-яё]+\s+шумоизоляц/u] },
+  { label: 'тангенциальный вентилятор снижает шум', patterns: [/тангенциальн[а-яё]+\s+вентилятор[а-яё\s]{0,80}снижа[а-яё]+[а-яё\s]{0,40}шум/u] },
+  { label: 'сенсорная Touch-панель', patterns: [/touch\s*-?\s*панел/u, /сенсорн[а-яё]+\s+панел[а-яё\s]*(?:с\s+дисплеем)?/u] },
+  { label: 'пульт с подсветкой', patterns: [/пульт[а-яё\s]+(?:управлен[а-яё]+\s+)?с\s+подсветк/u] },
+  { label: 'энергоэффективность A+', patterns: [/(?:класс\s+)?энергоэффективност[а-яё\s]+a\s*\+/u] },
+  { label: 'энергопотребление менее 1 кВт/ч', patterns: [/энергопотреблен[а-яё\s]+менее\s+1\s*квт\s*\/\s*ч/u] },
+  { label: 'R290 эко-фреон', patterns: [/r\s*290/u, /эко\s*-?\s*фреон/u] },
+  { label: '4 режима работы', patterns: [/4\s+режим[а-яё\s]+работ/u] },
+  { label: '24-часовой таймер', patterns: [/24\s*час[а-яё]*\s+таймер/u, /24\s*-\s*часов[а-яё]+\s+таймер/u] },
   { label: '3D-контроль потока воздуха', patterns: [/3d\s*-?\s*контрол/u, /3d\s+контрол/u, /\b3d\s*airflow\b/u, /3d[^\n.]{0,80}(?:поток|воздух)/u] },
   { label: 'i-FEEL', patterns: [/\bi\s*-?\s*feel\b/u, /\bifeel\b/u, /климат\s*-?\s*контрол/u, /ай\s*фил/u] },
   { label: '7 скоростей вентилятора', patterns: [/7\s+скорост/u, /скорост[а-яё]*\s+вентилятор/u] },
@@ -22,7 +38,10 @@ const featurePatterns = [
   { label: 'тепловой насос', patterns: [/теплов(?:ой|ои)\s+насос/u, /\bheat\s*pump\b/u] },
   { label: 'сменные тканевые панели', patterns: [/сменн[^\n.]{0,60}тканев[^\n.]{0,40}панел/u, /тканев[^\n.]{0,40}панел/u] },
   { label: 'поворот жалюзи 180°', patterns: [/180\s*°?[^\n.]{0,80}жалюз/u, /жалюз[^\n.]{0,80}180\s*°?/u] },
-  { label: 'не требует профессионального монтажа', patterns: [/не\s+нужда[а-яё]*\s+в\s+профессиональн[а-яё]*\s+монтаж/u, /без\s+сложн[а-яё]*\s+монтаж/u, /не\s+требует\s+профессиональн[а-яё]*\s+монтаж/u] },
+  { label: 'не требует профессионального монтажа', patterns: [/не\s+нужда[а-яё]*\s+в\s+профессиональн[а-яё]*\s+монтаж/u, /без\s+сложн[а-яё]*\s+монтаж/u, /не\s+требу[а-яё]*\s+профессиональн[а-яё]*\s+монтаж/u] },
+  { label: 'работает сразу после включения в сеть', patterns: [/(?:пользоваться\s+можно|работа[а-яё]*|работает)[а-яё\s]{0,60}(?:сразу|после)[а-яё\s]{0,40}включен[а-яё\s]+в\s+сеть/u] },
+  { label: 'можно перемещать между комнатами', patterns: [/перемеща[а-яё]*\s+(?:между|из\s+одн[а-яё]+)[а-яё\s]{0,40}(?:комнат|помещ)/u, /можно\s+перемещ/u] },
+  { label: 'мобильное использование', patterns: [/мобильн[а-яё]*\s+(?:использован|решени|кондиционер)/u] },
   { label: 'мобильность между помещениями', patterns: [/перемеща[а-яё]*\s+между\s+помещ/u, /можно\s+перемещ/u, /мобильн[а-яё]*\s+решени/u] },
   { label: 'охлаждение, обогрев, вентиляция и осушение', patterns: [/охлажда[а-яё]*,?\s+обогрева[а-яё]*,?\s+вентилиру[а-яё]*\s+и\s+осуша/u] },
   { label: 'охлаждение', patterns: [/охлаждени/u] },
@@ -49,7 +68,22 @@ const featurePatterns = [
 const FEATURE_RULES = featurePatterns;
 
 const FEATURE_PRIORITY = [
+  'инверторная технология',
+  'инверторный компрессор',
+  'низкий уровень шума 40 дБ',
   'Wi-Fi управление',
+  'управление со смартфона',
+  'сенсорная Touch-панель',
+  'точное поддержание температуры',
+  'экономичное поддержание температуры',
+  'тихая работа',
+  'дополнительная шумоизоляция',
+  'тангенциальный вентилятор снижает шум',
+  'энергоэффективность A+',
+  'энергопотребление менее 1 кВт/ч',
+  'R290 эко-фреон',
+  '4 режима работы',
+  '24-часовой таймер',
   '3D-контроль потока воздуха',
   'i-FEEL',
   '7 скоростей вентилятора',
@@ -79,6 +113,9 @@ const FEATURE_PRIORITY = [
   'R32',
   'A/A → A++/A+',
   'не требует профессионального монтажа',
+  'работает сразу после включения в сеть',
+  'можно перемещать между комнатами',
+  'мобильное использование',
   'мобильность между помещениями',
   'охлаждение, обогрев, вентиляция и осушение',
   'SMART-режим',
@@ -258,7 +295,46 @@ const MAX_SHORT_DESCRIPTION_LENGTH = 500;
 const MAX_MAIN_ADVANTAGES = 8;
 const MIN_MAIN_ADVANTAGES = 5;
 
-const buildSourceRef = (source) => [source.title, source.sourceRef].filter(Boolean).join(' · ');
+const buildSourceTitle = (source = {}) => {
+  const title = sanitizeAutoTextSegment(source.title, 160);
+
+  if (title) {
+    return title;
+  }
+
+  const brand = sanitizeAutoTextSegment(source.brand || 'Ballu', 80);
+  const seriesName = sanitizeAutoTextSegment(source.seriesName, 90);
+
+  return [brand, seriesName].filter(Boolean).join(' — ');
+};
+
+const buildSourceRef = (source) => [buildSourceTitle(source), sanitizeAutoTextSegment(source.sourceRef, 220)].filter(Boolean).join(' · ');
+
+const formatPageRange = (pages = []) => {
+  const numericPages = unique(pages.map((page) => Number(page)).filter((page) => Number.isFinite(page))).sort((a, b) => a - b);
+
+  if (numericPages.length === 0) {
+    return '';
+  }
+
+  const ranges = [];
+  let start = numericPages[0];
+  let previous = numericPages[0];
+
+  for (const page of numericPages.slice(1)) {
+    if (page === previous + 1) {
+      previous = page;
+      continue;
+    }
+
+    ranges.push(start === previous ? String(start) : `${start}–${previous}`);
+    start = page;
+    previous = page;
+  }
+
+  ranges.push(start === previous ? String(start) : `${start}–${previous}`);
+  return ranges.join(', ');
+};
 
 const buildTechnicalSourceRef = (source) => {
   const technicalPages = source?.technicalPages || source?.pageDiagnostics?.technicalPages || [];
@@ -267,9 +343,10 @@ const buildTechnicalSourceRef = (source) => {
     return '';
   }
 
-  const technicalPageRef = `PDF каталог ${source?.sourceDate || ''}, technicalPages ${technicalPages.join(', ')}`.replace(/\s+,/u, ',').trim();
+  const pageRange = formatPageRange(technicalPages);
+  const technicalPageRef = `PDF каталог ${source?.sourceDate || ''}, technicalPages: ${pageRange}`.replace(/\s+,/u, ',').trim();
 
-  return [source?.title, technicalPageRef].filter(Boolean).join(' · ');
+  return [buildSourceTitle(source), technicalPageRef].filter(Boolean).join(' · ');
 };
 
 const TECHNICAL_ONLY_REF_FIELDS = new Set(['technicalSpecs']);
@@ -506,8 +583,8 @@ const CATEGORY_EXTRACTION_PROFILES = {
     id: 'mobileAirConditioner',
     categoryMatchers: [/бытов[а-яё\s]*мобильн[а-яё\s]*кондиционер/u, /мобильн[а-яё\s]*кондиционер/u],
     codeMatchers: [/\b(?:BPAC|BPHS)(?:[\s_-]*[A-Z0-9]+)*\b/iu],
-    featureAllow: [/мобильн|монтаж|перемещ/u, /охлажд/u, /обогрев/u, /вентиляц/u, /осуш/u, /энергоэффектив|класс/u, /площад/u, /холодопроизводительность|btu/u, /smart/u, /turbo/u, /auto\s*swing/u, /touch/u, /wi-?fi/u, /текстильн|дизайн/u, /без\s+воздуховод/u, /температур/u, /2\s+независим/u, /пульт/u, /хладагент|r\s*32/u, /расход воздуха/u, /шум/u],
-    importantSpecKeywords: ['класс энергоэффективности', 'площадь', 'холодопроизводительность', 'btu', 'хладагент', 'расход воздуха', 'уровень шума', 'потребляемая мощность', 'электропитание', 'габарит', 'размер', 'вес'],
+    featureAllow: [/инвертор|компрессор/u, /точн[а-яё]*\s+поддержан|экономичн[а-яё]*\s+поддержан/u, /тих|шумоизоляц|шум|40\s*дб|тангенциальн/u, /управлен|смартфон|wi-?fi|touch|сенсорн|пульт/u, /энергоэффектив|класс|энергопотреблен/u, /хладагент|r\s*32|r\s*290|эко-?фреон/u, /режим|таймер/u, /мобильн|монтаж|перемещ|установк|включен/u, /охлажд/u, /обогрев/u, /вентиляц/u, /осуш/u, /площад/u, /холодопроизводительность|btu/u, /smart/u, /turbo/u, /auto\s*swing/u, /текстильн|дизайн/u, /без\s+воздуховод/u, /температур/u, /2\s+независим/u, /расход воздуха/u],
+    importantSpecKeywords: ['холодопроизводительность', 'btu', 'класс энергоэффективности', 'хладагент', 'r290', 'r32', 'расход воздуха', 'уровень шума', 'потребляемая мощность', 'номинальный ток', 'электропитание', 'напряжение питания', 'габарит', 'размер', 'вес', 'нетто', 'брутто', 'площадь'],
     arguments: [
       { text: 'не требует профессионального монтажа', requires: [/монтаж/u] },
       { text: 'можно перемещать между комнатами', requires: [/перемещ|мобильн/u] },
@@ -978,6 +1055,21 @@ const sortSalesFeatures = (features = []) => {
   });
 };
 
+const isMobileAirConditionerProfile = (categoryProfile = null) => categoryProfile?.id === 'mobileAirConditioner';
+
+const shouldKeepDescriptionFeature = (feature = '', categoryProfile = null) => (
+  !isTechnicalFeature(feature) ||
+  (isMobileAirConditionerProfile(categoryProfile) && /энергоэффектив|r\s*290|эко-?фреон|40\s*дб/u.test(normalizeSearchText(feature)))
+);
+
+const sanitizeCategoryFeatureClasses = (features = [], technicalText = '', categoryProfile = null) => {
+  if (isMobileAirConditionerProfile(categoryProfile)) {
+    return unique(features);
+  }
+
+  return sanitizeEnergyClasses(features, technicalText);
+};
+
 const buildSalesFeatureList = ({ exactSeriesText = '', technicalText = '', summaryText = '', serviceText = '', seriesName = '', code = '', hasExactSeriesPages = false, hasTechnicalTable = false, categoryProfile = null }) => {
   const isCategorySummaryAllowed = categoryProfile?.id === 'mobileAirConditioner' || categoryProfile?.id === 'waterHeater';
 
@@ -986,22 +1078,23 @@ const buildSalesFeatureList = ({ exactSeriesText = '', technicalText = '', summa
   }
 
   const exactSeriesFeatures = hasExactSeriesPages
-    ? extractFeatureList(exactSeriesText, seriesName).filter((feature) => !isTechnicalFeature(feature))
+    ? extractFeatureList(exactSeriesText, seriesName).filter((feature) => shouldKeepDescriptionFeature(feature, categoryProfile))
     : [];
   const summaryFeatures = isCategorySummaryAllowed
-    ? extractFeatureList(summaryText, seriesName).filter((feature) => !isTechnicalFeature(feature))
+    ? extractFeatureList(summaryText, seriesName).filter((feature) => shouldKeepDescriptionFeature(feature, categoryProfile))
     : [];
   const auxiliaryWifiFeatures = [
     ...extractAuxiliaryWifiFeature(summaryText, seriesName, code),
     ...extractAuxiliaryWifiFeature(serviceText, seriesName, code),
   ];
   const technicalFeatures = hasTechnicalTable
-    ? extractFeatureList(technicalText, seriesName).filter(isTechnicalFeature)
+    ? extractFeatureList(technicalText, seriesName).filter((feature) => isMobileAirConditionerProfile(categoryProfile) ? false : isTechnicalFeature(feature))
     : [];
 
-  return sanitizeEnergyClasses(
+  return sanitizeCategoryFeatureClasses(
     filterCategoryFeatures(sortSalesFeatures(unique([...exactSeriesFeatures, ...summaryFeatures, ...auxiliaryWifiFeatures, ...technicalFeatures])), categoryProfile),
     technicalText,
+    categoryProfile,
   );
 };
 
@@ -1036,6 +1129,65 @@ const pickMainAdvantages = (features = [], fallback = []) => {
   }
 
   return unique([...normalizedFeatures, ...fallback]).slice(0, MAX_MAIN_ADVANTAGES);
+};
+
+const hasFeatureMatching = (features = [], pattern) => features.some((feature) => pattern.test(normalizeSearchText(feature)));
+
+const pickMobileAirConditionerMainAdvantages = (features = []) => {
+  const featureList = unique(features);
+  const selected = [];
+
+  if (hasFeatureMatching(featureList, /инверторн[а-я]*\s+технолог|инвертор/u)) {
+    selected.push('инверторная технология');
+  }
+
+  if (hasFeatureMatching(featureList, /40\s*дб|низк[а-я]*\s+уров[а-я]*\s+шума\s+40/u)) {
+    selected.push('низкий уровень шума 40 дБ');
+  }
+
+  if (hasFeatureMatching(featureList, /wi-?fi|смартфон/u)) {
+    selected.push('Wi-Fi управление со смартфона');
+  }
+
+  if (hasFeatureMatching(featureList, /энергоэффективност[а-я]*\s*a\+|\ba\+\b/u)) {
+    selected.push('энергоэффективность A+');
+  }
+
+  if (hasFeatureMatching(featureList, /r\s*290|эко-?фреон/u)) {
+    selected.push('R290 эко-фреон');
+  }
+
+  if (hasFeatureMatching(featureList, /монтаж|установк/u)) {
+    selected.push('не требует профессионального монтажа');
+  }
+
+  if (hasFeatureMatching(featureList, /перемещ|мобильн/u)) {
+    selected.push('можно перемещать между комнатами');
+  }
+
+  if (hasFeatureMatching(featureList, /4\s+режим/u)) {
+    selected.push('4 режима работы');
+  }
+
+  if (hasFeatureMatching(featureList, /24-?час|24\s+час|таймер/u)) {
+    selected.push('24-часовой таймер');
+  }
+
+  const advantages = unique([...selected, ...featureList.filter((feature) => !/touch|сенсорн|охлаждение$/u.test(normalizeSearchText(feature)))]);
+
+  if (advantages.length > MAX_MAIN_ADVANTAGES && advantages.includes('24-часовой таймер') && advantages.includes('4 режима работы')) {
+    return advantages.filter((feature) => feature !== '4 режима работы').slice(0, MAX_MAIN_ADVANTAGES);
+  }
+
+  return advantages.slice(0, MAX_MAIN_ADVANTAGES);
+};
+
+const pickCategoryMainAdvantages = (features = [], fallback = [], categoryProfile = null) => {
+  if (isMobileAirConditionerProfile(categoryProfile)) {
+    return pickMobileAirConditionerMainAdvantages(features);
+  }
+
+  return pickMainAdvantages(features, fallback);
 };
 
 const normalizeTechnicalSpecLine = (line = '') => {
@@ -1103,7 +1255,11 @@ const buildCategoryPositioning = ({ categoryProfile = null, approvedProfile = {}
   }
 
   if (categoryProfile.id === 'mobileAirConditioner') {
-    return `${cleanSeriesName} — мобильное решение для квартиры, дома, офиса или дачи, когда нужен кондиционер без установки классической сплит-системы.`;
+    const hasInverter = hasFeatureMatching([...(approvedProfile?.salesFeatures || []), cleanSeriesName], /инвертор|inverter/u);
+    const solution = hasInverter ? 'мобильное инверторное решение' : 'мобильное решение';
+    const conditioner = hasInverter ? 'тихий кондиционер' : 'кондиционер';
+
+    return `${cleanSeriesName} — ${solution} для квартиры, дома, офиса или дачи, когда нужен ${conditioner} без установки классической сплит-системы.`;
   }
 
   if (categoryProfile.id === 'waterHeater') {
@@ -1115,15 +1271,38 @@ const buildCategoryPositioning = ({ categoryProfile = null, approvedProfile = {}
 
 const buildCategoryShortDescription = ({ categoryProfile = null, approvedProfile = {}, seriesName = '', salesFeatures = [], keyFeatures = [], importantSpecs = [] } = {}) => {
   const cleanSeriesName = sanitizeAutoTextSegment(seriesName || approvedProfile.seriesName, 90);
-  const features = getAutoFeatureCandidates({ salesFeatures, keyFeatures }).slice(0, 5);
+  const allFeatures = getAutoFeatureCandidates({ salesFeatures, keyFeatures });
+  const features = allFeatures.slice(0, 5);
 
   if (!categoryProfile || !cleanSeriesName) {
     return '';
   }
 
   if (categoryProfile.id === 'mobileAirConditioner') {
-    if (features.length === 0) return '';
-    return trimToSentence(`${cleanSeriesName} — мобильный кондиционер Ballu для быстрого создания комфорта без сложного монтажа. Модель подходит для охлаждения помещения, а при наличии режима обогрева также помогает в межсезонье; ключевые особенности: ${joinRussianList(features)}.`);
+    if (allFeatures.length === 0) return '';
+
+    const hasInverter = hasFeatureMatching(allFeatures, /инвертор/u);
+    const hasNoise40 = hasFeatureMatching(allFeatures, /40\s*дб/u);
+    const hasSmartphone = hasFeatureMatching(allFeatures, /wi-?fi|смартфон/u);
+    const hasEnergyAPlus = hasFeatureMatching(allFeatures, /энергоэффективност[а-я]*\s*a\+/u);
+    const hasR290 = hasFeatureMatching(allFeatures, /r\s*290|эко-?фреон/u);
+    const hasModes = hasFeatureMatching(allFeatures, /режим|таймер|охлажд|обогрев|вентиляц|осуш/u);
+    const intro = hasInverter
+      ? `${cleanSeriesName} — мобильный инверторный кондиционер Ballu для точного и экономичного поддержания комфортной температуры без сложного монтажа.`
+      : `${cleanSeriesName} — мобильный кондиционер Ballu для быстрого создания комфорта без сложного монтажа.`;
+    const accents = [
+      hasNoise40 ? 'тихой работе до 40 дБ' : '',
+      hasSmartphone ? 'управлении со смартфона' : '',
+      hasEnergyAPlus ? 'энергоэффективности A+' : '',
+      hasR290 ? 'R290' : '',
+      hasModes ? 'удобных режимах работы' : '',
+    ].filter(Boolean);
+
+    if (accents.length > 0) {
+      return trimToSentence(`${intro} Серия делает акцент на ${joinRussianList(accents)}.`);
+    }
+
+    return trimToSentence(`${intro} Ключевые особенности: ${joinRussianList(features)}.`);
   }
 
   if (categoryProfile.id === 'waterHeater') {
@@ -1340,13 +1519,14 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
     hasTechnicalTable ? extractFeatureList(technicalText, seriesName).filter(isTechnicalFeature) : [],
     technicalText,
   );
-  const keyFeatures = sanitizeEnergyClasses(sortFeaturesByPriority(unique([...salesFeatures, ...technicalFeatures])), technicalText);
-  const mainAdvantages = pickMainAdvantages(
-    salesFeatures.filter((feature) => !isEnergyClassFeature(feature)),
+  const keyFeatures = sanitizeCategoryFeatureClasses(sortFeaturesByPriority(unique([...salesFeatures, ...technicalFeatures])), technicalText, categoryProfile);
+  const mainAdvantages = pickCategoryMainAdvantages(
+    isMobileAirConditionerProfile(categoryProfile) ? salesFeatures : salesFeatures.filter((feature) => !isEnergyClassFeature(feature)),
     legacyProfile?.mainAdvantages?.filter((feature) => !isEnergyClassFeature(feature)) || [],
-  ).filter((feature) => !isEnergyClassFeature(feature));
+    categoryProfile,
+  ).filter((feature) => isMobileAirConditionerProfile(categoryProfile) || !isEnergyClassFeature(feature));
   const technicalSpecs = hasTechnicalTable ? extractCategoryImportantSpecs(technicalText, categoryProfile) : [];
-  const importantSpecs = sanitizeEnergyClasses(unique([...salesFeatures, ...technicalSpecs]), technicalText);
+  const importantSpecs = sanitizeCategoryFeatureClasses(unique([...salesFeatures, ...technicalSpecs]), technicalText, categoryProfile);
   const draftWarning = buildDraftWarning({
     hasExactSeriesPages: hasEnoughDescriptionSource,
     hasTechnicalTable,
@@ -1426,9 +1606,9 @@ export const generateSeriesDraft = (source) => {
     hasTechnicalTable ? extractFeatureList(technicalText, source.seriesName).filter(isTechnicalFeature) : [],
     technicalText,
   );
-  const keyFeatures = sanitizeEnergyClasses(sortFeaturesByPriority(unique([...salesFeatures, ...technicalFeatures])), technicalText);
+  const keyFeatures = sanitizeCategoryFeatureClasses(sortFeaturesByPriority(unique([...salesFeatures, ...technicalFeatures])), technicalText, categoryProfile);
   const technicalSpecs = hasTechnicalTable ? extractCategoryImportantSpecs(technicalText, categoryProfile) : [];
-  const importantSpecs = sanitizeEnergyClasses(unique([...salesFeatures, ...technicalSpecs]), technicalText);
+  const importantSpecs = sanitizeCategoryFeatureClasses(unique([...salesFeatures, ...technicalSpecs]), technicalText, categoryProfile);
   const categoryDescriptionContext = { categoryProfile, approvedProfile: source, seriesName: source.seriesName, salesFeatures, keyFeatures, importantSpecs };
   const categorySalesArguments = buildCategorySalesArguments({ categoryProfile, salesFeatures, importantSpecs, sourceText: [exactSeriesText, summaryText, technicalText].join(' ') });
 
@@ -1451,7 +1631,11 @@ export const generateSeriesDraft = (source) => {
     mainSalesIdea: '',
     keyFeatures,
     salesFeatures,
-    mainAdvantages: pickMainAdvantages(salesFeatures.filter((feature) => !isEnergyClassFeature(feature))),
+    mainAdvantages: pickCategoryMainAdvantages(
+      isMobileAirConditionerProfile(categoryProfile) ? salesFeatures : salesFeatures.filter((feature) => !isEnergyClassFeature(feature)),
+      [],
+      categoryProfile,
+    ),
     salesArguments: categorySalesArguments,
     clientSpeech: '',
     differences: '',
