@@ -22,6 +22,28 @@ const featurePatterns = [
   { label: 'тепловой насос', patterns: [/теплов(?:ой|ои)\s+насос/u, /\bheat\s*pump\b/u] },
   { label: 'сменные тканевые панели', patterns: [/сменн[^\n.]{0,60}тканев[^\n.]{0,40}панел/u, /тканев[^\n.]{0,40}панел/u] },
   { label: 'поворот жалюзи 180°', patterns: [/180\s*°?[^\n.]{0,80}жалюз/u, /жалюз[^\n.]{0,80}180\s*°?/u] },
+  { label: 'не требует профессионального монтажа', patterns: [/не\s+нужда[а-яё]*\s+в\s+профессиональн[а-яё]*\s+монтаж/u, /без\s+сложн[а-яё]*\s+монтаж/u, /не\s+требует\s+профессиональн[а-яё]*\s+монтаж/u] },
+  { label: 'мобильность между помещениями', patterns: [/перемеща[а-яё]*\s+между\s+помещ/u, /можно\s+перемещ/u, /мобильн[а-яё]*\s+решени/u] },
+  { label: 'охлаждение, обогрев, вентиляция и осушение', patterns: [/охлажда[а-яё]*,?\s+обогрева[а-яё]*,?\s+вентилиру[а-яё]*\s+и\s+осуша/u] },
+  { label: 'охлаждение', patterns: [/охлаждени/u] },
+  { label: 'обогрев', patterns: [/обогрев/u] },
+  { label: 'вентиляция', patterns: [/вентиляц/u] },
+  { label: 'осушение', patterns: [/осушени/u] },
+  { label: 'SMART-режим', patterns: [/smart\s*-?\s*режим/u, /смарт\s*-?\s*режим/u] },
+  { label: 'TURBO', patterns: [/\bturbo\b/u, /турбо/u] },
+  { label: 'Auto Swing', patterns: [/auto\s*swing/u, /авто(?:матическ[а-яё]*)?\s+качани/u] },
+  { label: 'Touch-панель', patterns: [/touch\s*-?\s*панел/u, /сенсорн[а-яё]*\s+панел/u] },
+  { label: 'пульт в комплекте', patterns: [/пульт[^\n.]{0,80}комплект/u, /пду/u] },
+  { label: 'текстильная панель / дизайн', patterns: [/текстильн[а-яё]*\s+панел/u, /дизайн/u] },
+  { label: 'без воздуховода', patterns: [/без\s+воздуховод/u] },
+  { label: '2 независимых вентилятора', patterns: [/2\s+независим[а-яё]*\s+вентилятор/u, /два\s+независим[а-яё]*\s+вентилятор/u] },
+  { label: 'накопительный водонагреватель', patterns: [/накопительн[а-яё]*\s+водонагревател/u] },
+  { label: 'проточный водонагреватель', patterns: [/проточн[а-яё]*\s+водонагревател/u] },
+  { label: 'сухой ТЭН', patterns: [/сух[а-яё]*\s+т[эе]н/u] },
+  { label: 'защита от перегрева', patterns: [/защит[а-яё]*\s+от\s+перегрев/u] },
+  { label: 'защита от включения без воды', patterns: [/защит[а-яё]*\s+от\s+включени[а-яё]*\s+без\s+вод/u] },
+  { label: 'магниевый анод', patterns: [/магниев[а-яё]*\s+анод/u] },
+  { label: 'универсальный монтаж', patterns: [/универсальн[а-яё]*\s+монтаж/u, /вертикальн[а-яё]*\s*\/?\s*горизонтальн[а-яё]*\s+монтаж/u] },
 ];
 
 const FEATURE_RULES = featurePatterns;
@@ -56,6 +78,24 @@ const FEATURE_PRIORITY = [
   'инвертор',
   'R32',
   'A/A → A++/A+',
+  'не требует профессионального монтажа',
+  'мобильность между помещениями',
+  'охлаждение, обогрев, вентиляция и осушение',
+  'SMART-режим',
+  'TURBO',
+  'Auto Swing',
+  'Touch-панель',
+  'пульт в комплекте',
+  'текстильная панель / дизайн',
+  'без воздуховода',
+  '2 независимых вентилятора',
+  'накопительный водонагреватель',
+  'проточный водонагреватель',
+  'сухой ТЭН',
+  'защита от перегрева',
+  'защита от включения без воды',
+  'магниевый анод',
+  'универсальный монтаж',
 ];
 
 const TECHNICAL_FEATURE_LABELS = new Set([
@@ -99,6 +139,28 @@ const TECHNICAL_SPEC_KEYWORDS = [
   'обогрев',
   'хладагент',
   'r32',
+  'площадь',
+  'помещение',
+  'холодопроизводительность',
+  'производительность',
+  'btu',
+  'btu/h',
+  'электропитание',
+  'объем',
+  'объём',
+  'бак',
+  'тэн',
+  'тен',
+  'анод',
+  'защита',
+  'ip',
+  'давление',
+  'монтаж',
+  'подводка',
+  'время нагрева',
+  'водоразбор',
+  'литр',
+  'л',
 ];
 
 const LEGACY_SALES_PROFILES = {
@@ -267,6 +329,7 @@ const extractDiagnosticModelCodes = (source, draftCode = '') => {
   const rawText = [
     source?.exactSeriesRawText,
     source?.overviewRawText,
+    source?.categorySummaryRawText,
     source?.summaryRawText,
     source?.serviceRawText,
     source?.technicalRawText,
@@ -295,7 +358,7 @@ const extractDiagnosticModelCodes = (source, draftCode = '') => {
 const getDiagnosticsWarnings = ({ diagnostics, draft }) => [
   diagnostics.seriesName ? '' : 'Не определена серия.',
   diagnostics.brand ? '' : 'Не определён бренд.',
-  diagnostics.descriptionPages.length > 0 ? '' : 'Страницы описания серии не найдены.',
+  diagnostics.descriptionPages.length > 0 || diagnostics.descriptionRawTextLength > 0 ? '' : 'Страницы описания серии не найдены.',
   diagnostics.technicalPages.length > 0 ? '' : 'technicalPages не найдены.',
   diagnostics.technicalRawTextLength > 0 ? '' : 'technicalRawText пустой.',
   diagnostics.modelCodes.length > 0 ? '' : 'Модели/коды не найдены.',
@@ -307,9 +370,11 @@ const getDiagnosticsWarnings = ({ diagnostics, draft }) => [
 
 const buildDraftDiagnostics = (source, draft) => {
   const technicalText = String(source?.technicalText ?? source?.technicalRawText ?? '');
+  const descriptionRawText = String(source?.exactSeriesRawText ?? source?.exactSeriesText ?? source?.overviewRawText ?? source?.categorySummaryRawText ?? source?.summaryRawText ?? source?.summaryText ?? '');
   const descriptionPages = unique([
     ...getSourcePages(source, 'exactSeriesPages'),
     ...getSourcePages(source, 'overviewPages'),
+    ...getSourcePages(source, 'categorySummaryPages'),
   ]);
   const diagnostics = {
     seriesName: draft.seriesName || source?.seriesName || '',
@@ -317,6 +382,7 @@ const buildDraftDiagnostics = (source, draft) => {
     descriptionPages,
     technicalPages: getSourcePages(source, 'technicalPages'),
     technicalRawTextLength: technicalText.length,
+    descriptionRawTextLength: descriptionRawText.length,
     modelCodes: extractDiagnosticModelCodes(source, draft.code || source?.code || ''),
     salesFeatures: draft.salesFeatures || [],
     technicalSpecs: draft.technicalSpecs || [],
@@ -400,6 +466,90 @@ const unique = (items) => {
     return true;
   });
 };
+
+
+const CATEGORY_EXTRACTION_PROFILES = {
+  inverterSplit: {
+    id: 'inverterSplit',
+    categoryMatchers: [/dc-?инверторн[а-яё\s-]*сплит-систем/u, /инверторн[а-яё\s-]*сплит-систем/u],
+    codeMatchers: [/\b(?:BSPKI|BSNI|BSHI|BSPI|BSYI|BSOI|BSTI|BSDI|BSVI)\b/iu],
+    featureAllow: [
+      /inverter|инвертор/u, /seer|scop|eer|cop|энергоэффектив/u, /шум/u, /обогрев\s+до|теплов[а-яё\s]*насос/u,
+      /wi-?fi|hommyn|голосов/u, /3d/u, /i-?feel/u, /smart\s*sens/u, /самоочист/u, /фильтр|uv|уф|health|ионизац/u,
+      /r\s*32/u, /golden|blue\s*fin|покрыт/u, /гарант/u, /скорост/u, /стабильн[а-яё\s]*работ[а-яё\s]*на\s+обогрев/u,
+    ],
+    importantSpecKeywords: ['производительность', 'охлаждение', 'обогрев', 'класс энергоэффективности', 'seer', 'scop', 'eer', 'cop', 'расход воздуха', 'уровень шума', 'потребляемая мощность', 'габарит', 'размер', 'вес', 'хладагент', 'температур', 'длина трассы', 'перепад высот'],
+    arguments: [
+      { text: 'экономия электроэнергии за счёт инверторного управления', requires: [/инвертор|inverter/u] },
+      { text: 'точное поддержание температуры без резких перепадов', requires: [/инвертор|inverter/u] },
+      { text: 'низкий уровень шума для комфортного ежедневного использования', requires: [/шум/u] },
+      { text: 'работа на обогрев зимой или в межсезонье', requires: [/обогрев/u] },
+      { text: 'удалённое управление через Wi‑Fi / Hommyn', requires: [/wi-?fi|hommyn/u] },
+      { text: 'дополнительная забота о чистоте воздуха за счёт фильтрации или самоочистки', requires: [/фильтр|самоочист|uv|уф|ионизац|health/u] },
+    ],
+  },
+  onOffSplit: {
+    id: 'onOffSplit',
+    categoryMatchers: [/сплит-системы\s+on\/?off/u],
+    codeMatchers: [/\b(?:BSO|BSW|BST|BSD|BSV|BSQ)\b/iu],
+    featureAllow: [/on\/?off/u, /энергоэффектив|eer|cop|класс/u, /wi-?fi|hommyn/u, /3d/u, /i-?feel/u, /golden|blue\s*fin|покрыт/u, /утечк[а-яё]*\s+фреон/u, /памят/u, /шум/u, /обогрев/u, /r\s*32|хладагент/u],
+    importantSpecKeywords: ['производительность', 'охлаждение', 'обогрев', 'класс энергоэффективности', 'расход воздуха', 'уровень шума', 'потребляемая мощность', 'габарит', 'размер', 'вес', 'хладагент', 'температур', 'длина трассы', 'перепад высот'],
+    arguments: [
+      { text: 'доступное решение для охлаждения квартиры, офиса или дачи' },
+      { text: 'простая и понятная ON/OFF-конструкция', requires: [/on\/?off/u] },
+      { text: 'базовая энергоэффективность класса A', requires: [/энергоэффектив|\bа\b|\ba\b/u] },
+      { text: 'полезные комфортные функции: Wi‑Fi, i-FEEL, 3D-поток или защитное покрытие — если они есть в выбранной модели', requires: [/wi-?fi|i-?feel|3d|golden|blue/u] },
+      { text: 'хороший вариант для квартиры, офиса или дачи' },
+    ],
+  },
+  mobileAirConditioner: {
+    id: 'mobileAirConditioner',
+    categoryMatchers: [/бытов[а-яё\s]*мобильн[а-яё\s]*кондиционер/u, /мобильн[а-яё\s]*кондиционер/u],
+    codeMatchers: [/\b(?:BPAC|BPHS)(?:[\s_-]*[A-Z0-9]+)*\b/iu],
+    featureAllow: [/мобильн|монтаж|перемещ/u, /охлажд/u, /обогрев/u, /вентиляц/u, /осуш/u, /энергоэффектив|класс/u, /площад/u, /холодопроизводительность|btu/u, /smart/u, /turbo/u, /auto\s*swing/u, /touch/u, /wi-?fi/u, /текстильн|дизайн/u, /без\s+воздуховод/u, /температур/u, /2\s+независим/u, /пульт/u, /хладагент|r\s*32/u, /расход воздуха/u, /шум/u],
+    importantSpecKeywords: ['класс энергоэффективности', 'площадь', 'холодопроизводительность', 'btu', 'хладагент', 'расход воздуха', 'уровень шума', 'потребляемая мощность', 'электропитание', 'габарит', 'размер', 'вес'],
+    arguments: [
+      { text: 'не требует профессионального монтажа', requires: [/монтаж/u] },
+      { text: 'можно перемещать между комнатами', requires: [/перемещ|мобильн/u] },
+      { text: 'подходит для аренды, дачи или временного офиса' },
+      { text: 'быстрое охлаждение помещения', requires: [/охлажд/u] },
+      { text: 'дополнительные режимы обогрева, осушения или вентиляции расширяют сценарии использования', requires: [/обогрев|осуш|вентиляц/u] },
+      { text: 'пульт, Auto Swing, SMART/TURBO или Wi‑Fi делают управление удобнее', requires: [/пульт|auto\s*swing|smart|turbo|wi-?fi/u] },
+    ],
+  },
+  waterHeater: {
+    id: 'waterHeater',
+    categoryMatchers: [/водонагревател/u, /горяч[а-яё\s]*водоснабжен/u],
+    codeMatchers: [],
+    featureAllow: [/накопительн|проточн/u, /объ[её]м|литр|\bл\b/u, /мощность|квт/u, /время\s+нагрев/u, /водоразбор|пользовател/u, /т[эе]н/u, /бак|покрыти/u, /анод|антикорроз/u, /защит/u, /узо/u, /ip/u, /давлен/u, /режим/u, /управлен|wi-?fi/u, /монтаж|вертикальн|горизонтальн/u, /подводк/u, /габарит|вес/u, /гарант/u],
+    importantSpecKeywords: ['объем', 'объём', 'л', 'мощность', 'квт', 'время нагрева', 'тэн', 'тен', 'бак', 'покрытие', 'анод', 'защита', 'узо', 'ip', 'давление', 'режим', 'управление', 'монтаж', 'подводка', 'габарит', 'размер', 'вес', 'гарантия'],
+    arguments: [
+      { text: 'горячая вода независимо от сезонных отключений' },
+      { text: 'понятный подбор по объёму под количество пользователей', requires: [/объ[её]м|литр|\bл\b/u] },
+      { text: 'защитные функции повышают безопасность эксплуатации', requires: [/защит|узо|ip/u] },
+      { text: 'защита бака помогает продлить срок службы', requires: [/бак|анод|антикорроз/u] },
+      { text: 'варианты монтажа упрощают установку в квартире, доме или на даче', requires: [/монтаж|вертикальн|горизонтальн/u] },
+      { text: 'режимы мощности помогают управлять энергопотреблением', requires: [/режим|мощность/u] },
+    ],
+  },
+};
+
+const getCategoryProfile = ({ approvedProfile = {}, source = {}, sourceText = '' } = {}) => {
+  const haystack = normalizeSearchText([
+    approvedProfile.category, approvedProfile.group, approvedProfile.code, approvedProfile.seriesName,
+    source.category, source.group, source.code, source.seriesName, sourceText,
+  ].filter(Boolean).join(' '));
+
+  return Object.values(CATEGORY_EXTRACTION_PROFILES).find((profile) =>
+    [...profile.categoryMatchers, ...profile.codeMatchers].some((pattern) => pattern.test(haystack)),
+  ) || null;
+};
+
+export const getCategoryExtractionProfile = (input = {}) => getCategoryProfile({
+  approvedProfile: input.approvedProfile || input.profile || input,
+  source: input.source || input,
+  sourceText: input.sourceText || input.rawText || '',
+});
 
 const getFeaturePriorityKey = (feature = '') => {
   const normalizedFeature = normalizeSearchText(feature);
@@ -828,12 +978,19 @@ const sortSalesFeatures = (features = []) => {
   });
 };
 
-const buildSalesFeatureList = ({ exactSeriesText = '', technicalText = '', summaryText = '', serviceText = '', seriesName = '', code = '', hasExactSeriesPages = false, hasTechnicalTable = false }) => {
-  if (!hasExactSeriesPages) {
+const buildSalesFeatureList = ({ exactSeriesText = '', technicalText = '', summaryText = '', serviceText = '', seriesName = '', code = '', hasExactSeriesPages = false, hasTechnicalTable = false, categoryProfile = null }) => {
+  const isCategorySummaryAllowed = categoryProfile?.id === 'mobileAirConditioner' || categoryProfile?.id === 'waterHeater';
+
+  if (!hasExactSeriesPages && !isCategorySummaryAllowed) {
     return [];
   }
 
-  const exactSeriesFeatures = extractFeatureList(exactSeriesText, seriesName).filter((feature) => !isTechnicalFeature(feature));
+  const exactSeriesFeatures = hasExactSeriesPages
+    ? extractFeatureList(exactSeriesText, seriesName).filter((feature) => !isTechnicalFeature(feature))
+    : [];
+  const summaryFeatures = isCategorySummaryAllowed
+    ? extractFeatureList(summaryText, seriesName).filter((feature) => !isTechnicalFeature(feature))
+    : [];
   const auxiliaryWifiFeatures = [
     ...extractAuxiliaryWifiFeature(summaryText, seriesName, code),
     ...extractAuxiliaryWifiFeature(serviceText, seriesName, code),
@@ -843,7 +1000,7 @@ const buildSalesFeatureList = ({ exactSeriesText = '', technicalText = '', summa
     : [];
 
   return sanitizeEnergyClasses(
-    sortSalesFeatures(unique([...exactSeriesFeatures, ...auxiliaryWifiFeatures, ...technicalFeatures])),
+    filterCategoryFeatures(sortSalesFeatures(unique([...exactSeriesFeatures, ...summaryFeatures, ...auxiliaryWifiFeatures, ...technicalFeatures])), categoryProfile),
     technicalText,
   );
 };
@@ -895,6 +1052,88 @@ const extractTechnicalSpecs = (rawText = '') =>
       .filter(Boolean)
       .filter((line) => hasAnyKeyword(line, TECHNICAL_SPEC_KEYWORDS)),
   );
+
+
+const matchesAnyProfilePattern = (value = '', patterns = []) => {
+  const normalizedValue = normalizeSearchText(value);
+
+  return patterns.some((pattern) => pattern.test(normalizedValue));
+};
+
+const filterCategoryFeatures = (features = [], categoryProfile = null) => {
+  if (!categoryProfile) {
+    return features;
+  }
+
+  return features.filter((feature) => matchesAnyProfilePattern(feature, categoryProfile.featureAllow) || isTechnicalFeature(feature));
+};
+
+const extractCategoryImportantSpecs = (rawText = '', categoryProfile = null) => {
+  if (!categoryProfile) {
+    return extractTechnicalSpecs(rawText);
+  }
+
+  return unique(
+    String(rawText ?? '')
+      .split(/\r?\n/)
+      .map(normalizeTechnicalSpecLine)
+      .filter(Boolean)
+      .filter((line) => hasAnyKeyword(line, categoryProfile.importantSpecKeywords || TECHNICAL_SPEC_KEYWORDS)),
+  );
+};
+
+const buildCategorySalesArguments = ({ categoryProfile = null, salesFeatures = [], importantSpecs = [], sourceText = '' } = {}) => {
+  if (!categoryProfile) {
+    return [];
+  }
+
+  const haystack = normalizeSearchText([...salesFeatures, ...importantSpecs, sourceText].join(' '));
+
+  return categoryProfile.arguments
+    .filter((argument) => !argument.requires || argument.requires.some((pattern) => pattern.test(haystack)))
+    .map((argument) => argument.text)
+    .slice(0, 6);
+};
+
+const buildCategoryPositioning = ({ categoryProfile = null, approvedProfile = {}, seriesName = '' } = {}) => {
+  const cleanSeriesName = sanitizeAutoTextSegment(seriesName || approvedProfile.seriesName, 90);
+
+  if (!categoryProfile || !cleanSeriesName) {
+    return '';
+  }
+
+  if (categoryProfile.id === 'mobileAirConditioner') {
+    return `${cleanSeriesName} — мобильное решение для квартиры, дома, офиса или дачи, когда нужен кондиционер без установки классической сплит-системы.`;
+  }
+
+  if (categoryProfile.id === 'waterHeater') {
+    return `${cleanSeriesName} — решение для резервного или постоянного горячего водоснабжения, когда важны надёжность, безопасность и понятный подбор по объёму.`;
+  }
+
+  return '';
+};
+
+const buildCategoryShortDescription = ({ categoryProfile = null, approvedProfile = {}, seriesName = '', salesFeatures = [], keyFeatures = [], importantSpecs = [] } = {}) => {
+  const cleanSeriesName = sanitizeAutoTextSegment(seriesName || approvedProfile.seriesName, 90);
+  const features = getAutoFeatureCandidates({ salesFeatures, keyFeatures }).slice(0, 5);
+
+  if (!categoryProfile || !cleanSeriesName) {
+    return '';
+  }
+
+  if (categoryProfile.id === 'mobileAirConditioner') {
+    if (features.length === 0) return '';
+    return trimToSentence(`${cleanSeriesName} — мобильный кондиционер Ballu для быстрого создания комфорта без сложного монтажа. Модель подходит для охлаждения помещения, а при наличии режима обогрева также помогает в межсезонье; ключевые особенности: ${joinRussianList(features)}.`);
+  }
+
+  if (categoryProfile.id === 'waterHeater') {
+    const accents = unique([...features, ...importantSpecs.map((line) => sanitizeAutoTextSegment(line, 80)).filter(Boolean)]).slice(0, 4);
+    if (accents.length === 0) return '';
+    return trimToSentence(`${cleanSeriesName} — водонагреватель Ballu для стабильного горячего водоснабжения в квартире, доме или на даче. Серия делает акцент на ${joinRussianList(accents)}.`);
+  }
+
+  return '';
+};
 
 export const getSeriesProfileByName = (seriesName = '') => {
   const normalizedSeriesName = normalizeSeriesName(seriesName);
@@ -949,16 +1188,21 @@ const buildDraftWarning = ({ hasExactSeriesPages, hasTechnicalTable, prefix = ''
 };
 
 const getIsolatedSourceTexts = (source) => {
-  const exactSeriesText = String(source.exactSeriesText ?? source.exactSeriesRawText ?? source.overviewRawText ?? '');
-  const technicalText = String(source.technicalText ?? source.technicalRawText ?? '');
-  const summaryText = String(source.summaryText ?? source.summaryRawText ?? '');
-  const serviceText = String(source.serviceText ?? source.serviceRawText ?? '');
+  const exactSeriesText = String(source.exactSeriesRawText ?? source.exactSeriesText ?? source.overviewRawText ?? '');
+  const categorySummaryText = String(source.categorySummaryRawText ?? source.categorySummaryText ?? source.summaryRawText ?? source.summaryText ?? '');
+  const technicalText = String(source.technicalRawText ?? source.technicalText ?? '');
+  const serviceText = String(source.serviceRawText ?? source.serviceText ?? '');
 
   return {
     exactSeriesText,
+    exactSeriesRawText: exactSeriesText,
+    categorySummaryText,
+    categorySummaryRawText: categorySummaryText,
+    summaryText: categorySummaryText,
     technicalText,
-    summaryText,
+    technicalRawText: technicalText,
     serviceText,
+    serviceRawText: serviceText,
     hasExactSeriesPages: exactSeriesText.trim().length > 0,
     hasTechnicalTable: technicalText.trim().length > 0,
   };
@@ -1079,6 +1323,8 @@ const buildAutoShortDescription = ({ approvedProfile, salesFeatures = [], techni
 const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
   const { exactSeriesText, technicalText, summaryText, serviceText, hasExactSeriesPages, hasTechnicalTable } = getIsolatedSourceTexts(source);
   const seriesName = approvedProfile.seriesName;
+  const categoryProfile = getCategoryProfile({ approvedProfile, source, sourceText: [exactSeriesText, summaryText, technicalText].join(' ') });
+  const hasEnoughDescriptionSource = hasExactSeriesPages || ((categoryProfile?.id === 'mobileAirConditioner' || categoryProfile?.id === 'waterHeater') && (summaryText.trim() || technicalText.trim()));
   const salesFeatures = buildSalesFeatureList({
     exactSeriesText,
     technicalText,
@@ -1088,6 +1334,7 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
     code: approvedProfile.code,
     hasExactSeriesPages,
     hasTechnicalTable,
+    categoryProfile,
   });
   const technicalFeatures = sanitizeEnergyClasses(
     hasTechnicalTable ? extractFeatureList(technicalText, seriesName).filter(isTechnicalFeature) : [],
@@ -1098,12 +1345,19 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
     salesFeatures.filter((feature) => !isEnergyClassFeature(feature)),
     legacyProfile?.mainAdvantages?.filter((feature) => !isEnergyClassFeature(feature)) || [],
   ).filter((feature) => !isEnergyClassFeature(feature));
-  const technicalSpecs = hasTechnicalTable ? extractTechnicalSpecs(technicalText) : [];
+  const technicalSpecs = hasTechnicalTable ? extractCategoryImportantSpecs(technicalText, categoryProfile) : [];
   const importantSpecs = sanitizeEnergyClasses(unique([...salesFeatures, ...technicalSpecs]), technicalText);
-  const draftWarning = buildDraftWarning({ hasExactSeriesPages, hasTechnicalTable });
+  const draftWarning = buildDraftWarning({
+    hasExactSeriesPages: hasEnoughDescriptionSource,
+    hasTechnicalTable,
+  });
   const legacyShortDescription = trimToSentence(legacyProfile?.shortDescription);
   const legacyPositioning = sanitizeAutoTextSegment(legacyProfile?.positioning, 260);
   const autoDescriptionContext = { approvedProfile, salesFeatures, technicalFeatures, keyFeatures };
+  const categoryDescriptionContext = { categoryProfile, approvedProfile, seriesName, salesFeatures, keyFeatures, importantSpecs };
+  const categoryShortDescription = buildCategoryShortDescription(categoryDescriptionContext);
+  const categoryPositioning = buildCategoryPositioning(categoryDescriptionContext);
+  const categorySalesArguments = buildCategorySalesArguments({ categoryProfile, salesFeatures, importantSpecs, sourceText: [exactSeriesText, summaryText, technicalText].join(' ') });
 
   const draft = {
     profileId: approvedProfile.id,
@@ -1114,14 +1368,14 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
     group: approvedProfile.group,
     code: approvedProfile.code,
     seriesName,
-    shortDescription: legacyShortDescription || (hasExactSeriesPages ? buildAutoShortDescription(autoDescriptionContext) : ''),
-    positioning: legacyPositioning || (hasExactSeriesPages ? buildAutoPositioning(autoDescriptionContext) : ''),
+    shortDescription: legacyShortDescription || categoryShortDescription || (hasEnoughDescriptionSource ? buildAutoShortDescription(autoDescriptionContext) : ''),
+    positioning: legacyPositioning || categoryPositioning || (hasEnoughDescriptionSource ? buildAutoPositioning(autoDescriptionContext) : ''),
     targetClient: legacyProfile?.targetClient || [],
     mainSalesIdea: legacyProfile?.mainSalesIdea || '',
     keyFeatures,
     salesFeatures,
     mainAdvantages,
-    salesArguments: legacyProfile?.salesArguments || [],
+    salesArguments: legacyProfile?.salesArguments || categorySalesArguments,
     clientSpeech: legacyProfile?.clientSpeech || '',
     differences: '',
     whenRecommend: legacyProfile?.whenRecommend || [],
@@ -1155,6 +1409,8 @@ export const generateSeriesDraft = (source) => {
   }
 
   const { exactSeriesText, technicalText, summaryText, serviceText, hasExactSeriesPages, hasTechnicalTable } = getIsolatedSourceTexts(source);
+  const categoryProfile = getCategoryProfile({ approvedProfile: source, source, sourceText: [exactSeriesText, summaryText, technicalText].join(' ') });
+  const hasEnoughDescriptionSource = hasExactSeriesPages || ((categoryProfile?.id === 'mobileAirConditioner' || categoryProfile?.id === 'waterHeater') && (summaryText.trim() || technicalText.trim()));
   const salesFeatures = buildSalesFeatureList({
     exactSeriesText,
     technicalText,
@@ -1164,19 +1420,23 @@ export const generateSeriesDraft = (source) => {
     code: source.code,
     hasExactSeriesPages,
     hasTechnicalTable,
+    categoryProfile,
   });
   const technicalFeatures = sanitizeEnergyClasses(
     hasTechnicalTable ? extractFeatureList(technicalText, source.seriesName).filter(isTechnicalFeature) : [],
     technicalText,
   );
   const keyFeatures = sanitizeEnergyClasses(sortFeaturesByPriority(unique([...salesFeatures, ...technicalFeatures])), technicalText);
-  const technicalSpecs = hasTechnicalTable ? extractTechnicalSpecs(technicalText) : [];
+  const technicalSpecs = hasTechnicalTable ? extractCategoryImportantSpecs(technicalText, categoryProfile) : [];
+  const importantSpecs = sanitizeEnergyClasses(unique([...salesFeatures, ...technicalSpecs]), technicalText);
+  const categoryDescriptionContext = { categoryProfile, approvedProfile: source, seriesName: source.seriesName, salesFeatures, keyFeatures, importantSpecs };
+  const categorySalesArguments = buildCategorySalesArguments({ categoryProfile, salesFeatures, importantSpecs, sourceText: [exactSeriesText, summaryText, technicalText].join(' ') });
 
   const draft = {
     profileId: source.profileId || '',
     profileStatus: 'unknown',
     draftWarning: buildDraftWarning({
-      hasExactSeriesPages,
+      hasExactSeriesPages: hasEnoughDescriptionSource,
       hasTechnicalTable,
       prefix: 'Серия не найдена в утверждённом справочнике Ballu 2026. Проверьте серию вручную: продажное позиционирование не заполнено автоматически.',
     }),
@@ -1185,21 +1445,21 @@ export const generateSeriesDraft = (source) => {
     group: source.group || '',
     code: source.code || '',
     seriesName: source.seriesName || '',
-    shortDescription: '',
-    positioning: '',
+    shortDescription: buildCategoryShortDescription(categoryDescriptionContext),
+    positioning: buildCategoryPositioning(categoryDescriptionContext),
     targetClient: [],
     mainSalesIdea: '',
     keyFeatures,
     salesFeatures,
-    mainAdvantages: [],
-    salesArguments: [],
+    mainAdvantages: pickMainAdvantages(salesFeatures.filter((feature) => !isEnergyClassFeature(feature))),
+    salesArguments: categorySalesArguments,
     clientSpeech: '',
     differences: '',
     whenRecommend: [],
     whenNotRecommend: [],
     objections: [],
     technicalSpecs,
-    importantSpecs: sanitizeEnergyClasses(unique([...salesFeatures, ...technicalSpecs]), technicalText),
+    importantSpecs,
     sourceIds: source.id ? [source.id] : [],
     status: 'draft',
   };
