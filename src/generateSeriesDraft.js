@@ -448,35 +448,53 @@ const extractHeatingFeatures = (technicalText = '') => {
   return heatingRange ? [heatingRange] : [];
 };
 
-const normalizeEnergyClassValue = (value = '') => {
-  const normalizedValue = String(value || '')
+const getEnergyClassComparisonKey = (value = '') =>
+  String(value || '')
     .toLocaleUpperCase('ru-RU')
     .replace(/[А]/gu, 'A')
     .replace(/\\/gu, '/')
     .replace(/\s+/gu, '');
 
+const isEnergyClassValue = (value = '') => {
+  const normalizedValue = getEnergyClassComparisonKey(value);
   const parts = normalizedValue.split('/');
 
-  if (parts.length !== 2 || parts.some((part) => !/^A\+*$/u.test(part))) {
-    return '';
-  }
+  return parts.length === 2 && parts.every((part) => /^A\+*$/u.test(part));
+};
 
-  return parts.join('/');
+const normalizeEnergyClassDisplayValue = (value = '') =>
+  String(value || '')
+    .replace(/\\/gu, '/')
+    .replace(/\s+/gu, '');
+
+const uniqueEnergyClassValues = (values = []) => {
+  const seen = new Set();
+
+  return values.filter((value) => {
+    const normalizedValue = getEnergyClassComparisonKey(value);
+
+    if (seen.has(normalizedValue)) {
+      return false;
+    }
+
+    seen.add(normalizedValue);
+    return true;
+  });
 };
 
 const collectEnergyClassValues = (text = '') => {
   const values = [];
-  const normalizedText = String(text || '').replace(/[‐‑‒–—−]/gu, '-');
+  const sourceText = String(text || '');
 
-  for (const match of normalizedText.matchAll(/(?:^|[^A-ZА-ЯЁ])([AА]\s*\+*\s*[/\\]\s*[AА]\s*\+*)(?=$|[^A-ZА-ЯЁ+])/giu)) {
-    const value = normalizeEnergyClassValue(match[1]);
+  for (const match of sourceText.matchAll(/(?:^|[^A-ZА-ЯЁ])([AА]\s*\+*\s*[/\\]\s*[AА]\s*\+*)(?=$|[^A-ZА-ЯЁ+])/giu)) {
+    const value = normalizeEnergyClassDisplayValue(match[1]);
 
-    if (value) {
+    if (isEnergyClassValue(value)) {
       values.push(value);
     }
   }
 
-  return unique(values);
+  return uniqueEnergyClassValues(values);
 };
 
 const formatEnergyClassFeature = (values = []) => {
@@ -495,13 +513,13 @@ const isEnergyClassFeature = (feature = '') => {
     .trim();
   const values = normalizedFeature.split(/\s+→\s+/u);
 
-  return values.length > 0 && values.every((part) => Boolean(normalizeEnergyClassValue(part)));
+  return values.length > 0 && values.every((part) => isEnergyClassValue(part));
 };
 
 const extractEnergyClassFeatures = (technicalText = '') => {
   const segment = getTechnicalValueSegment(
     technicalText,
-    /класс\s+энергоэффективности\s*\(?\s*eer\s*\/\s*cop\s*\)?/iu,
+    /класс\s+энергоэффективности(?:\s*\(?\s*eer\s*\/\s*cop\s*\)?)?/iu,
     720,
   );
   const values = collectEnergyClassValues(segment);
