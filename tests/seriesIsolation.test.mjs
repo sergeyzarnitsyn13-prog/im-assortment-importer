@@ -206,6 +206,32 @@ const lagoonEnergyDraft = buildTechnicalOnlyDraft({
 assert.ok(lagoonEnergyDraft.salesFeatures.includes('A/A → A++/A+'), 'LAGOON energy feature must show only actual table classes range');
 assert.equal(/A\+\+\/A\+\+\+/u.test(stringifyDraft(lagoonEnergyDraft)), false, 'LAGOON must not synthesize A++/A+++');
 
+const lagoonFlatPdfTechnicalRawText = 'Технические характеристики BSDI Класс энергоэффективности (EER/COP) A/A A/A A/A A++/A+ A++/A+ SEER A++/A+++ SCOP A++/A+++ Уровень шума 23/49';
+assert.equal(
+  extractEnergyClass(lagoonFlatPdfTechnicalRawText),
+  'A/A → A++/A+',
+  'flat PDF text energy extractor must stop before SEER/SCOP rows',
+);
+assert.equal(
+  /A\+\+\/A\+\+\+/u.test(extractEnergyClass(lagoonFlatPdfTechnicalRawText)),
+  false,
+  'flat PDF text energy extractor must not include SEER/SCOP A++/A+++ values',
+);
+
+const lagoonFlatPdfEnergyDraft = buildTechnicalOnlyDraft({
+  seriesName: 'LAGOON',
+  technicalRawText: lagoonFlatPdfTechnicalRawText,
+});
+assert.ok(
+  lagoonFlatPdfEnergyDraft.salesFeatures.includes('A/A → A++/A+'),
+  'LAGOON flat PDF card must show only the energy class row range',
+);
+assert.equal(
+  /A\+\+\/A\+\+\+/u.test(stringifyDraft(lagoonFlatPdfEnergyDraft)),
+  false,
+  'LAGOON flat PDF card must not include A++/A+++ anywhere in the draft JSON',
+);
+
 const singleEnergyDraft = buildTechnicalOnlyDraft({
   seriesName: 'LAGOON',
   technicalRawText: 'Технические характеристики BSDI\nКласс энергоэффективности (EER/COP) A/A A/A A/A',
