@@ -248,10 +248,86 @@ const attachSourceRefs = (draft, source) => {
     sourceRefs: Object.fromEntries(
       Object.entries(draft)
         .filter(
-          ([field, value]) => !['sourceIds', 'sourceRefs', 'status'].includes(field) && hasDraftValue(value),
+          ([field, value]) => !['sourceIds', 'sourceRefs', 'status', 'diagnostics'].includes(field) && hasDraftValue(value),
         )
         .map(([field, value]) => [field, shouldUseTechnicalSourceRef(field, value) && technicalSourceRef ? technicalSourceRef : sourceRef]),
     ),
+  };
+};
+
+
+const getSourcePages = (source, field) => {
+  const directPages = source?.[field];
+  const diagnosticPages = source?.pageDiagnostics?.[field];
+
+  return Array.isArray(directPages) ? directPages : Array.isArray(diagnosticPages) ? diagnosticPages : [];
+};
+
+const extractDiagnosticModelCodes = (source, draftCode = '') => {
+  const rawText = [
+    source?.exactSeriesRawText,
+    source?.overviewRawText,
+    source?.summaryRawText,
+    source?.serviceRawText,
+    source?.technicalRawText,
+    source?.rawText,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  const matchedTokens = source?.pageDiagnostics?.matchedTokens || [];
+  const normalizedDraftCode = normalizeSearchText(draftCode);
+  const diagnosticCodes = (rawText.match(/\b[A-ZА-Я]{2,}[A-Z0-9А-Я/_-]{1,}(?:\s*\/\s*[A-ZА-Я]{2,}[A-Z0-9А-Я/_-]{1,})?\b/giu) || [])
+    .filter((code) => {
+      const normalizedCode = normalizeSearchText(code);
+
+      return (
+        normalizedDraftCode &&
+        normalizedCode.startsWith(normalizedDraftCode) &&
+        (normalizedCode.length === normalizedDraftCode.length || /[0-9\s/_-]/u.test(normalizedCode.at(normalizedDraftCode.length)))
+      );
+    });
+
+  return unique([draftCode, ...matchedTokens, ...diagnosticCodes]
+    .map((item) => String(item || '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean));
+};
+
+const getDiagnosticsWarnings = ({ diagnostics, draft }) => [
+  diagnostics.seriesName ? '' : 'Не определена серия.',
+  diagnostics.brand ? '' : 'Не определён бренд.',
+  diagnostics.descriptionPages.length > 0 ? '' : 'Страницы описания серии не найдены.',
+  diagnostics.technicalPages.length > 0 ? '' : 'technicalPages не найдены.',
+  diagnostics.technicalRawTextLength > 0 ? '' : 'technicalRawText пустой.',
+  diagnostics.modelCodes.length > 0 ? '' : 'Модели/коды не найдены.',
+  diagnostics.salesFeatures.length > 0 ? '' : 'Продажные особенности не найдены.',
+  diagnostics.technicalSpecs.length > 0 ? '' : 'Технические характеристики не найдены.',
+  draft.shortDescription ? '' : 'Краткое описание не заполнено.',
+  draft.positioning ? '' : 'Позиционирование не заполнено.',
+].filter(Boolean);
+
+const buildDraftDiagnostics = (source, draft) => {
+  const technicalText = source?.technicalText || source?.technicalRawText || '';
+  const descriptionPages = unique([
+    ...getSourcePages(source, 'exactSeriesPages'),
+    ...getSourcePages(source, 'overviewPages'),
+  ]);
+  const diagnostics = {
+    seriesName: draft.seriesName || source?.seriesName || '',
+    brand: draft.brand || source?.brand || '',
+    descriptionPages,
+    technicalPages: getSourcePages(source, 'technicalPages'),
+    technicalRawTextLength: technicalText.length,
+    modelCodes: extractDiagnosticModelCodes(source, draft.code || source?.code || ''),
+    salesFeatures: draft.salesFeatures || [],
+    technicalSpecs: draft.technicalSpecs || [],
+  };
+
+  return {
+    ...diagnostics,
+    warnings: unique([
+      ...(source?.pageDiagnostics?.warnings || []),
+      ...getDiagnosticsWarnings({ diagnostics, draft }),
+    ]),
   };
 };
 
@@ -914,7 +990,7 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
   const importantSpecs = sanitizeEnergyClasses(unique([...salesFeatures, ...technicalSpecs]), technicalText);
   const draftWarning = buildDraftWarning({ hasExactSeriesPages, hasTechnicalTable });
 
-  return attachSourceRefs({
+  const draft = {
     profileId: approvedProfile.id,
     profileStatus: approvedProfile.profileStatus,
     draftWarning,
@@ -940,6 +1016,11 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
     importantSpecs,
     sourceIds: source.id ? [source.id] : [],
     status: 'draft',
+  };
+
+  return attachSourceRefs({
+    ...draft,
+    diagnostics: buildDraftDiagnostics(source, draft),
   }, source);
 };
 
@@ -976,7 +1057,7 @@ export const generateSeriesDraft = (source) => {
   const keyFeatures = sanitizeEnergyClasses(sortFeaturesByPriority(unique([...salesFeatures, ...technicalFeatures])), technicalText);
   const technicalSpecs = hasTechnicalTable ? extractTechnicalSpecs(technicalText) : [];
 
-  return attachSourceRefs({
+  const draft = {
     profileId: source.profileId || '',
     profileStatus: 'unknown',
     draftWarning: buildDraftWarning({
@@ -1006,5 +1087,10 @@ export const generateSeriesDraft = (source) => {
     importantSpecs: sanitizeEnergyClasses(unique([...salesFeatures, ...technicalSpecs]), technicalText),
     sourceIds: source.id ? [source.id] : [],
     status: 'draft',
+  };
+
+  return attachSourceRefs({
+    ...draft,
+    diagnostics: buildDraftDiagnostics(source, draft),
   }, source);
 };

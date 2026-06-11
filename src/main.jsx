@@ -72,6 +72,7 @@ const DRAFT_INITIAL = {
   importantSpecs: [],
   sourceIds: [],
   sourceRefs: {},
+  diagnostics: null,
   status: 'draft',
 };
 
@@ -145,7 +146,7 @@ const fromLines = (value) =>
     .filter(Boolean);
 
 const prepareCardPayload = (card) => {
-  const { id, createdAt, updatedAt, ...payload } = card;
+  const { id, createdAt, updatedAt, diagnostics, ...payload } = card;
 
   return payload;
 };
@@ -925,6 +926,7 @@ function DraftTab({ draft, draftJson, editingCardId, onChange, onSourceRefChange
         <h2>{editingCardId ? 'Редактировать карточку серии' : 'Черновик карточки серии'}</h2>
         <div className="form-grid">
           {draft.draftWarning && <p className="notice warning-notice wide-field">{draft.draftWarning}</p>}
+          <RecognitionDiagnostics diagnostics={draft.diagnostics} />
           <TextInput name="brand" onChange={onChange} value={draft.brand} />
           <TextInput name="category" onChange={onChange} value={draft.category} />
           <TextInput name="seriesName" onChange={onChange} value={draft.seriesName} />
@@ -985,6 +987,59 @@ function DraftTab({ draft, draftJson, editingCardId, onChange, onSourceRefChange
         <h2>JSON черновика</h2>
         <pre className="json-preview">{draftJson}</pre>
       </aside>
+    </section>
+  );
+}
+
+
+const formatDiagnosticValue = (value, emptyText = '—') => {
+  if (Array.isArray(value)) {
+    return value.length > 0 ? value.join(', ') : emptyText;
+  }
+
+  return value || value === 0 ? String(value) : emptyText;
+};
+
+function RecognitionDiagnostics({ diagnostics }) {
+  if (!diagnostics) {
+    return null;
+  }
+
+  const rows = [
+    ['Определённая серия', formatDiagnosticValue(diagnostics.seriesName)],
+    ['Бренд', formatDiagnosticValue(diagnostics.brand)],
+    ['Найденные страницы описания', formatDiagnosticValue(diagnostics.descriptionPages)],
+    ['Найденные technicalPages', formatDiagnosticValue(diagnostics.technicalPages)],
+    ['Символов technicalRawText', formatDiagnosticValue(diagnostics.technicalRawTextLength, '0')],
+    ['Найденные модели/коды', formatDiagnosticValue(diagnostics.modelCodes)],
+    ['Найденные продажные особенности', formatDiagnosticValue(diagnostics.salesFeatures)],
+    ['Найденные технические характеристики', formatDiagnosticValue(diagnostics.technicalSpecs)],
+  ];
+
+  return (
+    <section className="recognition-diagnostics wide-field" aria-label="Диагностика распознавания">
+      <div>
+        <p className="eyebrow">Только для администратора</p>
+        <h3>Диагностика распознавания</h3>
+      </div>
+      <dl className="recognition-diagnostics-list">
+        {rows.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {diagnostics.warnings?.length > 0 && (
+        <div className="notice warning-notice recognition-diagnostics-warning">
+          <strong>Предупреждения:</strong>
+          <ul>
+            {diagnostics.warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }
