@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { diagnoseEnergyClass, extractEnergyClass, generateSeriesDraft, isEnergyClassFeature, sanitizeEnergyClasses } from '../src/generateSeriesDraft.js';
+import { diagnoseEnergyClass, extractEnergyClass, generateSeriesDraft, getCategoryExtractionProfile, isEnergyClassFeature, sanitizeEnergyClasses } from '../src/generateSeriesDraft.js';
 import { SERIES_PROFILES } from '../src/data/seriesProfiles.js';
 import { classifyPageForSeries, getMatchedTokens } from '../src/seriesPageClassifier.js';
 
@@ -545,5 +545,120 @@ for (const requiredIcePeakFeature of [
 ]) {
   assert.equal(requiredIcePeakFeature.test(icePeakCardText), true, `ICE PEAK card must contain ${requiredIcePeakFeature}`);
 }
+
+
+const olympioLegendCategoryProfile = SERIES_PROFILES.find((profile) => profile.seriesName === 'OLYMPIO LEGEND' && profile.code === 'BSW');
+const olympioLegendCategoryDraft = generateSeriesDraft({
+  profileId: olympioLegendCategoryProfile.id,
+  category: olympioLegendCategoryProfile.category,
+  group: olympioLegendCategoryProfile.group,
+  seriesName: olympioLegendCategoryProfile.seriesName,
+  code: olympioLegendCategoryProfile.code,
+  exactSeriesRawText: `
+    OLYMPIO LEGEND BSW
+    Сплит-системы ON/OFF
+    Wi-Fi управление через Hommyn
+    3D-контроль потока воздуха
+    i-FEEL
+    низкий уровень шума
+    стабильная работа на обогрев
+  `,
+  technicalRawText: `
+    Технические характеристики BSW
+    Класс энергоэффективности (EER/COP) A/A A/A
+    Уровень шума внутреннего блока 23/35/41 дБ
+    Диапазон рабочих температур -15…+50°C/-7…+24°C
+    Хладагент R32
+  `,
+});
+assert.ok(olympioLegendCategoryDraft.salesFeatures.length > 0, 'ON/OFF split salesFeatures must not be empty');
+assert.ok(olympioLegendCategoryDraft.shortDescription, 'ON/OFF split shortDescription must not be empty');
+assert.ok(olympioLegendCategoryDraft.positioning, 'ON/OFF split positioning must not be empty');
+assert.ok(olympioLegendCategoryDraft.mainAdvantages.length > 0, 'ON/OFF split mainAdvantages must not be empty');
+assert.match(stringifyDraft(olympioLegendCategoryDraft), /3D-контроль|Wi-Fi|i-FEEL|шум|обогрев/iu, 'ON/OFF split must keep category features from input text');
+
+const lagoonCategoryProfile = SERIES_PROFILES.find((profile) => profile.seriesName === 'LAGOON' && profile.code === 'BSDI');
+const lagoonCategoryDraft = generateSeriesDraft({
+  profileId: lagoonCategoryProfile.id,
+  category: lagoonCategoryProfile.category,
+  group: lagoonCategoryProfile.group,
+  seriesName: lagoonCategoryProfile.seriesName,
+  code: lagoonCategoryProfile.code,
+  exactSeriesRawText: `
+    LAGOON BSDI
+    DC-Инверторные сплит-системы
+    Full DC inverter
+    Wi-Fi управление
+    Golden Fin
+  `,
+  technicalRawText: `
+    Технические характеристики BSDI
+    Класс энергоэффективности (EER/COP) A/A A++/A+
+    Уровень шума (внутренний / наружный блок) 21/48 23/50
+    Диапазон рабочих температур -15…+50°C/-20…+24°C
+    Хладагент R32
+  `,
+});
+assert.ok(lagoonCategoryDraft.salesFeatures.length > 0, 'inverter split salesFeatures must not be empty');
+assert.ok(lagoonCategoryDraft.shortDescription, 'inverter split shortDescription must not be empty');
+assert.ok(lagoonCategoryDraft.positioning, 'inverter split positioning must not be empty');
+assert.match(lagoonCategoryDraft.importantSpecs.join('\n'), /A\/A|шум|температур|R32/iu, 'inverter importantSpecs must include energy/noise/temperature/refrigerant when present');
+
+const platinumX4Profile = SERIES_PROFILES.find((profile) => profile.seriesName === 'Platinum X4');
+const platinumX4Draft = generateSeriesDraft({
+  profileId: platinumX4Profile.id,
+  category: platinumX4Profile.category,
+  group: platinumX4Profile.group,
+  seriesName: platinumX4Profile.seriesName,
+  code: platinumX4Profile.code,
+  categorySummaryRawText: `
+    Бытовые мобильные кондиционеры
+    Мобильные кондиционеры Platinum X4 BPHS-HX не нуждаются в профессиональном монтаже.
+    Они охлаждают, обогревают, вентилируют и осушают, поддерживают SMART-режим, TURBO, Auto Swing и Touch-панель.
+  `,
+  technicalRawText: `
+    Технические характеристики BPHS-HX
+    Холодопроизводительность BTU 9000 12000 14000
+    Класс энергоэффективности A
+    Уровень шума 49 47 48
+    Габариты 420x720x360 мм
+    Вес 29 31 33 кг
+  `,
+  technicalPages: [55],
+});
+assert.ok(platinumX4Draft.salesFeatures.length > 0, 'mobile salesFeatures must not be empty');
+assert.ok(platinumX4Draft.shortDescription, 'mobile shortDescription must not be empty');
+assert.ok(platinumX4Draft.positioning, 'mobile positioning must not be empty');
+assert.match(platinumX4Draft.salesFeatures.join('\n'), /монтаж|SMART|TURBO|Auto Swing|Touch/iu, 'mobile salesFeatures must include mobile category features');
+assert.match(platinumX4Draft.positioning, /мобильное решение|без установки|без сложного монтажа/iu, 'mobile positioning must explain mobile/no-install use case');
+assert.equal(platinumX4Draft.diagnostics.warnings.includes('Продажные особенности не найдены.'), false, 'mobile warnings must not complain about salesFeatures');
+assert.equal(platinumX4Draft.diagnostics.warnings.includes('Краткое описание не заполнено.'), false, 'mobile warnings must not complain about shortDescription');
+assert.equal(platinumX4Draft.diagnostics.warnings.includes('Позиционирование не заполнено.'), false, 'mobile warnings must not complain about positioning');
+
+const waterHeaterSource = {
+  brand: 'Ballu',
+  category: 'Водонагреватели',
+  group: 'Накопительные водонагреватели',
+  seriesName: 'TEST WATER',
+  code: 'BWH',
+  exactSeriesRawText: `
+    Водонагреватели TEST WATER
+    Накопительный водонагреватель с сухим ТЭНом, магниевым анодом, защитой от перегрева и универсальным монтажом.
+  `,
+  technicalRawText: `
+    Технические характеристики TEST WATER
+    Объём бака, л 50 80 100
+    Мощность, кВт 1.5 2.0
+    Тип ТЭНа сухой ТЭН
+    Защита от перегрева и включения без воды
+    Монтаж вертикальный / горизонтальный
+  `,
+};
+const waterHeaterProfile = getCategoryExtractionProfile(waterHeaterSource);
+const waterHeaterDraft = generateSeriesDraft(waterHeaterSource);
+assert.equal(waterHeaterProfile.id, 'waterHeater', 'waterHeater categoryProfile must be detected');
+assert.ok(waterHeaterDraft.shortDescription, 'waterHeater shortDescription must not be empty');
+assert.ok(waterHeaterDraft.positioning, 'waterHeater positioning must not be empty');
+assert.match(waterHeaterDraft.importantSpecs.join('\n'), /Объём|Мощность|ТЭН|Защита|Монтаж/iu, 'waterHeater importantSpecs must include volume/power/heater/protection/mounting');
 
 console.log(`series isolation ok: ${SERIES_PROFILES.length} profiles checked`);
