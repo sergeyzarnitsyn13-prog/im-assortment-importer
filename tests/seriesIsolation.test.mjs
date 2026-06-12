@@ -859,4 +859,39 @@ assert.match(variableDuctSpecsText, /длина воздуховода 1200–15
 assert.match(variableDuctSpecsText, /диаметр воздуховода 136–154 мм/iu, 'variable duct importantSpecs must include diameter range');
 assert.equal(/undefined|null|\[object Object\]/iu.test(`${orbisDuctSpecsText}\n${variableDuctSpecsText}`), false, 'duct specs must not contain garbage placeholders');
 
+
+const velureDraft = generateSeriesDraft({
+  brand: 'Ballu',
+  category: 'Кондиционирование',
+  group: 'Бытовые мобильные кондиционеры',
+  seriesName: 'Velure',
+  code: 'BPAC-VEL',
+  exactSeriesRawText: 'Изысканный дизайн Ballu Velure станет украшением современного интерьера. Помимо стильного внешнего вида прибор обладает широким функционалом: автоматическим приводом жалюзи, таймером, управлением по Wi-Fi. Фреон R290 делает прибор по-настоящему энергоэффективным. Приборы помогут создать комфортную атмосферу в помещениях площадью до 35 м². Скрытый LED-дисплей. Управление по Wi-Fi. VELURE тканевое покрытие. AUTO-SWING жалюзи. Шлюз для распашных окон в комплекте. Пульт управления в комплекте.',
+  technicalRawText: 'Параметр / Модель BPAC-12 EW/N6 BPAC-14 EW/N6 Производительность охлаждение Вт 3500 4100 Производительность охлаждение BTU 12000 14000 Класс энергоэффективности EER A A Расход воздуха м3/ч 400 430 Уровень шума дБА 50 50 Номинальная мощность охлаждение кВт 1330 1560 Размеры прибора Ш×В×Г мм 434×700×350 434×700×350 Вес нетто/брутто кг 28/33 29,5/34,5 Модель A, мм B, мм C, мм L, мм D, мм Velure BALLU BPAC-12/14 EW/N6 434 700 350 1500 150',
+  exactSeriesPages: [150],
+  technicalPages: [151],
+});
+const velureFeaturesText = velureDraft.salesFeatures.join('\n');
+const velureAdvantagesText = velureDraft.mainAdvantages.join('\n');
+const velureSpecsText = velureDraft.importantSpecs.join('\n');
+assert.match(velureDraft.shortDescription, /изысканный дизайн|тканевым? покрытием/iu, 'Velure shortDescription must use narrative design/premium facts');
+assert.match(velureDraft.shortDescription, /до 35 м²/iu, 'Velure shortDescription must include area up to 35 m²');
+assert.match(velureDraft.positioning, /стильное|интерьер/iu, 'Velure positioning must emphasize style/interior');
+assert.match(velureFeaturesText, /изысканный дизайн/iu, 'Velure salesFeatures must include elegant design');
+assert.match(velureFeaturesText, /тканевое покрытие/iu, 'Velure salesFeatures must include fabric coating');
+assert.match(velureFeaturesText, /Wi-Fi управление/iu, 'Velure salesFeatures must include Wi-Fi control');
+assert.match(velureFeaturesText, /R290 эко-фреон/iu, 'Velure salesFeatures must include R290 eco refrigerant');
+assert.match(velureFeaturesText, /площадь до 35 м²/iu, 'Velure salesFeatures must include area up to 35 m²');
+assert.match(velureFeaturesText, /Auto-Swing жалюзи/iu, 'Velure salesFeatures must include Auto-Swing louvers');
+assert.match(velureFeaturesText, /шлюз для распашных окон в комплекте/iu, 'Velure salesFeatures must include casement window adapter');
+assert.match(velureAdvantagesText, /изысканный дизайн/iu, 'Velure mainAdvantages must include elegant design');
+assert.match(velureAdvantagesText, /Wi-Fi управление/iu, 'Velure mainAdvantages must include Wi-Fi control');
+assert.match(velureAdvantagesText, /R290 эко-фреон/iu, 'Velure mainAdvantages must include R290 eco refrigerant');
+assert.equal(/воздуховод:\s*1500 мм, Ø150 мм|длина воздуховода 1500 мм[\s\S]*диаметр воздуховода 150 мм/iu.test(velureSpecsText), true, 'Velure importantSpecs must include duct L/D dimensions');
+assert.match(velureSpecsText, /434×700×350/iu, 'Velure importantSpecs must include product dimensions');
+assert.match(velureSpecsText, /12000\/14000 BTU/iu, 'Velure importantSpecs must include BTU range');
+assert.equal(/Краткое описание не заполнено/iu.test(velureDraft.draftWarning || ''), false, 'Velure warnings must not say shortDescription is empty');
+assert.equal(/Позиционирование не заполнено/iu.test(velureDraft.draftWarning || ''), false, 'Velure warnings must not say positioning is empty');
+assert.equal(/undefined|null|\[object Object\]/iu.test(stringifyDraft(velureDraft)), false, 'Velure draft must not contain garbage placeholders');
+
 console.log(`series isolation ok: ${SERIES_PROFILES.length} profiles checked`);
