@@ -909,6 +909,109 @@ assert.match(variableDuctSpecsText, /длина воздуховода 1200–15
 assert.match(variableDuctSpecsText, /диаметр воздуховода 136–154 мм/iu, 'variable duct importantSpecs must include diameter range');
 assert.equal(/undefined|null|\[object Object\]/iu.test(`${orbisDuctSpecsText}\n${variableDuctSpecsText}`), false, 'duct specs must not contain garbage placeholders');
 
+{
+const smartInverterMixedRawText = `
+Промышленные мобильные кондиционеры
+Smart inverter HEAVY PRO
+Параметр / Модель BGK15 BGK18
+Производительность (охлаждение) Вт 15 000 18 000
+Производительность (охлаждение) BTU 51 000 62 000
+Расход воздуха 2500 м³/ч
+Уровень шума 65/75 дБ
+Габариты 1360×1030×820 мм
+Вес нетто/брутто 172/253 182/262 кг
+площадь до 320 м²
+
+Бытовые мобильные кондиционеры
+SMART INVERTER
+Параметр / Модель BPAC-12 IN / N6
+Производительность (охлаждение/обогрев) Вт 3500 / 2930
+Производительность (охлаждение/обогрев) BTU 12000 / 10000
+Класс энергоэффективности, (EER) А++
+Расход воздуха м 3 /ч 450
+Уровень шума дБ(А) 39
+Напряжение питания В~Гц/Ф 220-240 ~ 50
+Номинальная мощность (охлаждение/обогрев) Вт 975 / 810
+Номинальный ток (охлаждение/обогрев) А 4,8 / 4,6
+Размеры прибора (Ш×В×Г) мм 450×745×396
+Габариты упаковки (Ш×В×Г) мм 499×880×459
+Вес нетто/брутто кг 31,1 / 35,5
+Мобильный кондиционер Ballu Smart Inverter сочетает мобильность с передовой инвертерной технологией. Плавная регулировка компрессора обеспечивает точное поддержание температуры до ±0,5 °C и стабильную температуру. Низкий уровень шума 40 дБ подходит для спальни, экономия энергии 20%. 4 режима работы: охлаждение, обогрев, вентиляция, осушение. Wi-Fi управление, SMART-режим, R290 эко-фреон, 24-часовой таймер, пульт с подсветкой.
+Модель A, мм B, мм C, мм L, мм D, мм
+Smart Inverter
+BPAC-IN 450 745 396 1500 150
+
+Бытовые мобильные кондиционеры
+INVERTER EVO
+Параметр / Модель BPAC-12 IE / N6 BPAC-14 IE / N6
+Холодопроизводительность Вт 3500 4000
+Класс энергоэффективности A+ A+
+энергопотребление менее 1 кВт/ч
+сенсорная Touch-панель
+тангенциальный вентилятор снижает шум
+
+Промышленные мобильные осушители воздуха
+Smart inverter HEAVY INDUSTRIAL
+Параметр / Модель BDI-70L BDI-100L
+`;
+
+const smartInverterBpacInProfile = SERIES_PROFILES.find((profile) => profile.seriesName === 'Smart Inverter' && profile.code === 'BPAC-IN');
+assert.equal(
+  classifyPageForSeries({ pageNumber: 53, text: 'Промышленные мобильные кондиционеры Smart inverter HEAVY PRO Параметр / Модель BGK15 BGK18' }, smartInverterBpacInProfile).belongsToSeries,
+  false,
+  'Smart Inverter classifier must reject Heavy Pro page without BPAC-IN/BPAC-12 IN code',
+);
+assert.equal(
+  classifyPageForSeries({ pageNumber: 55, text: 'Бытовые мобильные кондиционеры SMART INVERTER Параметр / Модель BPAC-12 IN / N6' }, smartInverterBpacInProfile).belongsToSeries,
+  true,
+  'Smart Inverter classifier must accept household BPAC-12 IN/N6 page',
+);
+assert.equal(
+  classifyPageForSeries({ pageNumber: 56, text: 'Бытовые мобильные кондиционеры Smart Inverter EVO Параметр / Модель BPAC-12 IE / N6 BPAC-14 IE / N6' }, smartInverterBpacInProfile).belongsToSeries,
+  false,
+  'Smart Inverter classifier must reject EVO page without BPAC-IN/BPAC-12 IN code',
+);
+
+const smartInverterDraft = generateSeriesDraft({
+  brand: 'Ballu',
+  category: 'Кондиционирование',
+  group: 'Бытовые мобильные кондиционеры',
+  seriesName: 'Smart Inverter',
+  code: 'BPAC-IN',
+  exactSeriesRawText: smartInverterMixedRawText,
+  technicalRawText: smartInverterMixedRawText,
+  exactSeriesPages: [55],
+  technicalPages: [55],
+});
+const smartInverterImportantSpecsText = smartInverterDraft.importantSpecs.join(' ');
+const smartInverterCatalogSpecsText = smartInverterDraft.catalogExtract.importantSpecs.join(' ');
+const smartInverterFeaturesText = smartInverterDraft.catalogExtract.factualFeatures.join(' ');
+for (const expectedSpec of [
+  'производительность охлаждения/обогрева 3500/2930 Вт',
+  'производительность охлаждения/обогрева 12000/10000 BTU',
+  'класс энергоэффективности A++',
+  'расход воздуха 450 м³/ч',
+  'уровень шума 39 дБ',
+  'питание 220–240 В / 50 Гц',
+  'номинальная мощность охлаждения/обогрева 975/810 Вт',
+  'номинальный ток охлаждения/обогрева 4,8/4,6 А',
+  'габариты 450×745×396 мм',
+  'габариты упаковки 499×880×459 мм',
+  'вес нетто/брутто 31,1/35,5 кг',
+  'хладагент R290',
+  'воздуховод: 1500 мм, Ø150 мм',
+]) {
+  assert.ok(smartInverterDraft.importantSpecs.includes(expectedSpec), `Smart Inverter importantSpecs must contain ${expectedSpec}`);
+  assert.ok(smartInverterCatalogSpecsText.includes(expectedSpec), `Smart Inverter catalogExtract.importantSpecs must contain ${expectedSpec}`);
+}
+for (const forbiddenPattern of [/15\s*\/\s*000|15\s*000/iu, /51\s*\/\s*000|51\s*000/iu, /1360×1030×820/iu, /172\s*\/\s*253/iu, /площадь до 320/iu, /BGK15/iu, /HEAVY PRO/iu, /HEAVY INDUSTRIAL/iu, /BDI-70L/iu, /осушители/iu, /BPAC-12 IE/iu, /энергоэффективность A\+(?!\+)/iu, /сенсорная Touch-панель/iu, /тангенциальный вентилятор/iu, /энергопотребление менее 1 кВт\/ч/iu]) {
+  assert.equal(forbiddenPattern.test(`${smartInverterImportantSpecsText} ${smartInverterCatalogSpecsText} ${smartInverterFeaturesText}`), false, `Smart Inverter draft must not leak ${forbiddenPattern}`);
+}
+for (const expectedFeaturePattern of [/инверторная технология/iu, /плавная регулировка компрессора/iu, /низкий уровень шума 40 дБ/iu, /подходит для спальни/iu, /экономия энергии 20%/iu, /точное поддержание температуры/iu, /стабильная температура/iu, /4 режима работы/iu, /Wi-Fi управление/iu, /SMART-режим/iu, /R290 эко-фреон/iu, /24-часовой таймер/iu, /пульт с подсветкой/iu, /охлаждение/iu, /обогрев/iu, /вентиляция/iu, /осушение/iu]) {
+  assert.match(smartInverterFeaturesText, expectedFeaturePattern, `Smart Inverter factualFeatures must contain ${expectedFeaturePattern}`);
+}
+
+}
 
 const velureDraft = generateSeriesDraft({
   brand: 'Ballu',

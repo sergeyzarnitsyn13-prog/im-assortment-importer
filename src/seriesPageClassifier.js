@@ -40,6 +40,21 @@ const getCodeSuffixTokens = (code = '') => ['in', 'out'].flatMap((suffix) => [
   { value: `${code}_${suffix}`, kind: 'modelPrefix' },
 ]);
 
+const getCodeConfirmationTokens = (profile) => {
+  const normalizedSeriesName = normalizeSearchText(profile?.seriesName || '');
+  const normalizedCode = normalizeSearchText(profile?.code || '');
+
+  if (normalizedSeriesName === 'smart inverter' && normalizedCode === 'bpac in') {
+    return [
+      { value: 'BPAC-12 IN / N6', kind: 'modelPrefix' },
+      { value: 'BPAC-12 IN/N6', kind: 'modelPrefix' },
+      { value: 'BPAC 12 IN / N6', kind: 'modelPrefix' },
+    ];
+  }
+
+  return [];
+};
+
 const buildSearchTokens = (profile) => {
   if (!profile) {
     return [];
@@ -52,7 +67,7 @@ const buildSearchTokens = (profile) => {
     { value: compactSearchText(profile.seriesName), kind: 'compactSeriesName' },
     { value: compactSearchText(profile.code), kind: 'compactCode' },
   ];
-  const prefixTokens = getCodeSuffixTokens(profile.code);
+  const prefixTokens = [...getCodeSuffixTokens(profile.code), ...getCodeConfirmationTokens(profile)];
   const seen = new Set();
 
   return [...baseTokens, ...prefixTokens]
@@ -169,6 +184,31 @@ export const getOtherSeriesMatches = (text = '', selectedProfile, allProfiles = 
 const hasTechnicalMarker = (text = '') =>
   includesNormalizedPhrase(text, 'Технические характеристики') || includesNormalizedPhrase(text, 'Параметр / Модель');
 
+const profileRequiresCodeConfirmation = (profile, allProfiles = SERIES_PROFILES) => {
+  const selectedName = normalizeSearchText(profile?.seriesName || '');
+
+  if (!selectedName) {
+    return false;
+  }
+
+  return allProfiles.some((otherProfile) => {
+    if (otherProfile.id === profile?.id) {
+      return false;
+    }
+
+    const otherName = normalizeSearchText(otherProfile.seriesName || '');
+    return otherName !== selectedName && otherName.includes(selectedName);
+  });
+};
+
+const hasForbiddenSmartInverterText = (text = '', profile = {}) => {
+  if (normalizeSearchText(profile.seriesName) !== 'smart inverter' || normalizeSearchText(profile.code) !== 'bpac in') {
+    return false;
+  }
+
+  return /\bEVO\b|HEAVY\s+PRO|HEAVY\s+INDUSTRIAL|Промышленные\s+мобильные\s+(?:кондиционеры|осушители)|\bBGK\s*(?:15|18|25|32)\b|\bBDI\s*-?\s*(?:70|100)L\b|\bBPAC\s*-?\s*(?:12|14)\s+IE\s*\/?\s*N6\b/iu.test(text);
+};
+
 const getTechnicalPageReasons = ({ matchedTokenObjects = [], hasTechnicalTableMarker = false }) => {
   const reasons = [];
   const modelPrefixes = unique(
@@ -228,9 +268,20 @@ function scoreSeriesPage(page, profile, allProfiles = []) {
   return score;
 }
 
-const getPageClass = ({ matchedTokens, matchedOtherSeries, hasSelectedCode, isHommynPage, hasTechnicalTableMarker, reasonTechnicalPage }) => {
+const getPageClass = ({ text, profile, allProfiles, matchedTokens, matchedOtherSeries, hasSelectedCode, isHommynPage, hasTechnicalTableMarker, reasonTechnicalPage }) => {
   const hasSelectedSeries = matchedTokens.length > 0;
   const hasManyOtherSeries = matchedOtherSeries.length >= 4;
+  const requiresCodeConfirmation = profileRequiresCodeConfirmation(profile, allProfiles);
+
+  if (hasSelectedSeries && requiresCodeConfirmation && !hasSelectedCode) {
+    return hasForbiddenSmartInverterText(text, profile) || matchedOtherSeries.length > 0
+      ? PAGE_CLASSES.otherSeriesPage
+      : PAGE_CLASSES.categoryPage;
+  }
+
+  if (hasSelectedSeries && hasForbiddenSmartInverterText(text, profile) && !hasSelectedCode) {
+    return PAGE_CLASSES.otherSeriesPage;
+  }
 
   if (hasSelectedSeries && reasonTechnicalPage.length > 0) {
     return PAGE_CLASSES.exactSeriesPage;
@@ -289,6 +340,9 @@ export const classifyPageForSeries = (page, profile, allProfiles = SERIES_PROFIL
   const hasTechnicalTableMarker = hasTechnicalMarker(text);
   const reasonTechnicalPage = getTechnicalPageReasons({ matchedTokenObjects, hasTechnicalTableMarker });
   const pageClass = getPageClass({
+    text,
+    profile,
+    allProfiles,
     matchedTokens,
     matchedOtherSeries,
     hasSelectedCode,

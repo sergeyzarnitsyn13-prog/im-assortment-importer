@@ -1,4 +1,5 @@
 import { SERIES_PROFILES, findSeriesProfile } from './data/seriesProfiles.js';
+import { extractRelevantSeriesBlock } from './seriesBlockExtractor.js';
 
 const featurePatterns = [
   { label: 'Wi-Fi управление', patterns: [/\bwi\s*-?\s*fi\b/u, /\bwifi\b/u, /вай\s*-?\s*фай/u, /\bhommyn\b/u, /работает\s+с\s+hommyn/u] },
@@ -6,9 +7,12 @@ const featurePatterns = [
   { label: 'инверторная технология', patterns: [/инверт[ое]рн[а-яё]+\s+технолог/u] },
   { label: 'инверторный компрессор', patterns: [/инверторн[а-яё]+\s+компрессор/u] },
   { label: 'точное поддержание температуры', patterns: [/точн[а-яё\s]{0,80}поддержан[а-яё\s]{0,80}(?:комфортн[а-яё\s]+)?температур/u] },
+  { label: 'точность поддержания до ±0,5 °C', patterns: [/точн[а-яё\s]{0,80}(?:до|±)\s*±?\s*0[,.]5\s*°?\s*c/u, /погрешност[а-яё\s]{0,40}до\s*±?\s*0[,.]5\s*°?\s*c/u] },
+  { label: 'стабильная температура', patterns: [/стабильн[а-яё]+\s+температур/u] },
   { label: 'экономичное поддержание температуры', patterns: [/экономичн[а-яё\s]{0,80}поддержан[а-яё\s]{0,80}(?:комфортн[а-яё\s]+)?температур/u] },
   { label: 'тихая работа', patterns: [/(?:исключительно\s+)?тих[а-яё]+\s+работ/u] },
   { label: 'низкий уровень шума 40 дБ', patterns: [/(?:уров[а-яё]+\s+шума[а-яё\s]+(?:всего\s+)?)?40\s*дб[а]?/u] },
+  { label: 'подходит для спальни', patterns: [/подход[а-яё\s]{0,40}для\s+спальн/u, /использова[а-яё\s]{0,60}в\s+спальн/u] },
   { label: 'дополнительная шумоизоляция', patterns: [/дополнительн[а-яё]+\s+шумоизоляц/u] },
   { label: 'тангенциальный вентилятор снижает шум', patterns: [/тангенциальн[а-яё]+\s+вентилятор[а-яё\s]{0,80}снижа[а-яё]+[а-яё\s]{0,40}шум/u] },
   { label: 'сенсорная Touch-панель', patterns: [/touch\s*-?\s*панел/u, /сенсорн[а-яё]+\s+панел[а-яё\s]*(?:с\s+дисплеем)?/u] },
@@ -878,7 +882,7 @@ const CATEGORY_EXTRACTION_PROFILES = {
     id: 'mobileAirConditioner',
     categoryMatchers: [/бытов[а-яё\s]*мобильн[а-яё\s]*кондиционер/u, /мобильн[а-яё\s]*кондиционер/u],
     codeMatchers: [/\b(?:BPAC|BPHS)(?:[\s_-]*[A-Z0-9]+)*\b/iu],
-    featureAllow: [/инвертор|компрессор/u, /точн[а-яё]*\s+поддержан|экономичн[а-яё]*\s+поддержан/u, /тих|шумоизоляц|шум|40\s*дб|тангенциальн/u, /управлен|смартфон|wi-?fi|touch|сенсорн|пульт/u, /энергоэффектив|класс|энергопотреблен|экономичн|экономия|электроэнерг/u, /хладагент|r\s*32|r\s*290|эко-?фреон/u, /режим|таймер/u, /мобильн|монтаж|перемещ|установк|включен/u, /охлажд/u, /обогрев/u, /вентиляц/u, /осуш/u, /площад/u, /холодопроизводительность|btu/u, /smart/u, /turbo/u, /auto\s*swing/u, /текстильн|дизайн/u, /без\s+воздуховод|встроенн[а-яё]*\s+бак|тепловыделен|auto\s*-?\s*swing|compact/u, /температур|погрешност/u, /2\s+независим/u, /расход воздуха/u, /интерьер|тканев|led|дисплей|жалюз|площадь до|окон/u],
+    featureAllow: [/инвертор|компрессор/u, /точн[а-яё]*\s+поддержан|экономичн[а-яё]*\s+поддержан/u, /тих|шумоизоляц|шум|40\s*дб|тангенциальн|спальн/u, /управлен|смартфон|wi-?fi|touch|сенсорн|пульт/u, /энергоэффектив|класс|энергопотреблен|экономичн|экономия|электроэнерг/u, /хладагент|r\s*32|r\s*290|эко-?фреон/u, /режим|таймер/u, /мобильн|монтаж|перемещ|установк|включен/u, /охлажд/u, /обогрев/u, /вентиляц/u, /осуш/u, /площад/u, /холодопроизводительность|btu/u, /smart/u, /turbo/u, /auto\s*swing/u, /текстильн|дизайн/u, /без\s+воздуховод|встроенн[а-яё]*\s+бак|тепловыделен|auto\s*-?\s*swing|compact/u, /температур|погрешност/u, /2\s+независим/u, /расход воздуха/u, /интерьер|тканев|led|дисплей|жалюз|площадь до|окон/u],
     importantSpecKeywords: ['холодопроизводительность', 'btu', 'класс энергоэффективности', 'хладагент', 'r290', 'r32', 'расход воздуха', 'уровень шума', 'потребляемая мощность', 'номинальная мощность', 'номинальный ток', 'электропитание', 'напряжение питания', 'габарит', 'размер', 'вес', 'нетто', 'брутто', 'площадь', 'воздуховод', 'диаметр воздуховода', 'длина воздуховода'],
     arguments: [
       { text: 'не требует профессионального монтажа', requires: [/монтаж/u] },
@@ -1662,7 +1666,7 @@ const normalizeMobileTechnicalTableText = (rawText = '') => String(rawText ?? ''
   .replace(/[()]/gu, ' ')
   .replace(/м\s*(?:3|³)\s*\/\s*ч/giu, 'м³/ч')
   .replace(/д\s*б\s*(?:\(\s*а\s*\)|а)?/giu, 'дБ')
-  .replace(/в\s*[~-]\s*гц\s*,?\s*ф/giu, 'В~Гц,Ф')
+  .replace(/в\s*[~-]\s*гц\s*[,/]?\s*ф/giu, 'В~Гц,Ф')
   .replace(/в\s*-\s*гц/giu, 'В-Гц')
   .replace(/\s+/gu, ' ')
   .trim();
@@ -1708,19 +1712,23 @@ const extractMobileTechnicalTableSpecs = (rawText = '') => {
   const dimension = '(\\d{2,4}\\s*[×xх]\\s*\\d{2,4}\\s*[×xх]\\s*\\d{2,4})';
   const weight = '(\\d+(?:[,.]\\d+)?\\s*\\/\\s*\\d+(?:[,.]\\d+)?)';
 
+  add(new RegExp(`производительность\\s+охлаждение\\s*\\/\\s*обогрев\\s+(вт|квт)\\s+${number}\\s*\\/\\s*${number}`, 'iu'), (unit, ...values) => `производительность охлаждения/обогрева ${joinSpecValues(values)} ${unit.toLocaleLowerCase('ru-RU') === 'квт' ? 'кВт' : 'Вт'}`);
+  add(new RegExp(`производительность\\s+охлаждение\\s*\\/\\s*обогрев\\s+btu\\s+${number}\\s*\\/\\s*${number}`, 'iu'), (...values) => `производительность охлаждения/обогрева ${joinSpecValues(values)} BTU`);
   add(new RegExp(`производительность\\s+охлаждение\\s+(вт|квт)\\s+${number}(?:\\s+${number})?`, 'iu'), (unit, ...values) => `производительность охлаждения ${joinSpecValues(values)} ${unit.toLocaleLowerCase('ru-RU') === 'квт' ? 'кВт' : 'Вт'}`);
   add(new RegExp(`производительность\\s+охлаждение\\s+btu\\s+${number}(?:\\s+${number})?`, 'iu'), (...values) => `производительность охлаждения ${joinSpecValues(values)} BTU`);
-  add(/класс\s+энергоэффективности\s*(?:eer)?\s+([AА]\+*)(?:\s+([AА]\+*))?/iu, (...values) => `класс энергоэффективности ${joinSpecValues(values).replace(/А/gu, 'A')}`);
+  add(/класс\s+энергоэффективности\s*,?\s*(?:eer)?\s+([AА]\+*)(?:\s+([AА]\+*))?/iu, (...values) => `класс энергоэффективности ${joinSpecValues(values).replace(/А/gu, 'A')}`);
   add(new RegExp(`расход\\s+воздуха\\s*(?:м³/ч)?\\s+${number}(?:\\s+${number})?`, 'iu'), (...values) => `расход воздуха ${joinSpecValues(values)} м³/ч`);
   add(new RegExp(`уровень\\s+шума\\s*(?:дБ)?\\s+${number}(?:\\s+${number})?`, 'iu'), (...values) => `уровень шума ${joinSpecValues(values)} дБ`);
   add(/напряжение\s+питания\s*(?:В~Гц,Ф|В-Гц)?\s+(\d{3}\s*-\s*\d{3}\s*(?:~|-|\/)?\s*\d{2})(?:\s+(\d{3}\s*-\s*\d{3}\s*(?:~|-|\/)?\s*\d{2}))?/iu, (...values) => {
     const voltage = formatVoltageSpec(...values);
     return voltage ? `питание ${voltage}` : '';
   });
+  add(new RegExp(`номинальная\\s+мощность\\s+охлаждение\\s*\\/\\s*обогрев\\s+(вт|квт)?\\s*${number}\\s*\\/\\s*${number}`, 'iu'), (unit = 'вт', ...values) => `номинальная мощность охлаждения/обогрева ${joinSpecValues(values)} ${unit.toLocaleLowerCase('ru-RU') === 'квт' ? 'кВт' : 'Вт'}`);
+  add(new RegExp(`номинальный\\s+ток\\s+охлаждение\\s*\\/\\s*обогрев\\s+(?:а|a)?\\s*${number}\\s*\\/\\s*${number}`, 'iu'), (...values) => `номинальный ток охлаждения/обогрева ${joinSpecValues(values)} А`);
   add(new RegExp(`номинальная\\s+мощность\\s+охлаждение\\s+(вт|квт)?\\s*${number}(?:\\s+${number})?`, 'iu'), (unit = 'вт', ...values) => `номинальная мощность охлаждения ${joinSpecValues(values)} ${unit.toLocaleLowerCase('ru-RU') === 'квт' ? 'кВт' : 'Вт'}`);
   add(new RegExp(`номинальный\\s+ток\\s+охлаждение\\s+(?:а|a)?\\s*${number}(?:\\s+${number})?`, 'iu'), (...values) => `номинальный ток охлаждения ${joinSpecValues(values)} А`);
   add(new RegExp(`размеры\\s+прибора\\s+(?:ш\\s*[×xх]\\s*в\\s*[×xх]\\s*г\\s*)?мм\\s+${dimension}(?:\\s+${dimension})?`, 'iu'), (...values) => `габариты ${joinSpecValues(values.map(normalizeDimensionValue))} мм`);
-  add(new RegExp(`размеры\\s+упаковки\\s+(?:ш\\s*[×xх]\\s*в\\s*[×xх]\\s*г\\s*)?мм\\s+${dimension}(?:\\s+${dimension})?`, 'iu'), (...values) => `габариты упаковки ${joinSpecValues(values.map(normalizeDimensionValue))} мм`);
+  add(new RegExp(`(?:размеры|габариты)\\s+упаковки\\s+(?:ш\\s*[×xх]\\s*в\\s*[×xх]\\s*г\\s*)?мм\\s+${dimension}(?:\\s+${dimension})?`, 'iu'), (...values) => `габариты упаковки ${joinSpecValues(values.map(normalizeDimensionValue))} мм`);
   add(new RegExp(`вес\\s+нетто\\s*\\/\\s*брутто\\s+кг\\s+${weight}(?:\\s+${weight})?`, 'iu'), formatWeightSpec);
 
   return unique(specs);
@@ -1731,12 +1739,16 @@ const extractMobileMultiValueSpecs = extractMobileTechnicalTableSpecs;
 const getSpecDedupeKey = (spec = '') => {
   const normalized = normalizeSearchText(spec);
   const keyPatterns = [
+    /^производительность охлаждения\/обогрева \d+[\d,./]*\s*вт/u,
+    /^производительность охлаждения\/обогрева \d+[\d,./]*\s*btu/u,
     /^производительность охлаждения \d+[\d,./]*\s*вт/u,
     /^производительность охлаждения \d+[\d,./]*\s*btu/u,
     /^класс энергоэффективности/u,
     /^расход воздуха/u,
     /^уровень шума/u,
     /^питание/u,
+    /^номинальная мощность охлаждения\/обогрева/u,
+    /^номинальный ток охлаждения\/обогрева/u,
     /^номинальная мощность охлаждения/u,
     /^номинальный ток охлаждения/u,
     /^габариты упаковки/u,
@@ -1776,7 +1788,7 @@ const extractMobileTableSpecs = (rawText = '') => {
     extractFirstMatchValue(rawText, /холодопроизводительность\s*вт\s*(\d{2,5})/iu, (value) => `производительность охлаждения ${value} Вт`),
     extractFirstMatchValue(rawText, /холодопроизводительность\s*btu\s*(\d{3,6})/iu, (value) => `производительность охлаждения ${value} BTU`),
     extractFirstMatchValue(rawText, /класс\s+энергоэффективности\s*\([^)]*охлаждение[^)]*\)\s*([AА]\+*)/iu, (value) => `класс энергоэффективности ${String(value).replace('А', 'A')}`),
-    extractFirstMatchValue(rawText, /(?:хладагент|фреон)\s*(R\s*\d{2,3})/iu, (value) => `хладагент ${value.replace(/\s+/gu, '')}`),
+    extractFirstMatchValue(rawText, /(?:хладагент|фреон)\s*(R\s*\d{2,3})|\b(R\s*\d{2,3})\b\s*эко\s*-?\s*фреон/iu, (...values) => `хладагент ${values.find(Boolean).replace(/\s+/gu, '')}`),
     extractFirstMatchValue(rawText, /расход\s+воздуха\s*(?:м\s*(?:³|3)\s*\/\s*ч)?\s*(\d{2,5})/iu, (value) => `расход воздуха ${value} м³/ч`),
     extractFirstMatchValue(rawText, /уровень\s+шума\s*(?:дб(?:\(а\)|[аa])?)?\s*(\d{2,3})/iu, (value) => `уровень шума ${value} дБ`),
     extractFirstMatchValue(rawText, /потребляемая\s+мощность\s*\([^)]*охлаждение[^)]*\)\s*вт\s*(\d{2,5})/iu, (value) => `потребляемая мощность ${value} Вт`),
@@ -2143,9 +2155,10 @@ const buildDraftWarning = ({ hasExactSeriesPages, hasTechnicalTable, prefix = ''
 };
 
 const getIsolatedSourceTexts = (source) => {
-  const exactSeriesText = String(source.exactSeriesRawText ?? source.exactSeriesText ?? source.overviewRawText ?? '');
-  const categorySummaryText = String(source.categorySummaryRawText ?? source.categorySummaryText ?? source.summaryRawText ?? source.summaryText ?? '');
-  const technicalText = String(source.technicalRawText ?? source.technicalText ?? '');
+  const profile = findSeriesProfile(source?.profileId || source?.code || source?.seriesName) || source || {};
+  const exactSeriesText = extractRelevantSeriesBlock(String(source.exactSeriesRawText ?? source.exactSeriesText ?? source.overviewRawText ?? ''), profile);
+  const categorySummaryText = extractRelevantSeriesBlock(String(source.categorySummaryRawText ?? source.categorySummaryText ?? source.summaryRawText ?? source.summaryText ?? ''), profile);
+  const technicalText = extractRelevantSeriesBlock(String(source.technicalRawText ?? source.technicalText ?? ''), profile);
   const serviceText = String(source.serviceRawText ?? source.serviceText ?? '');
 
   return {

@@ -9,6 +9,7 @@ import {
   hasProfileCodeMatch,
   normalizeSearchText,
 } from './seriesPageClassifier';
+import { extractRelevantSeriesBlock } from './seriesBlockExtractor';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
@@ -533,6 +534,9 @@ function PdfImportPanel({ onCreateSource }) {
     const sourceBrand = profile?.brand || brand;
     const sourceCategory = profile?.category || category;
 
+    const isolatedExactSeriesRawText = extractRelevantSeriesBlock(selectedExactSeriesRawText.trim(), profile || { seriesName, code: form.code.trim(), group: form.group.trim() });
+    const isolatedTechnicalRawText = extractRelevantSeriesBlock(selectedTechnicalRawText.trim(), profile || { seriesName, code: form.code.trim(), group: form.group.trim() });
+
     return {
       title: `${sourceBrand} ${catalogYear} — ${seriesName}`.trim(),
       type: 'catalog',
@@ -545,13 +549,13 @@ function PdfImportPanel({ onCreateSource }) {
       sourceDate: catalogYear,
       sourceRef: `PDF каталог ${catalogYear}, страницы ${selectedPagesArray.join(', ')}`,
       rawText,
-      exactSeriesRawText: selectedExactSeriesRawText.trim(),
-      technicalRawText: selectedTechnicalRawText.trim(),
+      exactSeriesRawText: isolatedExactSeriesRawText,
+      technicalRawText: isolatedTechnicalRawText,
       overviewRawText: selectedOverviewRawText.trim(),
       summaryRawText: selectedSummaryRawText.trim(),
       serviceRawText: selectedServiceRawText.trim(),
-      exactSeriesText: selectedExactSeriesRawText.trim(),
-      technicalText: selectedTechnicalRawText.trim(),
+      exactSeriesText: isolatedExactSeriesRawText,
+      technicalText: isolatedTechnicalRawText,
       summaryText: selectedSummaryRawText.trim(),
       serviceText: selectedServiceRawText.trim(),
       exactSeriesPages: selectedExactSeriesPageNumbers,
