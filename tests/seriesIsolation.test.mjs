@@ -22,6 +22,35 @@ const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const hasExactToken = (text, token) =>
   new RegExp(`(^|[^0-9a-zа-яё])${escapeRegExp(token)}([^0-9a-zа-яё]|$)`, 'iu').test(text);
 
+
+const emptySalesTextsDraft = generateSeriesDraft({
+  brand: 'Ballu',
+  category: 'Тестовая категория без профиля',
+  group: 'Тестовая группа',
+  code: 'MTT',
+  seriesName: 'MANUAL TEXT TEST',
+  exactSeriesRawText: 'MANUAL TEXT TEST MTT описание серии без автоматического профиля.',
+  technicalRawText: 'Технические характеристики MTT\nМощность охлаждения 2.5 кВт\nУровень шума 24 дБ',
+  exactSeriesPages: [1],
+  technicalPages: [2],
+});
+assert.equal(emptySalesTextsDraft.shortDescription, '', 'draft without manual/legacy profile may keep shortDescription empty');
+assert.equal(emptySalesTextsDraft.positioning, '', 'draft without manual/legacy profile may keep positioning empty');
+assert.equal(
+  emptySalesTextsDraft.diagnostics.warnings.includes('Краткое описание не заполнено.'),
+  false,
+  'empty shortDescription must not add critical diagnostic warning',
+);
+assert.equal(
+  emptySalesTextsDraft.diagnostics.warnings.includes('Позиционирование не заполнено.'),
+  false,
+  'empty positioning must not add critical diagnostic warning',
+);
+assert.ok(
+  emptySalesTextsDraft.diagnostics.notes.includes('Продажные тексты не генерируются автоматически. Заполните вручную при необходимости.'),
+  'empty sales texts should add a soft diagnostic note',
+);
+
 for (const profile of SERIES_PROFILES) {
   const draft = generateSeriesDraft({
     title: `Тест ${profile.seriesName}`,
