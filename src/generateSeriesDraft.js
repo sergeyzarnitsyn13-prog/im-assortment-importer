@@ -634,7 +634,9 @@ const extractDiagnosticModelCodes = (source, draftCode = '') => {
     .filter(Boolean));
 };
 
-const getDiagnosticsWarnings = ({ diagnostics, draft }) => [
+const SALES_TEXTS_MANUAL_NOTE = 'Продажные тексты не генерируются автоматически. Заполните вручную при необходимости.';
+
+const getDiagnosticsWarnings = ({ diagnostics }) => [
   diagnostics.seriesName ? '' : 'Не определена серия.',
   diagnostics.brand ? '' : 'Не определён бренд.',
   diagnostics.descriptionPages.length > 0 || diagnostics.descriptionRawTextLength > 0 ? '' : 'Страницы описания серии не найдены.',
@@ -643,8 +645,10 @@ const getDiagnosticsWarnings = ({ diagnostics, draft }) => [
   diagnostics.modelCodes.length > 0 ? '' : 'Модели/коды не найдены.',
   diagnostics.salesFeatures.length > 0 ? '' : 'Продажные особенности не найдены.',
   diagnostics.technicalSpecs.length > 0 ? '' : 'Технические характеристики не найдены.',
-  draft.shortDescription ? '' : 'Краткое описание не заполнено.',
-  draft.positioning ? '' : 'Позиционирование не заполнено.',
+].filter(Boolean);
+
+const getDiagnosticsNotes = ({ draft }) => [
+  draft.shortDescription && draft.positioning ? '' : SALES_TEXTS_MANUAL_NOTE,
 ].filter(Boolean);
 
 const buildDraftDiagnostics = (source, draft) => {
@@ -671,7 +675,11 @@ const buildDraftDiagnostics = (source, draft) => {
     ...diagnostics,
     warnings: unique([
       ...(source?.pageDiagnostics?.warnings || []),
-      ...getDiagnosticsWarnings({ diagnostics, draft }),
+      ...getDiagnosticsWarnings({ diagnostics }),
+    ]),
+    notes: unique([
+      ...(source?.pageDiagnostics?.notes || []),
+      ...getDiagnosticsNotes({ draft }),
     ]),
   };
 };
