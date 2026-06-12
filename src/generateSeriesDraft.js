@@ -1646,59 +1646,148 @@ const extractFirstMatchValue = (rawText = '', pattern, formatter) => {
 };
 
 
+const cleanSpecValue = (value = '') => String(value ?? '').replace(/\s+/gu, '').trim();
+
 const joinSpecValues = (values = []) => {
-  const cleaned = values.map((value) => String(value ?? '').replace(/\s+/gu, '').replace(/,/gu, ',')).filter(Boolean);
+  const cleaned = values.map(cleanSpecValue).filter(Boolean);
   const uniqueValues = unique(cleaned);
 
   return uniqueValues.length <= 1 ? uniqueValues[0] || '' : uniqueValues.join('/');
 };
 
-const normalizeDimensionValue = (value = '') => String(value ?? '').replace(/\s*[xх]\s*/giu, '×').replace(/\s+/gu, '');
+const normalizeDimensionValue = (value = '') => cleanSpecValue(value).replace(/[xх]/giu, '×');
 
-const extractMobileMultiValueSpecs = (rawText = '') => {
-  const text = String(rawText ?? '').replace(/\s+/gu, ' ').trim();
+const normalizeMobileTechnicalTableText = (rawText = '') => String(rawText ?? '')
+  .replace(/[‐‑‒–—−]/gu, '-')
+  .replace(/[()]/gu, ' ')
+  .replace(/м\s*(?:3|³)\s*\/\s*ч/giu, 'м³/ч')
+  .replace(/д\s*б\s*(?:\(\s*а\s*\)|а)?/giu, 'дБ')
+  .replace(/в\s*[~-]\s*гц\s*,?\s*ф/giu, 'В~Гц,Ф')
+  .replace(/в\s*-\s*гц/giu, 'В-Гц')
+  .replace(/\s+/gu, ' ')
+  .trim();
+
+const formatVoltageSpec = (...values) => {
+  const normalizedValues = values
+    .map((value) => String(value ?? '').trim())
+    .filter(Boolean)
+    .map((value) => {
+      const match = /(\d{3})\s*-\s*(\d{3})\s*(?:~|\/|-)?\s*(\d{2})/.exec(value);
+
+      return match ? `${match[1]}–${match[2]} В / ${match[3]} Гц` : '';
+    })
+    .filter(Boolean);
+  const uniqueValues = unique(normalizedValues);
+
+  return uniqueValues.length <= 1 ? uniqueValues[0] || '' : uniqueValues.join(' / ');
+};
+
+const formatWeightSpec = (...values) => {
+  const cleaned = unique(values
+    .map((value) => String(value ?? '').replace(/\s*\/\s*/gu, '/').trim())
+    .filter(Boolean));
+
+  return cleaned.length ? `вес нетто/брутто ${cleaned.join(' и ')} кг` : '';
+};
+
+const extractMobileTechnicalTableSpecs = (rawText = '') => {
+  const text = normalizeMobileTechnicalTableText(rawText);
   const specs = [];
   const add = (pattern, formatter) => {
     const match = pattern.exec(text);
-    if (match) {
-      const value = formatter(...match.slice(1));
-      if (value) specs.push(value);
+    if (!match) {
+      return;
+    }
+
+    const value = formatter(...match.slice(1));
+    if (value) {
+      specs.push(value);
     }
   };
+  const number = '(\\d+(?:[,.]\\d+)?)';
+  const dimension = '(\\d{2,4}\\s*[×xх]\\s*\\d{2,4}\\s*[×xх]\\s*\\d{2,4})';
+  const weight = '(\\d+(?:[,.]\\d+)?\\s*\\/\\s*\\d+(?:[,.]\\d+)?)';
 
-  add(/производительность\s+охлаждение\s+вт\s+(\d{2,5})(?:\s+(\d{2,5}))?/iu, (...values) => `холодопроизводительность ${joinSpecValues(values)} Вт`);
-  add(/производительность\s+охлаждение\s+btu\s+(\d{3,6})(?:\s+(\d{3,6}))?/iu, (...values) => `холодопроизводительность ${joinSpecValues(values)} BTU`);
-  add(/класс\s+энергоэффективности(?:\s+eer)?\s+([AА]\+?)(?:\s+([AА]\+?))?/iu, (...values) => `класс энергоэффективности ${joinSpecValues(values).replace(/А/gu, 'A')}`);
-  add(/расход\s+воздуха\s*(?:м(?:³|3)\s*\/\s*ч)?\s+(\d{2,5})(?:\s+(\d{2,5}))?/iu, (...values) => `расход воздуха ${joinSpecValues(values)} м³/ч`);
-  add(/уровень\s+шума\s*(?:дб[аa]?)?\s+(\d{2,3})(?:\s+(\d{2,3}))?/iu, (...values) => `уровень шума ${joinSpecValues(values)} дБА`);
-  add(/номинальная\s+мощность\s+охлаждение\s+(?:квт|вт)?\s*(\d{2,5})(?:\s+(\d{2,5}))?/iu, (...values) => `мощность ${joinSpecValues(values)} Вт`);
-  add(/размеры\s+прибора\s+(?:ш[×xх]\s*в[×xх]\s*г\s*)?мм\s+(\d{2,4}\s*[×xх]\s*\d{2,4}\s*[×xх]\s*\d{2,4})(?:\s+\d{2,4}\s*[×xх]\s*\d{2,4}\s*[×xх]\s*\d{2,4})?/iu, (value) => `размеры прибора ${normalizeDimensionValue(value)} мм`);
-  add(/вес\s+нетто\s*\/\s*брутто\s+кг\s+(\d+(?:[,.]\d+)?\s*\/\s*\d+(?:[,.]\d+)?)(?:\s+(\d+(?:[,.]\d+)?\s*\/\s*\d+(?:[,.]\d+)?))?/iu, (...values) => {
-    const cleaned = unique(values.map((value) => String(value ?? '').replace(/\s*\/\s*/gu, '/').trim()).filter(Boolean));
-    return `вес ${cleaned.join(' и ')} кг`;
+  add(new RegExp(`производительность\\s+охлаждение\\s+(вт|квт)\\s+${number}(?:\\s+${number})?`, 'iu'), (unit, ...values) => `производительность охлаждения ${joinSpecValues(values)} ${unit.toLocaleLowerCase('ru-RU') === 'квт' ? 'кВт' : 'Вт'}`);
+  add(new RegExp(`производительность\\s+охлаждение\\s+btu\\s+${number}(?:\\s+${number})?`, 'iu'), (...values) => `производительность охлаждения ${joinSpecValues(values)} BTU`);
+  add(/класс\s+энергоэффективности\s*(?:eer)?\s+([AА]\+*)(?:\s+([AА]\+*))?/iu, (...values) => `класс энергоэффективности ${joinSpecValues(values).replace(/А/gu, 'A')}`);
+  add(new RegExp(`расход\\s+воздуха\\s*(?:м³/ч)?\\s+${number}(?:\\s+${number})?`, 'iu'), (...values) => `расход воздуха ${joinSpecValues(values)} м³/ч`);
+  add(new RegExp(`уровень\\s+шума\\s*(?:дБ)?\\s+${number}(?:\\s+${number})?`, 'iu'), (...values) => `уровень шума ${joinSpecValues(values)} дБ`);
+  add(/напряжение\s+питания\s*(?:В~Гц,Ф|В-Гц)?\s+(\d{3}\s*-\s*\d{3}\s*(?:~|-|\/)?\s*\d{2})(?:\s+(\d{3}\s*-\s*\d{3}\s*(?:~|-|\/)?\s*\d{2}))?/iu, (...values) => {
+    const voltage = formatVoltageSpec(...values);
+    return voltage ? `питание ${voltage}` : '';
   });
+  add(new RegExp(`номинальная\\s+мощность\\s+охлаждение\\s+(вт|квт)?\\s*${number}(?:\\s+${number})?`, 'iu'), (unit = 'вт', ...values) => `номинальная мощность охлаждения ${joinSpecValues(values)} ${unit.toLocaleLowerCase('ru-RU') === 'квт' ? 'кВт' : 'Вт'}`);
+  add(new RegExp(`номинальный\\s+ток\\s+охлаждение\\s+(?:а|a)?\\s*${number}(?:\\s+${number})?`, 'iu'), (...values) => `номинальный ток охлаждения ${joinSpecValues(values)} А`);
+  add(new RegExp(`размеры\\s+прибора\\s+(?:ш\\s*[×xх]\\s*в\\s*[×xх]\\s*г\\s*)?мм\\s+${dimension}(?:\\s+${dimension})?`, 'iu'), (...values) => `габариты ${joinSpecValues(values.map(normalizeDimensionValue))} мм`);
+  add(new RegExp(`размеры\\s+упаковки\\s+(?:ш\\s*[×xх]\\s*в\\s*[×xх]\\s*г\\s*)?мм\\s+${dimension}(?:\\s+${dimension})?`, 'iu'), (...values) => `габариты упаковки ${joinSpecValues(values.map(normalizeDimensionValue))} мм`);
+  add(new RegExp(`вес\\s+нетто\\s*\\/\\s*брутто\\s+кг\\s+${weight}(?:\\s+${weight})?`, 'iu'), formatWeightSpec);
 
   return unique(specs);
 };
 
+const extractMobileMultiValueSpecs = extractMobileTechnicalTableSpecs;
+
+const getSpecDedupeKey = (spec = '') => {
+  const normalized = normalizeSearchText(spec);
+  const keyPatterns = [
+    /^производительность охлаждения \d+[\d,./]*\s*вт/u,
+    /^производительность охлаждения \d+[\d,./]*\s*btu/u,
+    /^класс энергоэффективности/u,
+    /^расход воздуха/u,
+    /^уровень шума/u,
+    /^питание/u,
+    /^номинальная мощность охлаждения/u,
+    /^номинальный ток охлаждения/u,
+    /^габариты упаковки/u,
+    /^габариты/u,
+    /^вес нетто\/брутто/u,
+    /^хладагент/u,
+  ];
+  const matchedPattern = keyPatterns.find((pattern) => pattern.test(normalized));
+
+  return matchedPattern ? String(matchedPattern) : normalized;
+};
+
+const mergeMobileSpecs = (...specGroups) => {
+  const specs = [];
+  const seenKeys = new Set();
+
+  for (const spec of specGroups.flat()) {
+    if (!spec) {
+      continue;
+    }
+
+    const key = getSpecDedupeKey(spec);
+    if (seenKeys.has(key)) {
+      continue;
+    }
+
+    seenKeys.add(key);
+    specs.push(spec);
+  }
+
+  return specs;
+};
+
 const extractMobileTableSpecs = (rawText = '') => {
-  const specs = [
-    ...extractMobileMultiValueSpecs(rawText),
-    extractFirstMatchValue(rawText, /холодопроизводительность\s*вт\s*(\d{2,5})/iu, (value) => `холодопроизводительность ${value} Вт`),
-    extractFirstMatchValue(rawText, /холодопроизводительность\s*btu\s*(\d{3,6})/iu, (value) => `холодопроизводительность ${value} BTU`),
+  const tableSpecs = extractMobileTechnicalTableSpecs(rawText);
+  const fallbackSpecs = [
+    extractFirstMatchValue(rawText, /холодопроизводительность\s*вт\s*(\d{2,5})/iu, (value) => `производительность охлаждения ${value} Вт`),
+    extractFirstMatchValue(rawText, /холодопроизводительность\s*btu\s*(\d{3,6})/iu, (value) => `производительность охлаждения ${value} BTU`),
     extractFirstMatchValue(rawText, /класс\s+энергоэффективности\s*\([^)]*охлаждение[^)]*\)\s*([AА]\+*)/iu, (value) => `класс энергоэффективности ${String(value).replace('А', 'A')}`),
     extractFirstMatchValue(rawText, /(?:хладагент|фреон)\s*(R\s*\d{2,3})/iu, (value) => `хладагент ${value.replace(/\s+/gu, '')}`),
-    extractFirstMatchValue(rawText, /расход\s+воздуха\s*(?:м(?:³|3)\s*\/\s*ч)?\s*(\d{2,5})/iu, (value) => `расход воздуха ${value} м³/ч`),
-    extractFirstMatchValue(rawText, /уровень\s+шума\s*(?:дб[аa]?)?\s*(\d{2,3})/iu, (value) => `уровень шума ${value} дБА`),
+    extractFirstMatchValue(rawText, /расход\s+воздуха\s*(?:м\s*(?:³|3)\s*\/\s*ч)?\s*(\d{2,5})/iu, (value) => `расход воздуха ${value} м³/ч`),
+    extractFirstMatchValue(rawText, /уровень\s+шума\s*(?:дб(?:\(а\)|[аa])?)?\s*(\d{2,3})/iu, (value) => `уровень шума ${value} дБ`),
     extractFirstMatchValue(rawText, /потребляемая\s+мощность\s*\([^)]*охлаждение[^)]*\)\s*вт\s*(\d{2,5})/iu, (value) => `потребляемая мощность ${value} Вт`),
-    extractFirstMatchValue(rawText, /номинальн(?:ый|ая)\s+ток\s*\([^)]*охлаждение[^)]*\)\s*a\s*(\d+(?:[,.]\d+)?)/iu, (value) => `номинальный ток ${value} А`),
+    extractFirstMatchValue(rawText, /номинальн(?:ый|ая)\s+ток\s*\([^)]*охлаждение[^)]*\)\s*[aа]\s*(\d+(?:[,.]\d+)?)/iu, (value) => `номинальный ток охлаждения ${value} А`),
     extractFirstMatchValue(rawText, /электропитание\s*в\s*-\s*гц\s*([0-9]{3}\s*-\s*[0-9]{3}\s*v?\s*[0-9]{2}\s*hz)/iu, (value) => `электропитание ${value.replace(/\s*-\s*/gu, '–').replace(/\s+/gu, ' ')}`),
-    extractFirstMatchValue(rawText, /(?:габариты|размеры\s+прибора)\s*(?:\([^)]*\)|ш[×xх]\s*в[×xх]\s*г)?\s*мм\s*(\d{2,4}\s*[×xх]\s*\d{2,4}\s*[×xх]\s*\d{2,4})/iu, (value) => `габариты ${value.replace(/\s*[xх]\s*/giu, '×')} мм`),
-    extractFirstMatchValue(rawText, /габариты\s+в\s+упаковке\s*\([^)]*\)\s*мм\s*(\d{2,4}\s*[×xх]\s*\d{2,4}\s*[×xх]\s*\d{2,4})/iu, (value) => `габариты упаковки ${value.replace(/\s*[xх]\s*/giu, '×')} мм`),
+    extractFirstMatchValue(rawText, /(?:габариты|размеры\s+прибора)\s*(?:\([^)]*\)|ш[×xх]\s*в[×xх]\s*г)?\s*мм\s*(\d{2,4}\s*[×xх]\s*\d{2,4}\s*[×xх]\s*\d{2,4})/iu, (value) => `габариты ${normalizeDimensionValue(value)} мм`),
+    extractFirstMatchValue(rawText, /(?:габариты\s+в\s+упаковке|размеры\s+упаковки)\s*(?:\([^)]*\)|ш[×xх]\s*в[×xх]\s*г)?\s*мм\s*(\d{2,4}\s*[×xх]\s*\d{2,4}\s*[×xх]\s*\d{2,4})/iu, (value) => `габариты упаковки ${normalizeDimensionValue(value)} мм`),
     extractFirstMatchValue(rawText, /вес\s+нетто\s*\/\s*брутто\s*кг\s*(\d+(?:[,.]\d+)?\s*\/\s*\d+(?:[,.]\d+)?)/iu, (value) => `вес нетто/брутто ${value.replace(/\s*\/\s*/gu, '/')} кг`),
   ];
 
-  return unique(specs.filter(Boolean));
+  return mergeMobileSpecs(tableSpecs, fallbackSpecs);
 };
 
 const isMobileStructuredTechnicalSpecLine = (line = '') => {
