@@ -36,6 +36,10 @@ const emptySalesTextsDraft = generateSeriesDraft({
 });
 assert.equal(emptySalesTextsDraft.shortDescription, '', 'draft without manual/legacy profile may keep shortDescription empty');
 assert.equal(emptySalesTextsDraft.positioning, '', 'draft without manual/legacy profile may keep positioning empty');
+assert.deepEqual(emptySalesTextsDraft.salesArguments, [], 'draft without manual/legacy profile may keep salesArguments empty');
+assert.ok(emptySalesTextsDraft.catalogExtract, 'draft must include catalogExtract');
+assert.ok(Array.isArray(emptySalesTextsDraft.catalogExtract.factualFeatures), 'catalogExtract.factualFeatures must be an array');
+assert.ok(Array.isArray(emptySalesTextsDraft.catalogExtract.importantSpecs), 'catalogExtract.importantSpecs must be an array');
 assert.equal(
   emptySalesTextsDraft.diagnostics.warnings.includes('Краткое описание не заполнено.'),
   false,
@@ -50,6 +54,25 @@ assert.ok(
   emptySalesTextsDraft.diagnostics.notes.includes('Продажные тексты не генерируются автоматически. Заполните вручную при необходимости.'),
   'empty sales texts should add a soft diagnostic note',
 );
+
+const manualSalesProfileDraft = generateSeriesDraft({
+  brand: 'Ballu',
+  category: 'Тестовая категория без профиля',
+  group: 'Тестовая группа',
+  code: 'MSP',
+  seriesName: 'MANUAL SALES PROFILE TEST',
+  exactSeriesRawText: 'MANUAL SALES PROFILE TEST MSP описание из каталога.',
+  technicalRawText: 'Технические характеристики MSP\nМощность охлаждения 2.5 кВт',
+  salesProfile: {
+    status: 'approved',
+    shortDescription: 'Ручное краткое описание.',
+    positioning: 'Ручное позиционирование.',
+    salesArguments: ['Ручной аргумент продаж.'],
+  },
+});
+assert.equal(manualSalesProfileDraft.shortDescription, 'Ручное краткое описание.', 'approved salesProfile shortDescription must be used as-is');
+assert.equal(manualSalesProfileDraft.positioning, 'Ручное позиционирование.', 'approved salesProfile positioning must be used as-is');
+assert.deepEqual(manualSalesProfileDraft.salesArguments, ['Ручной аргумент продаж.'], 'approved salesProfile salesArguments must be used as-is');
 
 for (const profile of SERIES_PROFILES) {
   const draft = generateSeriesDraft({
@@ -221,19 +244,17 @@ const olympioLegendAutoDescriptionDraft = generateSeriesDraft({
   exactSeriesPages: [31],
   technicalPages: [31],
 });
-assert.ok(olympioLegendAutoDescriptionDraft.shortDescription, 'OLYMPIO LEGEND approved profile must get auto shortDescription without legacyProfile');
-assert.ok(olympioLegendAutoDescriptionDraft.positioning, 'OLYMPIO LEGEND approved profile must get auto positioning without legacyProfile');
-assert.match(olympioLegendAutoDescriptionDraft.shortDescription, /OLYMPIO LEGEND/u, 'auto shortDescription must contain OLYMPIO LEGEND');
-assert.match(olympioLegendAutoDescriptionDraft.positioning, /OLYMPIO LEGEND/u, 'auto positioning must contain OLYMPIO LEGEND');
+assert.equal(olympioLegendAutoDescriptionDraft.shortDescription, '', 'OLYMPIO LEGEND without manual/legacy profile may keep shortDescription empty');
+assert.equal(olympioLegendAutoDescriptionDraft.positioning, '', 'OLYMPIO LEGEND without manual/legacy profile may keep positioning empty');
 assert.equal(
   olympioLegendAutoDescriptionDraft.diagnostics.warnings.includes('Краткое описание не заполнено.'),
   false,
-  'auto shortDescription must suppress missing-description diagnostic warning',
+  'empty shortDescription must not add missing-description diagnostic warning',
 );
 assert.equal(
   olympioLegendAutoDescriptionDraft.diagnostics.warnings.includes('Позиционирование не заполнено.'),
   false,
-  'auto positioning must suppress missing-positioning diagnostic warning',
+  'empty positioning must not add missing-positioning diagnostic warning',
 );
 
 const buildTechnicalOnlyDraft = ({ seriesName, technicalRawText, rawText = '', exactSeriesRawText = '' }) => {
@@ -601,8 +622,8 @@ const olympioLegendCategoryDraft = generateSeriesDraft({
   `,
 });
 assert.ok(olympioLegendCategoryDraft.salesFeatures.length > 0, 'ON/OFF split salesFeatures must not be empty');
-assert.ok(olympioLegendCategoryDraft.shortDescription, 'ON/OFF split shortDescription must not be empty');
-assert.ok(olympioLegendCategoryDraft.positioning, 'ON/OFF split positioning must not be empty');
+assert.equal(olympioLegendCategoryDraft.shortDescription, '', 'ON/OFF split shortDescription may stay empty without manual/legacy profile');
+assert.equal(olympioLegendCategoryDraft.positioning, '', 'ON/OFF split positioning may stay empty without manual/legacy profile');
 assert.ok(olympioLegendCategoryDraft.mainAdvantages.length > 0, 'ON/OFF split mainAdvantages must not be empty');
 assert.match(stringifyDraft(olympioLegendCategoryDraft), /3D-контроль|Wi-Fi|i-FEEL|шум|обогрев/iu, 'ON/OFF split must keep category features from input text');
 
@@ -629,8 +650,8 @@ const lagoonCategoryDraft = generateSeriesDraft({
   `,
 });
 assert.ok(lagoonCategoryDraft.salesFeatures.length > 0, 'inverter split salesFeatures must not be empty');
-assert.ok(lagoonCategoryDraft.shortDescription, 'inverter split shortDescription must not be empty');
-assert.ok(lagoonCategoryDraft.positioning, 'inverter split positioning must not be empty');
+assert.equal(lagoonCategoryDraft.shortDescription, '', 'inverter split shortDescription may stay empty without manual/legacy profile');
+assert.equal(lagoonCategoryDraft.positioning, '', 'inverter split positioning may stay empty without manual/legacy profile');
 assert.match(lagoonCategoryDraft.importantSpecs.join('\n'), /A\/A|шум|температур|R32/iu, 'inverter importantSpecs must include energy/noise/temperature/refrigerant when present');
 
 const platinumX4Profile = SERIES_PROFILES.find((profile) => profile.seriesName === 'Platinum X4');
@@ -656,10 +677,10 @@ const platinumX4Draft = generateSeriesDraft({
   technicalPages: [55],
 });
 assert.ok(platinumX4Draft.salesFeatures.length > 0, 'mobile salesFeatures must not be empty');
-assert.ok(platinumX4Draft.shortDescription, 'mobile shortDescription must not be empty');
-assert.ok(platinumX4Draft.positioning, 'mobile positioning must not be empty');
+assert.equal(platinumX4Draft.shortDescription, '', 'mobile shortDescription may stay empty without manual/legacy profile');
+assert.equal(platinumX4Draft.positioning, '', 'mobile positioning may stay empty without manual/legacy profile');
 assert.match(platinumX4Draft.salesFeatures.join('\n'), /монтаж|SMART|TURBO|Auto Swing|Touch/iu, 'mobile salesFeatures must include mobile category features');
-assert.match(platinumX4Draft.positioning, /мобильное решение|без установки|без сложного монтажа/iu, 'mobile positioning must explain mobile/no-install use case');
+assert.deepEqual(platinumX4Draft.salesArguments, [], 'mobile salesArguments may stay empty without manual/legacy profile');
 assert.equal(platinumX4Draft.diagnostics.warnings.includes('Продажные особенности не найдены.'), false, 'mobile warnings must not complain about salesFeatures');
 assert.equal(platinumX4Draft.diagnostics.warnings.includes('Краткое описание не заполнено.'), false, 'mobile warnings must not complain about shortDescription');
 assert.equal(platinumX4Draft.diagnostics.warnings.includes('Позиционирование не заполнено.'), false, 'mobile warnings must not complain about positioning');
@@ -722,8 +743,8 @@ assert.equal(
   false,
   'Smart Inverter mainAdvantages must not be limited to SMART/Touch/cooling',
 );
-assert.match(smartInverterDraft.shortDescription, /инвертор/iu, 'Smart Inverter shortDescription must mention inverter');
-assert.match(smartInverterDraft.positioning, /мобильное|без установки/iu, 'Smart Inverter positioning must explain mobile/no-install use case');
+assert.equal(smartInverterDraft.shortDescription, '', 'Smart Inverter shortDescription may stay empty without manual/legacy profile');
+assert.equal(smartInverterDraft.positioning, '', 'Smart Inverter positioning may stay empty without manual/legacy profile');
 assert.match(smartInverterDraft.importantSpecs.join('\n'), /BTU|Вт|Уровень шума|R290|Размеры|Вес/iu, 'Smart Inverter importantSpecs must include BTU, W, noise, R290, dimensions and weight');
 assert.equal(/technicalPage(?!s:?\s*\d)|undefined|null|\[object Object\]/iu.test(smartInverterDraft.sourceRefs.importantSpecs), false, 'Smart Inverter source label must not contain garbage technicalPage labels');
 
@@ -785,8 +806,8 @@ assert.equal(
   false,
   'Smart Inverter EVO mainAdvantages must not be limited to Wi-Fi/Touch/cooling',
 );
-assert.match(smartInverterEvoDraft.shortDescription, /инверторн/iu, 'Smart Inverter EVO shortDescription must mention inverter positioning');
-assert.match(smartInverterEvoDraft.positioning, /мобильное|без установки/iu, 'Smart Inverter EVO positioning must explain mobile/no-install use case');
+assert.equal(smartInverterEvoDraft.shortDescription, '', 'Smart Inverter EVO shortDescription may stay empty without manual/legacy profile');
+assert.equal(smartInverterEvoDraft.positioning, '', 'Smart Inverter EVO positioning may stay empty without manual/legacy profile');
 assert.match(smartInverterEvoDraft.importantSpecs.join('\n'), /BTU|R290|Уровень шума|Габариты/iu, 'Smart Inverter EVO importantSpecs must include BTU, R290, noise and dimensions');
 assert.equal(/technicalPages:? 110–111/u.test(smartInverterEvoDraft.sourceRefs.importantSpecs), true, 'Smart Inverter EVO sourceRef must format technical page range');
 for (const warning of ['Продажные особенности не найдены.', 'Краткое описание не заполнено.', 'Позиционирование не заполнено.']) {
@@ -815,8 +836,8 @@ const waterHeaterSource = {
 const waterHeaterProfile = getCategoryExtractionProfile(waterHeaterSource);
 const waterHeaterDraft = generateSeriesDraft(waterHeaterSource);
 assert.equal(waterHeaterProfile.id, 'waterHeater', 'waterHeater categoryProfile must be detected');
-assert.ok(waterHeaterDraft.shortDescription, 'waterHeater shortDescription must not be empty');
-assert.ok(waterHeaterDraft.positioning, 'waterHeater positioning must not be empty');
+assert.equal(waterHeaterDraft.shortDescription, '', 'waterHeater shortDescription may stay empty without manual/legacy profile');
+assert.equal(waterHeaterDraft.positioning, '', 'waterHeater positioning may stay empty without manual/legacy profile');
 assert.match(waterHeaterDraft.importantSpecs.join('\n'), /Объём|Мощность|ТЭН|Защита|Монтаж/iu, 'waterHeater importantSpecs must include volume/power/heater/protection/mounting');
 
 
@@ -844,8 +865,8 @@ assert.ok(ecoCoolDraft.salesFeatures.includes('площадь до 7 м²'), 'EC
 assert.ok(ecoCoolDraft.salesFeatures.includes('энергопотребление 250 Вт'), 'ECO COOL salesFeatures must include 250 W power use');
 assert.ok(ecoCoolDraft.mainAdvantages.includes('без воздуховода'), 'ECO COOL mainAdvantages must include no duct');
 assert.ok(ecoCoolDraft.mainAdvantages.includes('использует воду из встроенного бака'), 'ECO COOL mainAdvantages must include built-in tank water');
-assert.match(ecoCoolDraft.shortDescription, /без воздуховода/iu, 'ECO COOL shortDescription must mention no duct');
-assert.match(ecoCoolDraft.positioning, /без воздуховода|без монтажа/iu, 'ECO COOL positioning must mention no duct/no installation');
+assert.equal(ecoCoolDraft.shortDescription, '', 'ECO COOL shortDescription may stay empty without manual/legacy profile');
+assert.equal(ecoCoolDraft.positioning, '', 'ECO COOL positioning may stay empty without manual/legacy profile');
 assert.match(ecoCoolSpecsText, /воздуховод не требуется/iu, 'ECO COOL importantSpecs must say duct is not required');
 assert.equal(/длина воздуховода|диаметр воздуховода/iu.test(ecoCoolSpecsText), false, 'ECO COOL importantSpecs must not include fake duct dimensions');
 assert.match(ecoCoolSpecsText, /600 Вт/iu, 'ECO COOL importantSpecs must include 600 W cooling capacity');
@@ -903,16 +924,8 @@ const velureDraft = generateSeriesDraft({
 const velureFeaturesText = velureDraft.salesFeatures.join('\n');
 const velureAdvantagesText = velureDraft.mainAdvantages.join('\n');
 const velureSpecsText = velureDraft.importantSpecs.join('\n');
-assert.match(velureDraft.shortDescription, /изысканный дизайн|текстильн|тканевым? покрытием/iu, 'Velure shortDescription must use narrative design/premium facts');
-assert.match(velureDraft.shortDescription, /современного интерьера|интерьер/iu, 'Velure shortDescription must mention interior positioning');
-assert.match(velureDraft.shortDescription, /Wi-Fi/iu, 'Velure shortDescription must include Wi-Fi control');
-assert.match(velureDraft.shortDescription, /R290/iu, 'Velure shortDescription must include R290');
-assert.match(velureDraft.shortDescription, /35 м²/iu, 'Velure shortDescription must include area up to 35 m²');
-assert.equal(/для быстрого создания комфорта без профессионального монтажа/iu.test(velureDraft.shortDescription), false, 'Velure shortDescription must not be limited to generic comfort/no-install template');
-assert.equal(/режимами охлаждения/iu.test(velureDraft.shortDescription), false, 'Velure shortDescription must not prefer cooling modes over stronger design/Wi-Fi/R290/area facts');
-assert.match(velureDraft.positioning, /стильное|дизайн|интерьер/iu, 'Velure positioning must emphasize style/interior');
-assert.match(velureDraft.positioning, /Wi-Fi/iu, 'Velure positioning must include Wi-Fi');
-assert.match(velureDraft.positioning, /без установки|без установки классической сплит-системы/iu, 'Velure positioning must explain no-install split alternative');
+assert.equal(velureDraft.shortDescription, '', 'Velure shortDescription may stay empty without manual/legacy profile');
+assert.equal(velureDraft.positioning, '', 'Velure positioning may stay empty without manual/legacy profile');
 assert.match(velureFeaturesText, /изысканный дизайн/iu, 'Velure salesFeatures must include elegant design');
 assert.match(velureFeaturesText, /текстильное покрытие|тканевое покрытие|текстильная панель/iu, 'Velure salesFeatures must include textile/fabric coating');
 assert.match(velureFeaturesText, /Wi-Fi управление/iu, 'Velure salesFeatures must include Wi-Fi control');
