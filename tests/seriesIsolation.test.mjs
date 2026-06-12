@@ -917,7 +917,22 @@ const velureDraft = generateSeriesDraft({
   seriesName: 'Velure',
   code: 'BPAC-VEL',
   exactSeriesRawText: 'Изысканный дизайн Ballu Velure станет украшением современного интерьера. Помимо стильного внешнего вида прибор обладает широким функционалом: автоматическим приводом жалюзи, таймером, управлением по Wi-Fi. Фреон R290 делает прибор по-настоящему энергоэффективным. Приборы помогут создать комфортную атмосферу в помещениях площадью до 35 м². Скрытый LED-дисплей. Управление по Wi-Fi. VELURE текстильная панель / дизайн. VELURE тканевое покрытие. AUTO-SWING жалюзи. Шлюз для распашных окон в комплекте. Пульт управления в комплекте.',
-  technicalRawText: 'Параметр / Модель BPAC-12 EW/N6 BPAC-14 EW/N6 Производительность охлаждение Вт 3500 4100 Производительность охлаждение BTU 12000 14000 Класс энергоэффективности EER A A Расход воздуха м3/ч 400 430 Уровень шума дБА 50 50 Номинальная мощность охлаждение кВт 1330 1560 Размеры прибора Ш×В×Г мм 434×700×350 434×700×350 Вес нетто/брутто кг 28/33 29,5/34,5 Модель A, мм B, мм C, мм L, мм D, мм Velure BALLU BPAC-12/14 EW/N6 434 700 350 1500 150',
+  technicalRawText: `
+    Параметр / Модель BPAC-12 EW/N6 BPAC-14 EW/N6
+    Производительность (охлаждение) Вт 3500 4100
+    Производительность (охлаждение) BTU 12000 14000
+    Класс энергоэффективности (EER) A A
+    Расход воздуха м 3 /ч 400 430
+    Уровень шума дБ(А) 50 50
+    Напряжение питания В~Гц,Ф 220-240 ~ 50 220-240 ~ 50
+    Номинальная мощность (охлаждение) Вт 1330 1560
+    Номинальный ток (охлаждение) А 5.8 6.8
+    Размеры прибора (Ш×В×Г) мм 434×700×350 434×700×350
+    Размеры упаковки (Ш×В×Г) мм 490×878×381 490×878×381
+    Вес нетто/брутто кг 28 / 33 29,5 / 34,5
+    Модель A, мм B, мм C, мм L, мм D, мм
+    Velure BALLU BPAC-12/14 EW/N6 434 700 350 1500 150
+  `,
   exactSeriesPages: [150],
   technicalPages: [151],
 });
@@ -952,6 +967,29 @@ assert.match(velureAdvantagesText, /Wi-Fi управление/iu, 'Velure mainA
 assert.match(velureAdvantagesText, /R290 эко-фреон/iu, 'Velure mainAdvantages must include R290 eco refrigerant');
 assert.match(velureAdvantagesText, /Auto-Swing жалюзи|автоматический привод жалюзи/iu, 'Velure mainAdvantages must include Auto-Swing/auto louvers');
 assert.match(velureAdvantagesText, /площадь до 35 м²/iu, 'Velure mainAdvantages must include area when found');
+const expectedVelureImportantSpecs = [
+  'производительность охлаждения 3500/4100 Вт',
+  'производительность охлаждения 12000/14000 BTU',
+  'класс энергоэффективности A',
+  'расход воздуха 400/430 м³/ч',
+  'уровень шума 50 дБ',
+  'питание 220–240 В / 50 Гц',
+  'номинальная мощность охлаждения 1330/1560 Вт',
+  'номинальный ток охлаждения 5.8/6.8 А',
+  'габариты 434×700×350 мм',
+  'габариты упаковки 490×878×381 мм',
+  'вес нетто/брутто 28/33 и 29,5/34,5 кг',
+  'воздуховод: 1500 мм, Ø150 мм',
+];
+for (const expectedSpec of expectedVelureImportantSpecs) {
+  assert.ok(velureDraft.importantSpecs.includes(expectedSpec), `Velure importantSpecs must contain ${expectedSpec}`);
+}
+assert.ok(velureDraft.catalogExtract.importantSpecs.includes('производительность охлаждения 3500/4100 Вт'), 'Velure catalogExtract.importantSpecs must contain normalized cooling capacity in W');
+assert.ok(velureDraft.catalogExtract.importantSpecs.includes('расход воздуха 400/430 м³/ч'), 'Velure catalogExtract.importantSpecs must contain normalized airflow');
+assert.ok(velureDraft.catalogExtract.importantSpecs.includes('воздуховод: 1500 мм, Ø150 мм'), 'Velure catalogExtract.importantSpecs must contain normalized duct dimensions');
+assert.equal(velureDraft.importantSpecs.includes('изысканный дизайн'), false, 'Velure importantSpecs must not contain elegant design sales feature');
+assert.equal(velureDraft.importantSpecs.includes('Wi-Fi управление'), false, 'Velure importantSpecs must not contain Wi-Fi sales feature');
+assert.equal(velureDraft.importantSpecs.includes('мобильное использование'), false, 'Velure importantSpecs must not contain mobile-use sales feature');
 assert.equal(/воздуховод:\s*1500 мм, Ø150 мм|длина воздуховода 1500 мм[\s\S]*диаметр воздуховода 150 мм/iu.test(velureSpecsText), true, 'Velure importantSpecs must include duct L/D dimensions');
 assert.equal(/воздуховод:\s*1500 мм, Ø150 мм|длина воздуховода 1500 мм[\s\S]*диаметр воздуховода 150 мм/iu.test(velureCatalogSpecsText), true, 'Velure catalogExtract.importantSpecs must include duct L/D dimensions');
 assert.match(velureSpecsText, /434×700×350/iu, 'Velure importantSpecs must include product dimensions');
