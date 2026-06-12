@@ -73,6 +73,13 @@ const DRAFT_INITIAL = {
   sourceIds: [],
   sourceRefs: {},
   diagnostics: null,
+  catalogExtract: {
+    descriptionsFromCatalog: [],
+    factualFeatures: [],
+    importantSpecs: [],
+    sourcePages: [],
+    diagnostics: {},
+  },
   status: 'draft',
 };
 

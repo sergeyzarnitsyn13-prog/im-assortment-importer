@@ -924,12 +924,25 @@ const velureDraft = generateSeriesDraft({
 const velureFeaturesText = velureDraft.salesFeatures.join('\n');
 const velureAdvantagesText = velureDraft.mainAdvantages.join('\n');
 const velureSpecsText = velureDraft.importantSpecs.join('\n');
+const velureCatalogDescriptionText = velureDraft.catalogExtract.descriptionsFromCatalog.join('\n');
+const velureCatalogFeaturesText = velureDraft.catalogExtract.factualFeatures.join('\n');
+const velureCatalogSpecsText = velureDraft.catalogExtract.importantSpecs.join('\n');
 assert.equal(velureDraft.shortDescription, '', 'Velure shortDescription may stay empty without manual/legacy profile');
 assert.equal(velureDraft.positioning, '', 'Velure positioning may stay empty without manual/legacy profile');
+assert.deepEqual(velureDraft.salesArguments, [], 'Velure salesArguments may stay empty without manual/legacy profile');
+assert.ok(velureDraft.catalogExtract, 'Velure draft must include catalogExtract');
+assert.equal(Array.isArray(velureDraft.catalogExtract.descriptionsFromCatalog), true, 'Velure catalogExtract.descriptionsFromCatalog must be an array');
+assert.equal(Array.isArray(velureDraft.catalogExtract.factualFeatures), true, 'Velure catalogExtract.factualFeatures must be an array');
+assert.equal(Array.isArray(velureDraft.catalogExtract.importantSpecs), true, 'Velure catalogExtract.importantSpecs must be an array');
+assert.match(velureCatalogDescriptionText, /Изысканный дизайн Ballu Velure/iu, 'Velure catalogExtract must keep description from catalog');
 assert.match(velureFeaturesText, /изысканный дизайн/iu, 'Velure salesFeatures must include elegant design');
 assert.match(velureFeaturesText, /текстильное покрытие|тканевое покрытие|текстильная панель/iu, 'Velure salesFeatures must include textile/fabric coating');
 assert.match(velureFeaturesText, /Wi-Fi управление/iu, 'Velure salesFeatures must include Wi-Fi control');
 assert.match(velureFeaturesText, /R290 эко-фреон/iu, 'Velure salesFeatures must include R290 eco refrigerant');
+assert.match(velureCatalogFeaturesText, /Wi-Fi управление/iu, 'Velure catalogExtract.factualFeatures must include Wi-Fi control');
+assert.match(velureCatalogFeaturesText, /R290 эко-фреон/iu, 'Velure catalogExtract.factualFeatures must include R290 eco refrigerant');
+assert.match(velureCatalogFeaturesText, /скрытый LED-дисплей/iu, 'Velure catalogExtract.factualFeatures must include hidden LED display');
+assert.match(velureCatalogFeaturesText, /текстильная панель \/ дизайн|текстильное покрытие|тканевое покрытие/iu, 'Velure catalogExtract.factualFeatures must include textile design fact');
 assert.match(velureFeaturesText, /площадь до 35 м²/iu, 'Velure salesFeatures must include area up to 35 m²');
 assert.match(velureFeaturesText, /Auto-Swing жалюзи/iu, 'Velure salesFeatures must include Auto-Swing louvers');
 assert.match(velureFeaturesText, /шлюз для распашных окон в комплекте/iu, 'Velure salesFeatures must include casement window adapter');
@@ -940,11 +953,19 @@ assert.match(velureAdvantagesText, /R290 эко-фреон/iu, 'Velure mainAdvan
 assert.match(velureAdvantagesText, /Auto-Swing жалюзи|автоматический привод жалюзи/iu, 'Velure mainAdvantages must include Auto-Swing/auto louvers');
 assert.match(velureAdvantagesText, /площадь до 35 м²/iu, 'Velure mainAdvantages must include area when found');
 assert.equal(/воздуховод:\s*1500 мм, Ø150 мм|длина воздуховода 1500 мм[\s\S]*диаметр воздуховода 150 мм/iu.test(velureSpecsText), true, 'Velure importantSpecs must include duct L/D dimensions');
+assert.equal(/воздуховод:\s*1500 мм, Ø150 мм|длина воздуховода 1500 мм[\s\S]*диаметр воздуховода 150 мм/iu.test(velureCatalogSpecsText), true, 'Velure catalogExtract.importantSpecs must include duct L/D dimensions');
 assert.match(velureSpecsText, /434×700×350/iu, 'Velure importantSpecs must include product dimensions');
 assert.match(velureSpecsText, /12000\/14000 BTU/iu, 'Velure importantSpecs must include BTU range');
 assert.match(velureSpecsText, /3500\/4100 Вт/iu, 'Velure importantSpecs must include cooling capacity range');
 assert.match(velureSpecsText, /50 дБ/iu, 'Velure importantSpecs must include noise level');
+assert.match(velureCatalogSpecsText, /3500\/4100 Вт/iu, 'Velure catalogExtract.importantSpecs must include cooling capacity range');
+assert.match(velureCatalogSpecsText, /12000\/14000 BTU/iu, 'Velure catalogExtract.importantSpecs must include BTU range');
+assert.match(velureCatalogSpecsText, /50 дБ/iu, 'Velure catalogExtract.importantSpecs must include noise level');
+assert.match(velureCatalogSpecsText, /434×700×350/iu, 'Velure catalogExtract.importantSpecs must include product dimensions');
 assert.match(velureSpecsText, /28\/33[\s\S]*29,5\/34,5|29,5\/34,5[\s\S]*28\/33/iu, 'Velure importantSpecs must include net/gross weights');
+for (const forbiddenSpecPattern of [/изысканный дизайн/iu, /для современного интерьера/iu, /Wi-Fi управление/iu, /мобильное использование/iu, /R290 эко-фреон/iu, /охлаждение$/ium]) {
+  assert.equal(forbiddenSpecPattern.test(velureSpecsText), false, `Velure importantSpecs must not include sales feature ${forbiddenSpecPattern}`);
+}
 const velureDiagnosticTechnicalSpecsText = velureDraft.diagnostics.technicalSpecs.join('\n');
 assert.equal(/Фреон R290 делает прибор|Приборы помогут создать комфортную атмосферу/iu.test(velureDiagnosticTechnicalSpecsText), false, 'Velure diagnostic technical specs must not contain long sales narrative');
 assert.equal(/Краткое описание не заполнено/iu.test(velureDraft.draftWarning || ''), false, 'Velure warnings must not say shortDescription is empty');
