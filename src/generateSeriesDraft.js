@@ -119,7 +119,7 @@ const extractNoDuctMobileFeatures = (rawText = '') => {
 const MOBILE_NARRATIVE_FEATURE_RULES = [
   { label: 'изысканный дизайн', patterns: [/изысканн[а-яё]*\s+дизайн/iu, /стильн[а-яё]*\s+внешн[а-яё]*\s+вид/iu] },
   { label: 'для современного интерьера', patterns: [/современн[а-яё]*\s+интерьер/iu] },
-  { label: 'тканевое покрытие', patterns: [/тканев[а-яё]*\s+покрыт/iu, /velure\s+тканев/iu] },
+  { label: 'текстильное покрытие', patterns: [/текстильн[а-яё]*\s+(?:панел|покрыт|дизайн)/iu, /тканев[а-яё]*\s+покрыт/iu, /velure\s+тканев/iu] },
   { label: 'автоматический привод жалюзи', patterns: [/автоматическ[а-яё]*\s+привод[а-яё\s]{0,40}жалюз/iu] },
   { label: 'таймер', patterns: [/\bтаймер\b/iu] },
   { label: 'скрытый LED-дисплей', patterns: [/скрыт[а-яё]*\s+led\s*-?\s*диспле/iu] },
@@ -1375,7 +1375,8 @@ const pickMobileAirConditionerMainAdvantages = (features = []) => {
 
   [
     { feature: 'изысканный дизайн', pattern: /изысканн[а-яё]*\s+дизайн|стильн[а-яё]*\s+внешн/u },
-    { feature: 'тканевое покрытие', pattern: /тканев[а-яё]*\s+покрыт/u },
+    { feature: 'текстильное покрытие', pattern: /текстильн[а-яё]*|тканев[а-яё]*\s+покрыт/u },
+    { feature: 'для современного интерьера', pattern: /современн[а-яё]*\s+интерьер|для\s+современного\s+интерьера/u },
     { feature: 'Wi-Fi управление', pattern: /wi-?fi|смартфон/u },
     { feature: 'Auto-Swing жалюзи', pattern: /auto\s*-?\s*swing|жалюз/u },
     { feature: 'R290 эко-фреон', pattern: /r\s*290|эко-?фреон/u },
@@ -1607,6 +1608,23 @@ const extractMobileTableSpecs = (rawText = '') => {
   return unique(specs.filter(Boolean));
 };
 
+const isMobileStructuredTechnicalSpecLine = (line = '') => {
+  const normalizedLine = normalizeLine(line);
+  const normalized = normalizeSearchText(normalizedLine);
+
+  if (!normalizedLine || normalizedLine.length > 180) {
+    return false;
+  }
+
+  if (/фреон\s+r\s*290\s+делает|приборы\s+помогут|комфортн[а-яё]*\s+атмосфер|изысканн[а-яё]*\s+дизайн|современн[а-яё]*\s+интерьер|стильн[а-яё]*\s+внешн/u.test(normalized)) {
+    return false;
+  }
+
+  return /^(?:параметр|модель|производительность|холодопроизводительность|btu|класс\s+энергоэффективности|расход\s+воздуха|уровень\s+шума|номинальн(?:ая\s+мощность|ый\s+ток)|потребляемая\s+мощность|электропитание|напряжение\s+питания|габарит|размер|вес|хладагент|воздуховод|длина\s+воздуховода|диаметр\s+воздуховода)\b/u.test(normalized) ||
+    /\b(?:btu|дба?|м(?:³|3)\s*\/\s*ч|кг|мм|вт|квт|r\s*290|r\s*32)\b/u.test(normalized) &&
+      /\b(?:производительность|холодопроизводительность|класс\s+энергоэффективности|расход\s+воздуха|уровень\s+шума|мощность|ток|электропитание|габарит|размер|вес|хладагент|воздуховод)\b/u.test(normalized);
+};
+
 const extractMobileAirConditionerImportantSpecs = (rawText = '') => unique([
   ...extractMobileTableSpecs(rawText),
   ...extractAirDuctSpecs(rawText),
@@ -1614,7 +1632,7 @@ const extractMobileAirConditionerImportantSpecs = (rawText = '') => unique([
     .split(/\r?\n/)
     .map(normalizeTechnicalSpecLine)
     .filter(Boolean)
-    .filter((line) => hasAnyKeyword(line, CATEGORY_EXTRACTION_PROFILES.mobileAirConditioner.importantSpecKeywords || TECHNICAL_SPEC_KEYWORDS)),
+    .filter(isMobileStructuredTechnicalSpecLine),
 ]);
 
 const extractCategoryImportantSpecs = (rawText = '', categoryProfile = null) => {
@@ -1683,7 +1701,7 @@ const buildCategoryPositioning = ({ categoryProfile = null, approvedProfile = {}
 
     const hasInverter = hasFeatureMatching(profileFeatures, /инвертор|inverter/u);
     const hasQuiet = hasFeatureMatching(profileFeatures, /40\s*дб|тих[а-яё]*\s+работ/u);
-    const hasDesign = hasFeatureMatching(profileFeatures, /дизайн|интерьер|тканев[а-яё]*\s+покрыт/u);
+    const hasDesign = hasFeatureMatching(profileFeatures, /изысканн[а-яё]*\s+дизайн|дизайн|интерьер|текстильн|тканев[а-яё]*\s+покрыт/u);
     const hasWifi = hasFeatureMatching(profileFeatures, /wi-?fi|смартфон/u);
 
     if (hasInverter) {
@@ -1691,7 +1709,7 @@ const buildCategoryPositioning = ({ categoryProfile = null, approvedProfile = {}
     }
 
     if (hasDesign) {
-      return `${cleanSeriesName} — стильное мобильное решение для квартиры, дома, офиса или дачи, когда важны дизайн${hasWifi ? ', Wi-Fi управление' : ''} и кондиционер без установки классической сплит-системы.`;
+      return `${cleanSeriesName} — стильное мобильное решение для квартиры, дома, офиса или дачи, когда важны внешний вид${hasWifi ? ', Wi-Fi управление' : ''} и кондиционер без установки классической сплит-системы.`;
     }
 
     if (hasQuiet) {
@@ -1706,6 +1724,85 @@ const buildCategoryPositioning = ({ categoryProfile = null, approvedProfile = {}
   }
 
   return '';
+};
+
+
+const findMobileAreaFeature = (features = []) => features.find((feature) => /площад[ьи]\s+до\s+\d+/u.test(normalizeSearchText(feature))) || '';
+
+const formatMobileAreaAccent = (areaFeature = '') => {
+  const match = /до\s+(\d+(?:[,.]\d+)?)\s*м/u.exec(normalizeSearchText(areaFeature));
+
+  return match ? `подходит для помещений до ${match[1]} м²` : '';
+};
+
+const buildMobileShortDescription = ({ cleanSeriesName = '', allFeatures = [], importantSpecs = [], narrativeText = '' } = {}) => {
+  const featurePool = unique([
+    ...allFeatures,
+    ...importantSpecs,
+    ...extractMobileNarrativeFeatures(narrativeText),
+    narrativeText,
+  ].filter(Boolean));
+
+  if (!cleanSeriesName || featurePool.length === 0) {
+    return '';
+  }
+
+  const hasDesign = hasFeatureMatching(featurePool, /изысканн[а-яё]*\s+дизайн|стильн[а-яё]*\s+внешн|\bдизайн\b/u);
+  const hasTextile = hasFeatureMatching(featurePool, /текстильн|тканев[а-яё]*\s+покрыт/u);
+  const hasInterior = hasFeatureMatching(featurePool, /современн[а-яё]*\s+интерьер|интерьер/u);
+  const hasDesignCluster = hasDesign || hasTextile || hasInterior;
+  const hasInverterFeature = hasFeatureMatching(featurePool, /инвертор/u);
+  const hasQuietFeature = hasFeatureMatching(featurePool, /40\s*дб|тих[а-яё]*\s+работ|минимальн[а-яё]*\s+уров[а-яё]*\s+шума/u);
+  const hasAutoLouvers = hasFeatureMatching(featurePool, /автоматическ[а-яё]*\s+привод[а-яё\s]{0,40}жалюз|auto\s*-?\s*swing|жалюз/u);
+  const hasTimer = hasFeatureMatching(featurePool, /таймер/u);
+  const hasWifi = hasFeatureMatching(featurePool, /wi-?fi|смартфон/u);
+  const hasR290Feature = hasFeatureMatching(featurePool, /r\s*290|эко-?фреон/u);
+  const hasLed = hasFeatureMatching(featurePool, /скрыт[а-яё]*\s+led|led\s*-?\s*диспле/u);
+  const areaText = formatMobileAreaAccent(findMobileAreaFeature([...featurePool, ...importantSpecs]));
+
+  if (!(hasDesignCluster || hasInverterFeature || hasQuietFeature || hasAutoLouvers || hasWifi || hasR290Feature || areaText)) {
+    return '';
+  }
+
+  if (hasDesignCluster) {
+    const designDetails = [];
+    if (hasDesign) designDetails.push('изысканным дизайном');
+    if (hasTextile) designDetails.push('текстильным покрытием');
+
+    const intro = designDetails.length > 0
+      ? `${cleanSeriesName} — мобильный кондиционер Ballu с ${joinRussianList(designDetails)}${hasInterior ? ' для современного интерьера' : ''}.`
+      : `${cleanSeriesName} — мобильный кондиционер Ballu для современного интерьера.`;
+    const accents = [
+      hasAutoLouvers ? 'автоматическим приводом жалюзи' : '',
+      hasTimer ? 'таймером' : '',
+      hasWifi ? 'Wi-Fi управлением' : '',
+      hasR290Feature ? 'эко-фреоном R290' : '',
+      hasLed ? 'скрытым LED-дисплеем' : '',
+    ].filter(Boolean);
+
+    if (accents.length > 0 && areaText) {
+      return trimToSentence(`${intro} Серия оснащена ${joinRussianList(accents)}. ${areaText.charAt(0).toUpperCase()}${areaText.slice(1)}.`);
+    }
+
+    return trimToSentence(accents.length > 0 ? `${intro} Серия оснащена ${joinRussianList(accents)}.` : areaText ? `${intro} Серия ${areaText}.` : intro);
+  }
+
+  const intro = hasInverterFeature
+    ? `${cleanSeriesName} — мобильный инверторный кондиционер Ballu для точного и экономичного поддержания комфортной температуры без профессионального монтажа.`
+    : `${cleanSeriesName} — мобильный кондиционер Ballu для быстрого создания комфорта без профессионального монтажа.`;
+  const accents = [
+    hasQuietFeature ? 'низким уровнем шума' : '',
+    hasAutoLouvers ? 'автоматическим приводом жалюзи' : '',
+    hasTimer ? 'таймером' : '',
+    hasWifi ? 'Wi-Fi управлением' : '',
+    hasR290Feature ? 'R290' : '',
+  ].filter(Boolean);
+
+  if (accents.length > 0 && areaText) {
+    return trimToSentence(`${intro} Серия отличается ${joinRussianList(accents)}. ${areaText.charAt(0).toUpperCase()}${areaText.slice(1)}.`);
+  }
+
+  return accents.length > 0 ? trimToSentence(`${intro} Серия отличается ${joinRussianList(accents)}.`) : areaText ? trimToSentence(`${intro} Серия ${areaText}.`) : '';
 };
 
 const buildCategoryShortDescription = ({ categoryProfile = null, approvedProfile = {}, seriesName = '', salesFeatures = [], keyFeatures = [], importantSpecs = [], narrativeText = '' } = {}) => {
@@ -1724,6 +1821,11 @@ const buildCategoryShortDescription = ({ categoryProfile = null, approvedProfile
       const areaText = areaMatch ? ` до ${areaMatch[1]} м²` : '';
 
       return trimToSentence(`${cleanSeriesName} — мобильный кондиционер Ballu без воздуховода для небольших помещений${areaText}. Прибор использует воду из встроенного бака для охлаждения конденсатора, снижает тепловыделение и не требует вывода горячего воздуха в окно.`);
+    }
+
+    const mobileShortDescription = buildMobileShortDescription({ cleanSeriesName, allFeatures, importantSpecs, narrativeText });
+    if (mobileShortDescription) {
+      return mobileShortDescription;
     }
 
     if (narrativeText) {

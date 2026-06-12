@@ -866,7 +866,7 @@ const velureDraft = generateSeriesDraft({
   group: 'Бытовые мобильные кондиционеры',
   seriesName: 'Velure',
   code: 'BPAC-VEL',
-  exactSeriesRawText: 'Изысканный дизайн Ballu Velure станет украшением современного интерьера. Помимо стильного внешнего вида прибор обладает широким функционалом: автоматическим приводом жалюзи, таймером, управлением по Wi-Fi. Фреон R290 делает прибор по-настоящему энергоэффективным. Приборы помогут создать комфортную атмосферу в помещениях площадью до 35 м². Скрытый LED-дисплей. Управление по Wi-Fi. VELURE тканевое покрытие. AUTO-SWING жалюзи. Шлюз для распашных окон в комплекте. Пульт управления в комплекте.',
+  exactSeriesRawText: 'Изысканный дизайн Ballu Velure станет украшением современного интерьера. Помимо стильного внешнего вида прибор обладает широким функционалом: автоматическим приводом жалюзи, таймером, управлением по Wi-Fi. Фреон R290 делает прибор по-настоящему энергоэффективным. Приборы помогут создать комфортную атмосферу в помещениях площадью до 35 м². Скрытый LED-дисплей. Управление по Wi-Fi. VELURE текстильная панель / дизайн. VELURE тканевое покрытие. AUTO-SWING жалюзи. Шлюз для распашных окон в комплекте. Пульт управления в комплекте.',
   technicalRawText: 'Параметр / Модель BPAC-12 EW/N6 BPAC-14 EW/N6 Производительность охлаждение Вт 3500 4100 Производительность охлаждение BTU 12000 14000 Класс энергоэффективности EER A A Расход воздуха м3/ч 400 430 Уровень шума дБА 50 50 Номинальная мощность охлаждение кВт 1330 1560 Размеры прибора Ш×В×Г мм 434×700×350 434×700×350 Вес нетто/брутто кг 28/33 29,5/34,5 Модель A, мм B, мм C, мм L, мм D, мм Velure BALLU BPAC-12/14 EW/N6 434 700 350 1500 150',
   exactSeriesPages: [150],
   technicalPages: [151],
@@ -874,22 +874,37 @@ const velureDraft = generateSeriesDraft({
 const velureFeaturesText = velureDraft.salesFeatures.join('\n');
 const velureAdvantagesText = velureDraft.mainAdvantages.join('\n');
 const velureSpecsText = velureDraft.importantSpecs.join('\n');
-assert.match(velureDraft.shortDescription, /изысканный дизайн|тканевым? покрытием/iu, 'Velure shortDescription must use narrative design/premium facts');
-assert.match(velureDraft.shortDescription, /до 35 м²/iu, 'Velure shortDescription must include area up to 35 m²');
-assert.match(velureDraft.positioning, /стильное|интерьер/iu, 'Velure positioning must emphasize style/interior');
+assert.match(velureDraft.shortDescription, /изысканный дизайн|текстильн|тканевым? покрытием/iu, 'Velure shortDescription must use narrative design/premium facts');
+assert.match(velureDraft.shortDescription, /современного интерьера|интерьер/iu, 'Velure shortDescription must mention interior positioning');
+assert.match(velureDraft.shortDescription, /Wi-Fi/iu, 'Velure shortDescription must include Wi-Fi control');
+assert.match(velureDraft.shortDescription, /R290/iu, 'Velure shortDescription must include R290');
+assert.match(velureDraft.shortDescription, /35 м²/iu, 'Velure shortDescription must include area up to 35 m²');
+assert.equal(/для быстрого создания комфорта без профессионального монтажа/iu.test(velureDraft.shortDescription), false, 'Velure shortDescription must not be limited to generic comfort/no-install template');
+assert.equal(/режимами охлаждения/iu.test(velureDraft.shortDescription), false, 'Velure shortDescription must not prefer cooling modes over stronger design/Wi-Fi/R290/area facts');
+assert.match(velureDraft.positioning, /стильное|дизайн|интерьер/iu, 'Velure positioning must emphasize style/interior');
+assert.match(velureDraft.positioning, /Wi-Fi/iu, 'Velure positioning must include Wi-Fi');
+assert.match(velureDraft.positioning, /без установки|без установки классической сплит-системы/iu, 'Velure positioning must explain no-install split alternative');
 assert.match(velureFeaturesText, /изысканный дизайн/iu, 'Velure salesFeatures must include elegant design');
-assert.match(velureFeaturesText, /тканевое покрытие/iu, 'Velure salesFeatures must include fabric coating');
+assert.match(velureFeaturesText, /текстильное покрытие|тканевое покрытие|текстильная панель/iu, 'Velure salesFeatures must include textile/fabric coating');
 assert.match(velureFeaturesText, /Wi-Fi управление/iu, 'Velure salesFeatures must include Wi-Fi control');
 assert.match(velureFeaturesText, /R290 эко-фреон/iu, 'Velure salesFeatures must include R290 eco refrigerant');
 assert.match(velureFeaturesText, /площадь до 35 м²/iu, 'Velure salesFeatures must include area up to 35 m²');
 assert.match(velureFeaturesText, /Auto-Swing жалюзи/iu, 'Velure salesFeatures must include Auto-Swing louvers');
 assert.match(velureFeaturesText, /шлюз для распашных окон в комплекте/iu, 'Velure salesFeatures must include casement window adapter');
 assert.match(velureAdvantagesText, /изысканный дизайн/iu, 'Velure mainAdvantages must include elegant design');
+assert.match(velureAdvantagesText, /для современного интерьера|текстильное покрытие|тканевое покрытие/iu, 'Velure mainAdvantages must include interior or textile positioning');
 assert.match(velureAdvantagesText, /Wi-Fi управление/iu, 'Velure mainAdvantages must include Wi-Fi control');
 assert.match(velureAdvantagesText, /R290 эко-фреон/iu, 'Velure mainAdvantages must include R290 eco refrigerant');
+assert.match(velureAdvantagesText, /Auto-Swing жалюзи|автоматический привод жалюзи/iu, 'Velure mainAdvantages must include Auto-Swing/auto louvers');
+assert.match(velureAdvantagesText, /площадь до 35 м²/iu, 'Velure mainAdvantages must include area when found');
 assert.equal(/воздуховод:\s*1500 мм, Ø150 мм|длина воздуховода 1500 мм[\s\S]*диаметр воздуховода 150 мм/iu.test(velureSpecsText), true, 'Velure importantSpecs must include duct L/D dimensions');
 assert.match(velureSpecsText, /434×700×350/iu, 'Velure importantSpecs must include product dimensions');
 assert.match(velureSpecsText, /12000\/14000 BTU/iu, 'Velure importantSpecs must include BTU range');
+assert.match(velureSpecsText, /3500\/4100 Вт/iu, 'Velure importantSpecs must include cooling capacity range');
+assert.match(velureSpecsText, /50 дБ/iu, 'Velure importantSpecs must include noise level');
+assert.match(velureSpecsText, /28\/33[\s\S]*29,5\/34,5|29,5\/34,5[\s\S]*28\/33/iu, 'Velure importantSpecs must include net/gross weights');
+const velureDiagnosticTechnicalSpecsText = velureDraft.diagnostics.technicalSpecs.join('\n');
+assert.equal(/Фреон R290 делает прибор|Приборы помогут создать комфортную атмосферу/iu.test(velureDiagnosticTechnicalSpecsText), false, 'Velure diagnostic technical specs must not contain long sales narrative');
 assert.equal(/Краткое описание не заполнено/iu.test(velureDraft.draftWarning || ''), false, 'Velure warnings must not say shortDescription is empty');
 assert.equal(/Позиционирование не заполнено/iu.test(velureDraft.draftWarning || ''), false, 'Velure warnings must not say positioning is empty');
 assert.equal(/undefined|null|\[object Object\]/iu.test(stringifyDraft(velureDraft)), false, 'Velure draft must not contain garbage placeholders');
