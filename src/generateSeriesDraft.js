@@ -701,11 +701,19 @@ const isManualOrApprovedSalesProfile = (salesProfile = null) => {
   return salesProfile.manual === true || salesProfile.approved === true || status === 'manual' || status === 'approved' || source === 'manual';
 };
 
+const getManualProfile = (...candidates) => candidates
+  .map((candidate) => candidate?.manualProfile)
+  .find((profile) => profile && typeof profile === 'object') || null;
+
 const getManualOrApprovedSalesProfile = (...candidates) => candidates
-  .map((candidate) => candidate?.salesProfile)
+  .flatMap((candidate) => [candidate?.salesProfile, candidate?.approvedProfile?.salesProfile])
   .find(isManualOrApprovedSalesProfile) || null;
 
-const getSalesProfileArguments = (salesProfile = null) => Array.isArray(salesProfile?.salesArguments) ? salesProfile.salesArguments : [];
+const getProfileSalesArguments = (profile = null) => Array.isArray(profile?.salesArguments) ? profile.salesArguments : null;
+
+const getFirstProfileSalesArguments = (...profiles) => profiles
+  .map(getProfileSalesArguments)
+  .find((salesArguments) => Array.isArray(salesArguments));
 
 const normalizeCatalogPage = (page) => {
   if (typeof page === 'number' || typeof page === 'string') {
@@ -744,12 +752,21 @@ const getCatalogDescriptionTexts = ({ source = {}, exactSeriesText = '', narrati
   .map((text) => String(text ?? '').trim())
   .filter(Boolean));
 
+const buildCatalogDiagnostics = (diagnostics = {}) => ({
+  ...diagnostics,
+  foundModels: diagnostics.modelCodes || [],
+  foundFeatures: diagnostics.salesFeatures || [],
+  foundTechnicalSpecs: diagnostics.technicalSpecs || [],
+  missingFields: diagnostics.warnings || [],
+  extractionNotes: diagnostics.notes || [],
+});
+
 const buildCatalogExtract = ({ source = {}, salesFeatures = [], importantSpecs = [], diagnostics = {}, exactSeriesText = '', narrativeText = '' } = {}) => ({
   descriptionsFromCatalog: getCatalogDescriptionTexts({ source, exactSeriesText, narrativeText }),
   factualFeatures: Array.isArray(salesFeatures) ? [...salesFeatures] : [],
   importantSpecs: Array.isArray(importantSpecs) ? [...importantSpecs] : [],
   sourcePages: getCatalogSourcePages(source),
-  diagnostics,
+  diagnostics: buildCatalogDiagnostics(diagnostics),
 });
 
 const normalizeLine = (line = '') => String(line ?? '').trim().replace(/^[-–—•*\d.)\s]+/, '').trim();
@@ -1670,7 +1687,7 @@ const extractMobileTableSpecs = (rawText = '') => {
     extractFirstMatchValue(rawText, /холодопроизводительность\s*вт\s*(\d{2,5})/iu, (value) => `холодопроизводительность ${value} Вт`),
     extractFirstMatchValue(rawText, /холодопроизводительность\s*btu\s*(\d{3,6})/iu, (value) => `холодопроизводительность ${value} BTU`),
     extractFirstMatchValue(rawText, /класс\s+энергоэффективности\s*\([^)]*охлаждение[^)]*\)\s*([AА]\+*)/iu, (value) => `класс энергоэффективности ${String(value).replace('А', 'A')}`),
-    extractFirstMatchValue(rawText, /хладагент\s*(R\s*\d{2,3})/iu, (value) => `хладагент ${value.replace(/\s+/gu, '')}`),
+    extractFirstMatchValue(rawText, /(?:хладагент|фреон)\s*(R\s*\d{2,3})/iu, (value) => `хладагент ${value.replace(/\s+/gu, '')}`),
     extractFirstMatchValue(rawText, /расход\s+воздуха\s*(?:м(?:³|3)\s*\/\s*ч)?\s*(\d{2,5})/iu, (value) => `расход воздуха ${value} м³/ч`),
     extractFirstMatchValue(rawText, /уровень\s+шума\s*(?:дб[аa]?)?\s*(\d{2,3})/iu, (value) => `уровень шума ${value} дБА`),
     extractFirstMatchValue(rawText, /потребляемая\s+мощность\s*\([^)]*охлаждение[^)]*\)\s*вт\s*(\d{2,5})/iu, (value) => `потребляемая мощность ${value} Вт`),
@@ -2197,17 +2214,19 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
   ).filter((feature) => isMobileAirConditionerProfile(categoryProfile) || !isEnergyClassFeature(feature));
   const categoryImportantSpecsText = isMobileAirConditionerProfile(categoryProfile) ? [exactSeriesText, summaryText, technicalText].join('\n') : technicalText;
   const technicalSpecs = hasTechnicalTable ? extractCategoryImportantSpecs(categoryImportantSpecsText, categoryProfile) : [];
-  const importantSpecs = sanitizeCategoryFeatureClasses(unique([...salesFeatures, ...technicalSpecs]), technicalText, categoryProfile);
+  const importantSpecs = sanitizeCategoryFeatureClasses(technicalSpecs, technicalText, categoryProfile);
   const draftWarning = buildDraftWarning({
     hasExactSeriesPages: hasEnoughDescriptionSource,
     hasTechnicalTable,
   });
   const legacyShortDescription = trimToSentence(legacyProfile?.shortDescription);
   const legacyPositioning = sanitizeAutoTextSegment(legacyProfile?.positioning, 260);
+  const manualProfile = getManualProfile(source, approvedProfile);
+  const approvedSalesProfile = approvedProfile?.salesProfile || null;
   const salesProfile = getManualOrApprovedSalesProfile(source, approvedProfile);
-  const salesProfileShortDescription = trimToSentence(salesProfile?.shortDescription);
-  const salesProfilePositioning = sanitizeAutoTextSegment(salesProfile?.positioning, 260);
-  const salesProfileArguments = getSalesProfileArguments(salesProfile);
+  const salesProfileShortDescription = trimToSentence(manualProfile?.shortDescription || approvedSalesProfile?.shortDescription || salesProfile?.shortDescription);
+  const salesProfilePositioning = sanitizeAutoTextSegment(manualProfile?.positioning || approvedSalesProfile?.positioning || salesProfile?.positioning, 260);
+  const salesProfileArguments = getFirstProfileSalesArguments(manualProfile, approvedSalesProfile, salesProfile);
   const narrativeText = isMobileAirConditionerProfile(categoryProfile) ? extractSeriesNarrativeText({ exactSeriesRawText: exactSeriesText, categorySummaryRawText: summaryText, seriesName }) : '';
   const draft = {
     profileId: approvedProfile.id,
@@ -2225,7 +2244,7 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
     keyFeatures,
     salesFeatures,
     mainAdvantages,
-    salesArguments: salesProfileArguments.length > 0 ? salesProfileArguments : legacyProfile?.salesArguments || [],
+    salesArguments: salesProfileArguments ?? legacyProfile?.salesArguments ?? [],
     clientSpeech: legacyProfile?.clientSpeech || '',
     differences: '',
     whenRecommend: legacyProfile?.whenRecommend || [],
@@ -2289,11 +2308,12 @@ export const generateSeriesDraft = (source) => {
   const keyFeatures = sanitizeCategoryFeatureClasses(sortFeaturesByPriority(unique([...salesFeatures, ...technicalFeatures])), technicalText, categoryProfile);
   const categoryImportantSpecsText = isMobileAirConditionerProfile(categoryProfile) ? [exactSeriesText, summaryText, technicalText].join('\n') : technicalText;
   const technicalSpecs = hasTechnicalTable ? extractCategoryImportantSpecs(categoryImportantSpecsText, categoryProfile) : [];
-  const importantSpecs = sanitizeCategoryFeatureClasses(unique([...salesFeatures, ...technicalSpecs]), technicalText, categoryProfile);
+  const importantSpecs = sanitizeCategoryFeatureClasses(technicalSpecs, technicalText, categoryProfile);
+  const manualProfile = getManualProfile(source);
   const salesProfile = getManualOrApprovedSalesProfile(source);
-  const salesProfileShortDescription = trimToSentence(salesProfile?.shortDescription);
-  const salesProfilePositioning = sanitizeAutoTextSegment(salesProfile?.positioning, 260);
-  const salesProfileArguments = getSalesProfileArguments(salesProfile);
+  const salesProfileShortDescription = trimToSentence(manualProfile?.shortDescription || salesProfile?.shortDescription);
+  const salesProfilePositioning = sanitizeAutoTextSegment(manualProfile?.positioning || salesProfile?.positioning, 260);
+  const salesProfileArguments = getFirstProfileSalesArguments(manualProfile, salesProfile) || [];
   const narrativeText = isMobileAirConditionerProfile(categoryProfile) ? extractSeriesNarrativeText({ exactSeriesRawText: exactSeriesText, categorySummaryRawText: summaryText, seriesName: source.seriesName }) : '';
 
   const draft = {
