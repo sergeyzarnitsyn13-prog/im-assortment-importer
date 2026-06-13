@@ -1710,6 +1710,20 @@ const joinSpecValues = (values = []) => {
   return uniqueValues.length <= 1 ? uniqueValues[0] || '' : uniqueValues.join('/');
 };
 
+const hasWattScalePowerValue = (values = []) => values
+  .map((value) => Number(String(value ?? '').replace(',', '.')))
+  .some((value) => Number.isFinite(value) && value > 100);
+
+const formatMobilePowerUnit = (unit = 'вт', values = []) => {
+  const normalizedUnit = String(unit || 'вт').toLocaleLowerCase('ru-RU');
+
+  if (normalizedUnit === 'квт' && !hasWattScalePowerValue(values)) {
+    return 'кВт';
+  }
+
+  return 'Вт';
+};
+
 const normalizeDimensionValue = (value = '') => cleanSpecValue(value).replace(/[xх]/giu, '×');
 
 const normalizeMobileTechnicalTableText = (rawText = '') => String(rawText ?? '')
@@ -1762,10 +1776,12 @@ const extractMobileTechnicalTableSpecs = (rawText = '') => {
   const dimension = '(\\d{2,4}\\s*[×xх]\\s*\\d{2,4}\\s*[×xх]\\s*\\d{2,4})';
   const weight = '(\\d+(?:[,.]\\d+)?\\s*\\/\\s*\\d+(?:[,.]\\d+)?)';
 
-  add(new RegExp(`производительность\\s+охлаждение\\s*\\/\\s*обогрев\\s+(вт|квт)\\s+${number}\\s*\\/\\s*${number}`, 'iu'), (unit, ...values) => `производительность охлаждения/обогрева ${joinSpecValues(values)} ${unit.toLocaleLowerCase('ru-RU') === 'квт' ? 'кВт' : 'Вт'}`);
+  add(new RegExp(`производительность\\s+охлаждение\\s*\\/\\s*обогрев\\s+(вт|квт)\\s+${number}\\s*\\/\\s*${number}`, 'iu'), (unit, ...values) => `производительность охлаждения/обогрева ${joinSpecValues(values)} ${formatMobilePowerUnit(unit, values)}`);
   add(new RegExp(`производительность\\s+охлаждение\\s*\\/\\s*обогрев\\s+btu\\s+${number}\\s*\\/\\s*${number}`, 'iu'), (...values) => `производительность охлаждения/обогрева ${joinSpecValues(values)} BTU`);
-  add(new RegExp(`производительность\\s+охлаждение\\s+(вт|квт)\\s+${number}(?:\\s+${number})?(?:\\s+${number})?`, 'iu'), (unit, ...values) => `производительность охлаждения ${joinSpecValues(values)} ${unit.toLocaleLowerCase('ru-RU') === 'квт' ? 'кВт' : 'Вт'}`);
+  add(new RegExp(`производительность\\s+охлаждение\\s+(вт|квт)\\s+${number}(?:\\s+${number})?(?:\\s+${number})?`, 'iu'), (unit, ...values) => `производительность охлаждения ${joinSpecValues(values)} ${formatMobilePowerUnit(unit, values)}`);
   add(new RegExp(`производительность\\s+охлаждение\\s+btu\\s+${number}(?:\\s+${number})?(?:\\s+${number})?`, 'iu'), (...values) => `производительность охлаждения ${joinSpecValues(values)} BTU`);
+  add(new RegExp(`(?<!номинальная\\s)(?<!потребляемая\\s)мощность\\s+охлаждение\\s*\\/\\s*обогрев\\s+(вт|квт)?\\s*${number}\\s*\\/\\s*${number}`, 'iu'), (unit = 'вт', ...values) => `мощность охлаждения/обогрева ${joinSpecValues(values)} ${formatMobilePowerUnit(unit, values)}`);
+  add(new RegExp(`(?<!номинальная\\s)(?<!потребляемая\\s)мощность\\s+охлаждение\\s+(вт|квт)?\\s*${number}(?:\\s+${number})?`, 'iu'), (unit = 'вт', ...values) => `мощность охлаждения ${joinSpecValues(values)} ${formatMobilePowerUnit(unit, values)}`);
   add(/класс\s+энергоэффективности\s*,?\s*(?:eer)?\s+([AА]\+*)(?:\s+([AА]\+*))?(?:\s+([AА]\+*))?/iu, (...values) => `класс энергоэффективности ${joinSpecValues(values).replace(/А/gu, 'A')}`);
   add(/хладагент\s+(R\s*\d{2,3}[a-zа-я]?)(?:\s+(R\s*\d{2,3}[a-zа-я]?))?(?:\s+(R\s*\d{2,3}[a-zа-я]?))?/iu, (...values) => `хладагент ${joinSpecValues(values).replace(/\s+/gu, '')}`);
   add(new RegExp(`расход\\s+воздуха\\s*(?:м³/ч)?\\s+${number}(?:\\s+${number})?(?:\\s+${number})?`, 'iu'), (...values) => `расход воздуха ${joinSpecValues(values)} м³/ч`);
@@ -1774,10 +1790,10 @@ const extractMobileTechnicalTableSpecs = (rawText = '') => {
     const voltage = formatVoltageSpec(value);
     return voltage ? `питание ${voltage}` : '';
   });
-  add(new RegExp(`номинальная\\s+мощность\\s+охлаждение\\s*\\/\\s*обогрев\\s+(вт|квт)?\\s*${number}\\s*\\/\\s*${number}`, 'iu'), (unit = 'вт', ...values) => `номинальная мощность охлаждения/обогрева ${joinSpecValues(values)} ${unit.toLocaleLowerCase('ru-RU') === 'квт' ? 'кВт' : 'Вт'}`);
+  add(new RegExp(`номинальная\\s+мощность\\s+охлаждение\\s*\\/\\s*обогрев\\s+(вт|квт)?\\s*${number}\\s*\\/\\s*${number}`, 'iu'), (unit = 'вт', ...values) => `номинальная мощность охлаждения/обогрева ${joinSpecValues(values)} ${formatMobilePowerUnit(unit, values)}`);
   add(new RegExp(`номинальный\\s+ток\\s+охлаждение\\s*\\/\\s*обогрев\\s+(?:а|a)?\\s*${number}\\s*\\/\\s*${number}`, 'iu'), (...values) => `номинальный ток охлаждения/обогрева ${joinSpecValues(values)} А`);
-  add(new RegExp(`потребляемая\\s+мощность\\s*(?:,?\\s*(?:вт|квт))?\\s+${number}(?:\\s+${number})?(?:\\s+${number})?`, 'iu'), (...values) => `потребляемая мощность ${joinSpecValues(values)} Вт`);
-  add(new RegExp(`номинальная\\s+мощность\\s+охлаждение\\s+(вт|квт)?\\s*${number}(?:\\s+${number})?`, 'iu'), (unit = 'вт', ...values) => `номинальная мощность охлаждения ${joinSpecValues(values)} ${unit.toLocaleLowerCase('ru-RU') === 'квт' ? 'кВт' : 'Вт'}`);
+  add(new RegExp(`потребляемая\\s+мощность\\s*(?:,?\\s*(вт|квт))?\\s+${number}(?:\\s+${number})?(?:\\s+${number})?`, 'iu'), (unit = 'вт', ...values) => `потребляемая мощность ${joinSpecValues(values)} ${formatMobilePowerUnit(unit, values)}`);
+  add(new RegExp(`номинальная\\s+мощность\\s+охлаждение\\s+(вт|квт)?\\s*${number}(?:\\s+${number})?`, 'iu'), (unit = 'вт', ...values) => `номинальная мощность охлаждения ${joinSpecValues(values)} ${formatMobilePowerUnit(unit, values)}`);
   add(new RegExp(`номинальный\\s+ток\\s+охлаждение\\s+(?:а|a)?\\s*${number}(?:\\s+${number})?(?:\\s+${number})?`, 'iu'), (...values) => `номинальный ток охлаждения ${joinSpecValues(values)} А`);
   add(new RegExp(`номинальный\\s+ток\\s*(?:,?\\s*(?:а|a))?\\s+${number}(?:\\s+${number})?(?:\\s+${number})?`, 'iu'), (...values) => `номинальный ток охлаждения ${joinSpecValues(values)} А`);
   add(new RegExp(`(?:размеры|габариты)\\s+прибора\\s*,?\\s*(?:ш\\s*[×xх]\\s*в\\s*[×xх]\\s*г\\s*)?мм\\s+${dimension}(?:\\s+${dimension})?(?:\\s+${dimension})?`, 'iu'), (...values) => `габариты ${joinSpecValues(values.map(normalizeDimensionValue))} мм`);
@@ -1848,7 +1864,7 @@ const extractMobileTableSpecs = (rawText = '') => {
     extractFirstMatchValue(rawText, /(?:хладагент|фреон)\s*(R\s*\d{2,3}[a-zа-я]?)|\b(R\s*\d{2,3}[a-zа-я]?)\b\s*эко\s*-?\s*фреон/iu, (...values) => `хладагент ${values.find(Boolean).replace(/\s+/gu, '')}`),
     extractFirstMatchValue(rawText, /расход\s+воздуха\s*(?:м\s*(?:³|3)\s*\/\s*ч)?\s*(\d{2,5})/iu, (value) => `расход воздуха ${value} м³/ч`),
     extractFirstMatchValue(rawText, /уровень\s+шума\s*(?:дб(?:\(а\)|[аa])?)?\s*(\d{2,3})/iu, (value) => `уровень шума ${value} дБ`),
-    extractFirstMatchValue(rawText, /потребляемая\s+мощность\s*\([^)]*охлаждение[^)]*\)\s*вт\s*(\d{2,5})/iu, (value) => `потребляемая мощность ${value} Вт`),
+    extractFirstMatchValue(rawText, /потребляемая\s+мощность\s*\([^)]*охлаждение[^)]*\)\s*(вт|квт)\s*(\d{2,5})/iu, (unit, value) => `потребляемая мощность ${value} ${formatMobilePowerUnit(unit, [value])}`),
     extractFirstMatchValue(rawText, /номинальн(?:ый|ая)\s+ток\s*\([^)]*охлаждение[^)]*\)\s*[aа]\s*(\d+(?:[,.]\d+)?)/iu, (value) => `номинальный ток охлаждения ${value} А`),
     extractFirstMatchValue(rawText, /электропитание\s*(?:в\s*-\s*гц|,?\s*в\s*\/\s*гц)?\s*((?:[0-9]{3}\s*[-–]\s*[0-9]{3}\s*(?:v|в|~|-|\/)?\s*[0-9]{2}\s*(?:hz|гц)?\s*){1,3})/iu, (value) => {
       const voltage = formatVoltageSpec(value);
