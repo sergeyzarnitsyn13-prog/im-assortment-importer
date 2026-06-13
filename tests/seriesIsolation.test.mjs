@@ -697,18 +697,22 @@ const platinumX4StabilityDraft = generateSeriesDraft({
   `,
   technicalRawText: `
     Параметр / Модель BPHS-09 HX/N3 BPHS-12 HX/N3 BPHS-14 HX/N3
-    Производительность охлаждение Вт 2600 3500 4200
-    Производительность охлаждение BTU 9000 12000 14000
+    Холодопроизводительность Вт 2600 3500 4200
+    Холодопроизводительность BTU 9000 12000 14000
     Класс энергоэффективности A A A
     Хладагент R410a R410a R410a
     Расход воздуха м³/ч 390 390 390
     Уровень шума дБ 49 47 48
-    Потребляемая мощность Вт 1360 1370 2000
+    Потребляемая мощность (охлаждение) Вт 1360 1370 2000
     Номинальный ток охлаждение А 5,9 6,8 9
     Электропитание В/Гц 220-240 ~ 50 220-240 ~ 50 220-240 ~ 50
     Габариты прибора мм 419×358×688 419×358×688 419×358×688
     Габариты упаковки мм 460×396×865 460×396×865 460×396×865
     Вес нетто/брутто кг 23,8/27,4 27,3/31,2 28,1/32
+    Модель A, мм B, мм C, мм L, мм D, мм
+    BPHS-09 HX/N3 419 358 688 1500 150
+    BPHS-12 HX/N3 419 358 688 1500 150
+    BPHS-14 HX/N3 419 358 688 1500 150
   `,
   exactSeriesPages: [56],
   technicalPages: [57],
@@ -731,11 +735,21 @@ for (const expectedSpec of [
   'габариты 419×358×688 мм',
   'габариты упаковки 460×396×865 мм',
   'вес нетто/брутто 23,8/27,4 и 27,3/31,2 и 28,1/32 кг',
+  'воздуховод: 1500 мм, Ø150 мм',
 ]) {
   assert.ok(platinumX4StabilityDraft.importantSpecs.includes(expectedSpec), `Platinum X4 importantSpecs must contain ${expectedSpec}`);
+  assert.ok(platinumX4StabilityDraft.technicalSpecs.includes(expectedSpec), `Platinum X4 technicalSpecs must contain ${expectedSpec}`);
+  assert.ok(platinumX4StabilityDraft.catalogExtract.importantSpecs.includes(expectedSpec), `Platinum X4 catalogExtract.importantSpecs must contain ${expectedSpec}`);
+  assert.ok(platinumX4StabilityDraft.catalogExtract.diagnostics.foundTechnicalSpecs.includes(expectedSpec), `Platinum X4 diagnostics.foundTechnicalSpecs must contain ${expectedSpec}`);
 }
+assert.equal(platinumX4StabilitySpecsText.includes('производительность охлаждения 2600 Вт'), false, 'Platinum X4 importantSpecs must not contain partial cooling W value');
+assert.equal(platinumX4StabilitySpecsText.includes('производительность охлаждения 9000 BTU'), false, 'Platinum X4 importantSpecs must not contain partial cooling BTU value');
+assert.equal(platinumX4StabilitySpecsText.includes('потребляемая мощность 1360 Вт'), false, 'Platinum X4 importantSpecs must not contain partial consumed power value');
 assert.deepEqual(platinumX4StabilityDraft.catalogExtract.diagnostics.foundModels, ['BPHS-09 HX/N3', 'BPHS-12 HX/N3', 'BPHS-14 HX/N3'], 'Platinum X4 diagnostics.foundModels must contain concrete models only');
-assert.equal(/воздуховод:/iu.test(platinumX4StabilitySpecsText), false, 'Platinum X4 importantSpecs must not invent duct dimensions when L/D table is absent');
+assert.deepEqual(platinumX4StabilityDraft.salesArguments, [], 'Platinum X4 salesArguments may stay empty without manual/legacy profile');
+assert.equal(platinumX4StabilityDraft.shortDescription, '', 'Platinum X4 shortDescription may stay empty without manual/legacy profile');
+assert.equal(platinumX4StabilityDraft.positioning, '', 'Platinum X4 positioning may stay empty without manual/legacy profile');
+assert.equal(Array.isArray(platinumX4StabilityDraft.catalogExtract.importantSpecs), true, 'Platinum X4 catalogExtract.importantSpecs must stay an array');
 
 
 const smartInverterProfile = SERIES_PROFILES.find((profile) => profile.seriesName === 'Smart Inverter');
@@ -879,13 +893,13 @@ const smartInverterEvoStabilityDraft = generateSeriesDraft({
   `,
   technicalRawText: `
     Параметр / Модель BPAC-12 IE / N6 BPAC-14 IE / N6
-    Производительность охлаждение Вт 3500 4000
-    Производительность охлаждение BTU 12000 14000
+    Холодопроизводительность Вт 3500 4000
+    Холодопроизводительность BTU 12000 14000
     Класс энергоэффективности A+ A+
     Хладагент R290 R290
     Расход воздуха м³/ч 440 460
     Уровень шума дБ 40 40
-    Потребляемая мощность Вт 975 1050
+    Потребляемая мощность (охлаждение) Вт 975 1050
     Номинальный ток охлаждение А 5,8 6,9
     Электропитание В/Гц 220-240V 50Hz 220-240V 50Hz
     Габариты прибора мм 440×350×740 440×350×740
@@ -917,8 +931,19 @@ for (const expectedSpec of [
   'воздуховод: 1500 мм, Ø150 мм',
 ]) {
   assert.ok(smartInverterEvoStabilityDraft.importantSpecs.includes(expectedSpec), `Smart Inverter EVO importantSpecs must contain ${expectedSpec}`);
+  assert.ok(smartInverterEvoStabilityDraft.technicalSpecs.includes(expectedSpec), `Smart Inverter EVO technicalSpecs must contain ${expectedSpec}`);
+  assert.ok(smartInverterEvoStabilityDraft.catalogExtract.importantSpecs.includes(expectedSpec), `Smart Inverter EVO catalogExtract.importantSpecs must contain ${expectedSpec}`);
+  assert.ok(smartInverterEvoStabilityDraft.catalogExtract.diagnostics.foundTechnicalSpecs.includes(expectedSpec), `Smart Inverter EVO diagnostics.foundTechnicalSpecs must contain ${expectedSpec}`);
 }
+const smartInverterEvoStabilitySpecsText = smartInverterEvoStabilityDraft.importantSpecs.join(' ');
+assert.equal(smartInverterEvoStabilitySpecsText.includes('производительность охлаждения 3500 Вт'), false, 'Smart Inverter EVO importantSpecs must not contain partial cooling W value');
+assert.equal(smartInverterEvoStabilitySpecsText.includes('производительность охлаждения 12000 BTU'), false, 'Smart Inverter EVO importantSpecs must not contain partial cooling BTU value');
+assert.equal(smartInverterEvoStabilitySpecsText.includes('потребляемая мощность 975 Вт'), false, 'Smart Inverter EVO importantSpecs must not contain partial consumed power value');
 assert.deepEqual(smartInverterEvoStabilityDraft.catalogExtract.diagnostics.foundModels, ['BPAC-12 IE/N6', 'BPAC-14 IE/N6'], 'Smart Inverter EVO diagnostics.foundModels must contain concrete models only');
+assert.deepEqual(smartInverterEvoStabilityDraft.salesArguments, [], 'Smart Inverter EVO salesArguments may stay empty without manual/legacy profile');
+assert.equal(smartInverterEvoStabilityDraft.shortDescription, '', 'Smart Inverter EVO shortDescription may stay empty without manual/legacy profile');
+assert.equal(smartInverterEvoStabilityDraft.positioning, '', 'Smart Inverter EVO positioning may stay empty without manual/legacy profile');
+assert.equal(Array.isArray(smartInverterEvoStabilityDraft.catalogExtract.importantSpecs), true, 'Smart Inverter EVO catalogExtract.importantSpecs must stay an array');
 assert.equal(/A\+\+|±0,5|экономия энергии 20%|HEAVY PRO|HEAVY INDUSTRIAL/iu.test(stringifyDraft(smartInverterEvoStabilityDraft)), false, 'Smart Inverter EVO must not receive Smart Inverter/Heavy Pro-only facts');
 
 const waterHeaterSource = {
