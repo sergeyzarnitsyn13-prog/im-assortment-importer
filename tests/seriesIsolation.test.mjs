@@ -981,6 +981,7 @@ assert.match(ecoCoolSpecsText, /2000 BTU/iu, 'ECO COOL importantSpecs must inclu
 assert.match(ecoCoolSpecsText, /R290/iu, 'ECO COOL importantSpecs must include R290');
 assert.match(ecoCoolSpecsText, /42 дБ/iu, 'ECO COOL importantSpecs must include 42 dB');
 assert.match(ecoCoolSpecsText, /250 Вт/iu, 'ECO COOL importantSpecs must include 250 W');
+assert.ok(ecoCoolDraft.importantSpecs.includes('потребляемая мощность 250 Вт'), 'ECO COOL importantSpecs must contain normalized consumed power in W');
 assert.match(ecoCoolSpecsText, /325×275×585/iu, 'ECO COOL importantSpecs must include product dimensions');
 assert.match(ecoCoolSpecsText, /14\/15 кг/iu, 'ECO COOL importantSpecs must include net/gross weight');
 assert.equal(/undefined|null|\[object Object\]/iu.test(stringifyDraft(ecoCoolDraft)), false, 'ECO COOL draft must not contain garbage placeholders');
@@ -1094,6 +1095,7 @@ const smartInverterDraft = generateSeriesDraft({
 const smartInverterImportantSpecsText = smartInverterDraft.importantSpecs.join(' ');
 const smartInverterCatalogSpecsText = smartInverterDraft.catalogExtract.importantSpecs.join(' ');
 const smartInverterFeaturesText = smartInverterDraft.catalogExtract.factualFeatures.join(' ');
+assert.ok(smartInverterDraft.importantSpecs.includes('номинальная мощность охлаждения/обогрева 975/810 Вт'), 'Smart Inverter importantSpecs must keep nominal cooling/heating power in W');
 for (const expectedSpec of [
   'производительность охлаждения/обогрева 3500/2930 Вт',
   'производительность охлаждения/обогрева 12000/10000 BTU',
@@ -1143,7 +1145,7 @@ const velureDraft = generateSeriesDraft({
     Расход воздуха м 3 /ч 400 430
     Уровень шума дБ(А) 50 50
     Напряжение питания В~Гц,Ф 220-240 ~ 50 220-240 ~ 50
-    Номинальная мощность (охлаждение) Вт 1330 1560
+    Номинальная мощность (охлаждение) кВт 1330 1560
     Номинальный ток (охлаждение) А 5.8 6.8
     Размеры прибора (Ш×В×Г) мм 434×700×350 434×700×350
     Размеры упаковки (Ш×В×Г) мм 490×878×381 490×878×381
@@ -1201,6 +1203,18 @@ const expectedVelureImportantSpecs = [
 ];
 for (const expectedSpec of expectedVelureImportantSpecs) {
   assert.ok(velureDraft.importantSpecs.includes(expectedSpec), `Velure importantSpecs must contain ${expectedSpec}`);
+}
+assert.ok(velureDraft.importantSpecs.includes('номинальная мощность охлаждения 1330/1560 Вт'), 'Velure importantSpecs must contain normalized nominal cooling power in W');
+assert.equal(velureDraft.importantSpecs.join(' ').includes('1330/1560 кВт'), false, 'Velure importantSpecs must not contain nominal cooling power in kW');
+assert.ok(velureDraft.catalogExtract.importantSpecs.includes('номинальная мощность охлаждения 1330/1560 Вт'), 'Velure catalogExtract.importantSpecs must contain normalized nominal cooling power in W');
+assert.equal(velureDraft.catalogExtract.importantSpecs.join(' ').includes('1330/1560 кВт'), false, 'Velure catalogExtract.importantSpecs must not contain nominal cooling power in kW');
+for (const [specListName, specList] of [
+  ['technicalSpecs', velureDraft.technicalSpecs],
+  ['catalogExtract.diagnostics.technicalSpecs', velureDraft.catalogExtract.diagnostics.technicalSpecs],
+  ['catalogExtract.diagnostics.foundTechnicalSpecs', velureDraft.catalogExtract.diagnostics.foundTechnicalSpecs],
+]) {
+  assert.ok(specList.includes('номинальная мощность охлаждения 1330/1560 Вт'), `Velure ${specListName} must contain normalized nominal cooling power in W`);
+  assert.equal(specList.join(' ').includes('1330/1560 кВт'), false, `Velure ${specListName} must not contain nominal cooling power in kW`);
 }
 assert.ok(velureDraft.catalogExtract.importantSpecs.includes('производительность охлаждения 3500/4100 Вт'), 'Velure catalogExtract.importantSpecs must contain normalized cooling capacity in W');
 assert.ok(velureDraft.catalogExtract.importantSpecs.includes('расход воздуха 400/430 м³/ч'), 'Velure catalogExtract.importantSpecs must contain normalized airflow');
