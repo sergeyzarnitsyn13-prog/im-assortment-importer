@@ -4,7 +4,7 @@ import { extractRelevantSeriesBlock } from './seriesBlockExtractor.js';
 const featurePatterns = [
   { label: 'Wi-Fi управление', patterns: [/\bwi\s*-?\s*fi\b/u, /\bwifi\b/u, /вай\s*-?\s*фай/u, /\bhommyn\b/u, /работает\s+с\s+hommyn/u] },
   { label: 'управление со смартфона', patterns: [/управлен[а-яё\s]+(?:с\s+помощью\s+)?смартфон/u] },
-  { label: 'инверторная технология', patterns: [/инверт[ое]рн[а-яё]+\s+технолог/u] },
+  { label: 'инверторная технология', patterns: [/инверт[ое]рн[а-яё]+\s+технолог/u, /\binverter\b/u] },
   { label: 'инверторный компрессор', patterns: [/инверторн[а-яё]+\s+компрессор/u] },
   { label: 'точное поддержание температуры', patterns: [/точн[а-яё\s]{0,80}поддержан[а-яё\s]{0,80}(?:комфортн[а-яё\s]+)?температур/u] },
   { label: 'точность поддержания до ±0,5 °C', patterns: [/точн[а-яё\s]{0,80}(?:до|±)\s*±?\s*0[,.]5\s*°?\s*c/u, /погрешност[а-яё\s]{0,40}до\s*±?\s*0[,.]5\s*°?\s*c/u] },
@@ -132,7 +132,7 @@ const MOBILE_NARRATIVE_FEATURE_RULES = [
   { label: 'пульт в комплекте', patterns: [/пульт[а-яё\s]{0,80}комплект/iu] },
   { label: 'инверторная технология', patterns: [/инверт[ое]рн(ая|ой|ую|ым)[^\n.]{0,120}технолог/iu] },
   { label: 'инверторный компрессор', patterns: [/инверторн(ый|ого)[^\n.]{0,120}компрессор/iu] },
-  { label: 'плавная регулировка компрессора', patterns: [/плавн(ая|ой)[^\n.]{0,120}регулировк/iu] },
+  { label: 'плавная регулировка компрессора', patterns: [/плавн(ая|ой)[^\n.]{0,120}регулировк[^\n.]{0,120}компрессор/iu, /плавн(ая|ой)[^\n.]{0,120}регулировк/iu] },
   { label: 'низкий уровень шума 40 дБ', patterns: [/40\s*дБ/iu] },
   { label: 'минимальный уровень шума', patterns: [/минимальн(ый|ого)[^\n.]{0,120}уровень\s+шума/iu] },
   { label: 'подходит для спальни', patterns: [/даже\s+в\s+спальне/iu] },
@@ -676,6 +676,9 @@ const buildDraftDiagnostics = (source, draft) => {
     technicalRawTextLength: technicalText.length,
     descriptionRawTextLength: descriptionRawText.length,
     modelCodes: extractDiagnosticModelCodes(source, draft.code || source?.code || ''),
+    seriesCode: normalizeSeriesCode(draft.code || source?.code || ''),
+    seriesName: draft.seriesName || source?.seriesName || '',
+    foundModels: extractConcreteMobileModels(getSourceDiagnosticText(source), draft.code || source?.code || ''),
     salesFeatures: draft.salesFeatures || [],
     technicalSpecs: draft.technicalSpecs || [],
   };
@@ -758,7 +761,10 @@ const getCatalogDescriptionTexts = ({ source = {}, exactSeriesText = '', narrati
 
 const buildCatalogDiagnostics = (diagnostics = {}) => ({
   ...diagnostics,
-  foundModels: diagnostics.modelCodes || [],
+  seriesCode: diagnostics.seriesCode || '',
+  seriesName: diagnostics.seriesName || '',
+  foundModels: diagnostics.foundModels || diagnostics.modelCodes || [],
+  modelCodes: diagnostics.modelCodes || [],
   foundFeatures: diagnostics.salesFeatures || [],
   foundTechnicalSpecs: diagnostics.technicalSpecs || [],
   missingFields: diagnostics.warnings || [],
@@ -843,6 +849,51 @@ const unique = (items) => {
   });
 };
 
+
+
+const normalizeMobileModelCode = (value = '') => String(value ?? '')
+  .replace(/[‐‑‒–—−]/gu, '-')
+  .replace(/\s*\/\s*/gu, '/')
+  .replace(/\s+/gu, ' ')
+  .trim();
+
+const normalizeSeriesCode = (value = '') => normalizeMobileModelCode(value).replace(/^(BPAC|BPHS)\s+/iu, '$1-');
+
+const MOBILE_MODEL_PATTERN = /\b(?:BPAC|BPHS)\s*-?\s*\d{2}\s+[A-Z]{2}(?:\s*\/\s*N\d)?\b/giu;
+
+const extractConcreteMobileModels = (rawText = '', seriesCode = '') => {
+  const normalizedSeriesCode = normalizeSeriesCode(seriesCode);
+  const suffix = (normalizedSeriesCode.match(/^(?:BPAC|BPHS)-(.+)$/iu) || [])[1]?.replace(/[^A-Z0-9]+/giu, '') || '';
+  const models = unique(
+    (String(rawText ?? '').match(MOBILE_MODEL_PATTERN) || [])
+      .map(normalizeMobileModelCode)
+      .map((model) => model.replace(/^(BPAC|BPHS)\s*-?\s*(\d{2})\s+/iu, '$1-$2 '))
+      .filter(Boolean),
+  );
+
+  if (!suffix) {
+    return models;
+  }
+
+  const filtered = models.filter((model) => {
+    const modelSuffix = (model.match(/^BP(?:AC|HS)-\d{2}\s+([A-Z]{2})/iu) || [])[1] || '';
+    return modelSuffix.toLocaleUpperCase('ru-RU') === suffix.toLocaleUpperCase('ru-RU');
+  });
+
+  return filtered.length > 0 ? filtered : models;
+};
+
+const getSourceDiagnosticText = (source = {}) => [
+  source?.exactSeriesRawText,
+  source?.overviewRawText,
+  source?.categorySummaryRawText,
+  source?.summaryRawText,
+  source?.serviceRawText,
+  source?.technicalRawText,
+  source?.rawText,
+]
+  .filter(Boolean)
+  .join('\n');
 
 const CATEGORY_EXTRACTION_PROFILES = {
   inverterSplit: {
@@ -1675,10 +1726,9 @@ const formatVoltageSpec = (...values) => {
   const normalizedValues = values
     .map((value) => String(value ?? '').trim())
     .filter(Boolean)
-    .map((value) => {
-      const match = /(\d{3})\s*-\s*(\d{3})\s*(?:~|\/|-)?\s*(\d{2})/.exec(value);
-
-      return match ? `${match[1]}–${match[2]} В / ${match[3]} Гц` : '';
+    .flatMap((value) => {
+      const matches = [...value.matchAll(/(\d{3})\s*[-–]\s*(\d{3})\s*(?:v|в|~|\/|-)?\s*(\d{2})\s*(?:hz|гц)?/giu)];
+      return matches.map((match) => `${match[1]}–${match[2]} В / ${match[3]} Гц`);
     })
     .filter(Boolean);
   const uniqueValues = unique(normalizedValues);
@@ -1714,69 +1764,75 @@ const extractMobileTechnicalTableSpecs = (rawText = '') => {
 
   add(new RegExp(`производительность\\s+охлаждение\\s*\\/\\s*обогрев\\s+(вт|квт)\\s+${number}\\s*\\/\\s*${number}`, 'iu'), (unit, ...values) => `производительность охлаждения/обогрева ${joinSpecValues(values)} ${unit.toLocaleLowerCase('ru-RU') === 'квт' ? 'кВт' : 'Вт'}`);
   add(new RegExp(`производительность\\s+охлаждение\\s*\\/\\s*обогрев\\s+btu\\s+${number}\\s*\\/\\s*${number}`, 'iu'), (...values) => `производительность охлаждения/обогрева ${joinSpecValues(values)} BTU`);
-  add(new RegExp(`производительность\\s+охлаждение\\s+(вт|квт)\\s+${number}(?:\\s+${number})?`, 'iu'), (unit, ...values) => `производительность охлаждения ${joinSpecValues(values)} ${unit.toLocaleLowerCase('ru-RU') === 'квт' ? 'кВт' : 'Вт'}`);
-  add(new RegExp(`производительность\\s+охлаждение\\s+btu\\s+${number}(?:\\s+${number})?`, 'iu'), (...values) => `производительность охлаждения ${joinSpecValues(values)} BTU`);
-  add(/класс\s+энергоэффективности\s*,?\s*(?:eer)?\s+([AА]\+*)(?:\s+([AА]\+*))?/iu, (...values) => `класс энергоэффективности ${joinSpecValues(values).replace(/А/gu, 'A')}`);
-  add(new RegExp(`расход\\s+воздуха\\s*(?:м³/ч)?\\s+${number}(?:\\s+${number})?`, 'iu'), (...values) => `расход воздуха ${joinSpecValues(values)} м³/ч`);
-  add(new RegExp(`уровень\\s+шума\\s*(?:дБ)?\\s+${number}(?:\\s+${number})?`, 'iu'), (...values) => `уровень шума ${joinSpecValues(values)} дБ`);
-  add(/напряжение\s+питания\s*(?:В~Гц,Ф|В-Гц)?\s+(\d{3}\s*-\s*\d{3}\s*(?:~|-|\/)?\s*\d{2})(?:\s+(\d{3}\s*-\s*\d{3}\s*(?:~|-|\/)?\s*\d{2}))?/iu, (...values) => {
-    const voltage = formatVoltageSpec(...values);
+  add(new RegExp(`производительность\\s+охлаждение\\s+(вт|квт)\\s+${number}(?:\\s+${number})?(?:\\s+${number})?`, 'iu'), (unit, ...values) => `производительность охлаждения ${joinSpecValues(values)} ${unit.toLocaleLowerCase('ru-RU') === 'квт' ? 'кВт' : 'Вт'}`);
+  add(new RegExp(`производительность\\s+охлаждение\\s+btu\\s+${number}(?:\\s+${number})?(?:\\s+${number})?`, 'iu'), (...values) => `производительность охлаждения ${joinSpecValues(values)} BTU`);
+  add(/класс\s+энергоэффективности\s*,?\s*(?:eer)?\s+([AА]\+*)(?:\s+([AА]\+*))?(?:\s+([AА]\+*))?/iu, (...values) => `класс энергоэффективности ${joinSpecValues(values).replace(/А/gu, 'A')}`);
+  add(/хладагент\s+(R\s*\d{2,3}[a-zа-я]?)(?:\s+(R\s*\d{2,3}[a-zа-я]?))?(?:\s+(R\s*\d{2,3}[a-zа-я]?))?/iu, (...values) => `хладагент ${joinSpecValues(values).replace(/\s+/gu, '')}`);
+  add(new RegExp(`расход\\s+воздуха\\s*(?:м³/ч)?\\s+${number}(?:\\s+${number})?(?:\\s+${number})?`, 'iu'), (...values) => `расход воздуха ${joinSpecValues(values)} м³/ч`);
+  add(new RegExp(`уровень\\s+шума\\s*(?:дБ)?\\s+${number}(?:\\s+${number})?(?:\\s+${number})?`, 'iu'), (...values) => `уровень шума ${joinSpecValues(values)} дБ`);
+  add(/(?:напряжение\s+питания|электропитание)\s*(?:В~Гц,Ф|В-Гц|В\/Гц|в\s*-\s*гц|,?\s*в\s*\/\s*гц)?\s+((?:\d{3}\s*-\s*\d{3}\s*(?:v|в|~|-|\/)?\s*\d{2}\s*(?:hz|гц)?\s*){1,3})/iu, (value) => {
+    const voltage = formatVoltageSpec(value);
     return voltage ? `питание ${voltage}` : '';
   });
   add(new RegExp(`номинальная\\s+мощность\\s+охлаждение\\s*\\/\\s*обогрев\\s+(вт|квт)?\\s*${number}\\s*\\/\\s*${number}`, 'iu'), (unit = 'вт', ...values) => `номинальная мощность охлаждения/обогрева ${joinSpecValues(values)} ${unit.toLocaleLowerCase('ru-RU') === 'квт' ? 'кВт' : 'Вт'}`);
   add(new RegExp(`номинальный\\s+ток\\s+охлаждение\\s*\\/\\s*обогрев\\s+(?:а|a)?\\s*${number}\\s*\\/\\s*${number}`, 'iu'), (...values) => `номинальный ток охлаждения/обогрева ${joinSpecValues(values)} А`);
+  add(new RegExp(`потребляемая\\s+мощность\\s*(?:,?\\s*(?:вт|квт))?\\s+${number}(?:\\s+${number})?(?:\\s+${number})?`, 'iu'), (...values) => `потребляемая мощность ${joinSpecValues(values)} Вт`);
   add(new RegExp(`номинальная\\s+мощность\\s+охлаждение\\s+(вт|квт)?\\s*${number}(?:\\s+${number})?`, 'iu'), (unit = 'вт', ...values) => `номинальная мощность охлаждения ${joinSpecValues(values)} ${unit.toLocaleLowerCase('ru-RU') === 'квт' ? 'кВт' : 'Вт'}`);
-  add(new RegExp(`номинальный\\s+ток\\s+охлаждение\\s+(?:а|a)?\\s*${number}(?:\\s+${number})?`, 'iu'), (...values) => `номинальный ток охлаждения ${joinSpecValues(values)} А`);
-  add(new RegExp(`размеры\\s+прибора\\s+(?:ш\\s*[×xх]\\s*в\\s*[×xх]\\s*г\\s*)?мм\\s+${dimension}(?:\\s+${dimension})?`, 'iu'), (...values) => `габариты ${joinSpecValues(values.map(normalizeDimensionValue))} мм`);
-  add(new RegExp(`(?:размеры|габариты)\\s+упаковки\\s+(?:ш\\s*[×xх]\\s*в\\s*[×xх]\\s*г\\s*)?мм\\s+${dimension}(?:\\s+${dimension})?`, 'iu'), (...values) => `габариты упаковки ${joinSpecValues(values.map(normalizeDimensionValue))} мм`);
-  add(new RegExp(`вес\\s+нетто\\s*\\/\\s*брутто\\s+кг\\s+${weight}(?:\\s+${weight})?`, 'iu'), formatWeightSpec);
+  add(new RegExp(`номинальный\\s+ток\\s+охлаждение\\s+(?:а|a)?\\s*${number}(?:\\s+${number})?(?:\\s+${number})?`, 'iu'), (...values) => `номинальный ток охлаждения ${joinSpecValues(values)} А`);
+  add(new RegExp(`номинальный\\s+ток\\s*(?:,?\\s*(?:а|a))?\\s+${number}(?:\\s+${number})?(?:\\s+${number})?`, 'iu'), (...values) => `номинальный ток охлаждения ${joinSpecValues(values)} А`);
+  add(new RegExp(`(?:размеры|габариты)\\s+прибора\\s*,?\\s*(?:ш\\s*[×xх]\\s*в\\s*[×xх]\\s*г\\s*)?мм\\s+${dimension}(?:\\s+${dimension})?(?:\\s+${dimension})?`, 'iu'), (...values) => `габариты ${joinSpecValues(values.map(normalizeDimensionValue))} мм`);
+  add(new RegExp(`(?:размеры|габариты)\\s+упаковки\\s*,?\\s*(?:ш\\s*[×xх]\\s*в\\s*[×xх]\\s*г\\s*)?мм\\s+${dimension}(?:\\s+${dimension})?(?:\\s+${dimension})?`, 'iu'), (...values) => `габариты упаковки ${joinSpecValues(values.map(normalizeDimensionValue))} мм`);
+  add(new RegExp(`вес\\s+нетто\\s*\\/\\s*брутто\\s*,?\\s*кг\\s+${weight}(?:\\s+${weight})?(?:\\s+${weight})?`, 'iu'), formatWeightSpec);
 
   return unique(specs);
 };
 
 const extractMobileMultiValueSpecs = extractMobileTechnicalTableSpecs;
 
-const getSpecDedupeKey = (spec = '') => {
+const getMobileSpecSemanticKey = (spec = '') => {
   const normalized = normalizeSearchText(spec);
-  const keyPatterns = [
-    /^производительность охлаждения\/обогрева \d+[\d,./]*\s*вт/u,
-    /^производительность охлаждения\/обогрева \d+[\d,./]*\s*btu/u,
-    /^производительность охлаждения \d+[\d,./]*\s*вт/u,
-    /^производительность охлаждения \d+[\d,./]*\s*btu/u,
-    /^класс энергоэффективности/u,
-    /^расход воздуха/u,
-    /^уровень шума/u,
-    /^питание/u,
-    /^номинальная мощность охлаждения\/обогрева/u,
-    /^номинальный ток охлаждения\/обогрева/u,
-    /^номинальная мощность охлаждения/u,
-    /^номинальный ток охлаждения/u,
-    /^габариты упаковки/u,
-    /^габариты/u,
-    /^вес нетто\/брутто/u,
-    /^хладагент/u,
-  ];
-  const matchedPattern = keyPatterns.find((pattern) => pattern.test(normalized));
+  const compactNumbers = normalized.replace(/[^0-9a-zа-яё+]+/gu, '');
 
-  return matchedPattern ? String(matchedPattern) : normalized;
+  if (/^производительность охлаждения\/обогрева/u.test(normalized)) return { family: normalized.includes('btu') ? 'coolingHeatingBtu' : 'coolingHeatingW', rank: 2 };
+  if (/^производительность охлаждения/u.test(normalized)) return { family: normalized.includes('btu') ? 'coolingHeatingBtu' : 'coolingHeatingW', rank: 1 };
+  if (/^номинальная мощность охлаждения\/обогрева/u.test(normalized)) return { family: 'nominalCoolingHeatingPower', rank: 2 };
+  if (/^номинальная мощность охлаждения/u.test(normalized)) return { family: 'nominalCoolingHeatingPower', rank: 1 };
+  if (/^номинальный ток охлаждения\/обогрева/u.test(normalized)) return { family: 'nominalCoolingHeatingCurrent', rank: 2 };
+  if (/^номинальный ток охлаждения|^номинальный ток/u.test(normalized)) return { family: 'nominalCoolingHeatingCurrent', rank: 1 };
+  if (/^расход воздуха/u.test(normalized)) return { family: 'airflow', rank: normalized.includes('/') ? 2 : 1 };
+  if (/^уровень шума/u.test(normalized)) return { family: 'noiseLevel', rank: normalized.includes('/') ? 2 : 1 };
+  if (/^питание|^электропитание|^напряжение питания/u.test(normalized)) return { family: 'powerSupply', rank: normalized.startsWith('питание') ? 2 : 1 };
+  if (/^габариты упаковки/u.test(normalized)) return { family: `packageDimensions:${compactNumbers}`, rank: 2 };
+  if (/^габариты|^размеры прибора/u.test(normalized)) return { family: `productDimensions:${compactNumbers}`, rank: 2 };
+  if (/^вес нетто\/брутто|^вес/u.test(normalized)) return { family: 'netGrossWeight', rank: normalized.startsWith('вес нетто/брутто') ? 2 : 1 };
+  if (/^хладагент\s+r\s*\d+|^r\s*\d+$/u.test(normalized)) return { family: `refrigerant:${(normalized.match(/r\s*\d+/u) || [''])[0].replace(/\s+/gu, '')}`, rank: normalized.startsWith('хладагент') ? 2 : 1 };
+
+  return { family: normalized, rank: 1 };
 };
 
 const mergeMobileSpecs = (...specGroups) => {
   const specs = [];
-  const seenKeys = new Set();
+  const meta = [];
 
   for (const spec of specGroups.flat()) {
     if (!spec) {
       continue;
     }
 
-    const key = getSpecDedupeKey(spec);
-    if (seenKeys.has(key)) {
-      continue;
+    const currentMeta = getMobileSpecSemanticKey(spec);
+    const existingIndex = meta.findIndex((item) => item.family === currentMeta.family);
+
+    if (existingIndex >= 0) {
+      if (meta[existingIndex].rank >= currentMeta.rank) {
+        continue;
+      }
+
+      specs.splice(existingIndex, 1);
+      meta.splice(existingIndex, 1);
     }
 
-    seenKeys.add(key);
     specs.push(spec);
+    meta.push(currentMeta);
   }
 
   return specs;
@@ -1785,15 +1841,19 @@ const mergeMobileSpecs = (...specGroups) => {
 const extractMobileTableSpecs = (rawText = '') => {
   const tableSpecs = extractMobileTechnicalTableSpecs(rawText);
   const fallbackSpecs = [
+    extractFirstMatchValue(rawText, /уровень\s+шума\s*(?:дб(?:\(а\)|[аa])?)?\s*(\d{2,3})\s+(\d{2,3})\s+(\d{2,3})/iu, (...values) => `уровень шума ${joinSpecValues(values)} дБ`),
     extractFirstMatchValue(rawText, /холодопроизводительность\s*вт\s*(\d{2,5})/iu, (value) => `производительность охлаждения ${value} Вт`),
     extractFirstMatchValue(rawText, /холодопроизводительность\s*btu\s*(\d{3,6})/iu, (value) => `производительность охлаждения ${value} BTU`),
     extractFirstMatchValue(rawText, /класс\s+энергоэффективности\s*\([^)]*охлаждение[^)]*\)\s*([AА]\+*)/iu, (value) => `класс энергоэффективности ${String(value).replace('А', 'A')}`),
-    extractFirstMatchValue(rawText, /(?:хладагент|фреон)\s*(R\s*\d{2,3})|\b(R\s*\d{2,3})\b\s*эко\s*-?\s*фреон/iu, (...values) => `хладагент ${values.find(Boolean).replace(/\s+/gu, '')}`),
+    extractFirstMatchValue(rawText, /(?:хладагент|фреон)\s*(R\s*\d{2,3}[a-zа-я]?)|\b(R\s*\d{2,3}[a-zа-я]?)\b\s*эко\s*-?\s*фреон/iu, (...values) => `хладагент ${values.find(Boolean).replace(/\s+/gu, '')}`),
     extractFirstMatchValue(rawText, /расход\s+воздуха\s*(?:м\s*(?:³|3)\s*\/\s*ч)?\s*(\d{2,5})/iu, (value) => `расход воздуха ${value} м³/ч`),
     extractFirstMatchValue(rawText, /уровень\s+шума\s*(?:дб(?:\(а\)|[аa])?)?\s*(\d{2,3})/iu, (value) => `уровень шума ${value} дБ`),
     extractFirstMatchValue(rawText, /потребляемая\s+мощность\s*\([^)]*охлаждение[^)]*\)\s*вт\s*(\d{2,5})/iu, (value) => `потребляемая мощность ${value} Вт`),
     extractFirstMatchValue(rawText, /номинальн(?:ый|ая)\s+ток\s*\([^)]*охлаждение[^)]*\)\s*[aа]\s*(\d+(?:[,.]\d+)?)/iu, (value) => `номинальный ток охлаждения ${value} А`),
-    extractFirstMatchValue(rawText, /электропитание\s*в\s*-\s*гц\s*([0-9]{3}\s*-\s*[0-9]{3}\s*v?\s*[0-9]{2}\s*hz)/iu, (value) => `электропитание ${value.replace(/\s*-\s*/gu, '–').replace(/\s+/gu, ' ')}`),
+    extractFirstMatchValue(rawText, /электропитание\s*(?:в\s*-\s*гц|,?\s*в\s*\/\s*гц)?\s*((?:[0-9]{3}\s*[-–]\s*[0-9]{3}\s*(?:v|в|~|-|\/)?\s*[0-9]{2}\s*(?:hz|гц)?\s*){1,3})/iu, (value) => {
+      const voltage = formatVoltageSpec(value);
+      return voltage ? `питание ${voltage}` : '';
+    }),
     extractFirstMatchValue(rawText, /(?:габариты|размеры\s+прибора)\s*(?:\([^)]*\)|ш[×xх]\s*в[×xх]\s*г)?\s*мм\s*(\d{2,4}\s*[×xх]\s*\d{2,4}\s*[×xх]\s*\d{2,4})/iu, (value) => `габариты ${normalizeDimensionValue(value)} мм`),
     extractFirstMatchValue(rawText, /(?:габариты\s+в\s+упаковке|размеры\s+упаковки)\s*(?:\([^)]*\)|ш[×xх]\s*в[×xх]\s*г)?\s*мм\s*(\d{2,4}\s*[×xх]\s*\d{2,4}\s*[×xх]\s*\d{2,4})/iu, (value) => `габариты упаковки ${normalizeDimensionValue(value)} мм`),
     extractFirstMatchValue(rawText, /вес\s+нетто\s*\/\s*брутто\s*кг\s*(\d+(?:[,.]\d+)?\s*\/\s*\d+(?:[,.]\d+)?)/iu, (value) => `вес нетто/брутто ${value.replace(/\s*\/\s*/gu, '/')} кг`),
@@ -1819,15 +1879,15 @@ const isMobileStructuredTechnicalSpecLine = (line = '') => {
       /\b(?:производительность|холодопроизводительность|класс\s+энергоэффективности|расход\s+воздуха|уровень\s+шума|мощность|ток|электропитание|габарит|размер|вес|хладагент|воздуховод)\b/u.test(normalized);
 };
 
-const extractMobileAirConditionerImportantSpecs = (rawText = '') => unique([
-  ...extractMobileTableSpecs(rawText),
-  ...extractAirDuctSpecs(rawText),
-  ...String(rawText ?? '')
+const extractMobileAirConditionerImportantSpecs = (rawText = '') => mergeMobileSpecs(
+  extractMobileTableSpecs(rawText),
+  extractAirDuctSpecs(rawText),
+  String(rawText ?? '')
     .split(/\r?\n/)
     .map(normalizeTechnicalSpecLine)
     .filter(Boolean)
     .filter(isMobileStructuredTechnicalSpecLine),
-]);
+);
 
 const extractCategoryImportantSpecs = (rawText = '', categoryProfile = null) => {
   if (!categoryProfile) {
