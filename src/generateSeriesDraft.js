@@ -869,6 +869,7 @@ const normalizeSeriesCode = (value = '') => normalizeMobileModelCode(value).repl
 
 const MOBILE_MODEL_PATTERN = /\b(?:BPAC|BPHS)\s*-?\s*\d{2}\s+[A-Z]{2}(?:\s*\/\s*N\d)?\b/giu;
 const SPLIT_MODEL_PATTERN = /\bBS(?:NI|PKI|HI|PI|YI|OI|TI|DI|VI|D|T|V|O|W|Q)\s*-?\s*\d{2,3}(?:[A-Z0-9/-]*)?\b/giu;
+const SPLIT_BLOCK_MODEL_PATTERN = /\bBS(?:NI|PKI|HI|PI|YI|OI|TI|DI|VI|D|T|V|O|W|Q)\s*\/\s*(?:in|out)-\d{2,3}[A-Z0-9_/-]*\b/giu;
 
 const extractConcreteMobileModels = (rawText = '', seriesCode = '') => {
   const normalizedSeriesCode = normalizeSeriesCode(seriesCode);
@@ -876,8 +877,15 @@ const extractConcreteMobileModels = (rawText = '', seriesCode = '') => {
 
   if (/^BS[A-Z]+$/u.test(normalizedSplitCode)) {
     const splitModels = unique(
-      (String(rawText ?? '').match(SPLIT_MODEL_PATTERN) || [])
-        .map((model) => model.replace(/[‐‑‒–—−]/gu, '-').replace(/\s+/gu, ' ').trim())
+      [
+        ...(String(rawText ?? '').match(SPLIT_BLOCK_MODEL_PATTERN) || []),
+        ...(String(rawText ?? '').match(SPLIT_MODEL_PATTERN) || []),
+      ]
+        .map((model) => model
+          .replace(/[‐‑‒–—−]/gu, '-')
+          .replace(/\s*\/\s*/gu, '/')
+          .replace(/\s+/gu, ' ')
+          .trim())
         .filter((model) => model.toLocaleUpperCase('ru-RU').startsWith(normalizedSplitCode)),
     );
 
@@ -1448,6 +1456,10 @@ const sanitizeCategoryFeatureClasses = (features = [], technicalText = '', categ
     return unique(features);
   }
 
+  if (isSplitSystemProfile(categoryProfile)) {
+    return unique(features).filter((feature) => !/^\s*[AА]\+*\s*\/\s*[AА]\+*\s*$/u.test(String(feature ?? '')));
+  }
+
   return sanitizeEnergyClasses(features, technicalText);
 };
 
@@ -2006,13 +2018,149 @@ const formatSplitSpecLine = (line = '') => {
   return value ? `${rule.label} ${value}` : normalizedLine;
 };
 
-const extractSplitSystemImportantSpecs = (rawText = '') =>
-  unique(
-    String(rawText ?? '')
+const splitUniqueValues = (values = []) => unique(values.map((value) => String(value ?? '').trim()).filter(Boolean));
+
+const formatSplitValues = (values = [], { separator = '/', collapseSame = true } = {}) => {
+  const normalizedValues = values
+    .map((value) => String(value ?? '')
+      .replace(/[‐‑‒–—−~]/gu, '–')
+      .replace(/\s*\/\s*/gu, '/')
+      .replace(/\s+/gu, ' ')
+      .trim())
+    .filter(Boolean);
+  const uniqueValues = splitUniqueValues(normalizedValues);
+
+  if (collapseSame && uniqueValues.length === 1) {
+    return uniqueValues[0];
+  }
+
+  return uniqueValues.length === 2 && normalizedValues.length > 2
+    ? uniqueValues.join(' и ')
+    : uniqueValues.join(separator);
+};
+
+const extractSplitRowValues = (line = '', markerPattern, valuePattern) => {
+  const markerMatch = markerPattern.exec(line);
+
+  if (!markerMatch) {
+    return [];
+  }
+
+  return [...line.slice(markerMatch.index + markerMatch[0].length).matchAll(valuePattern)].map((match) => match[1]);
+};
+
+const formatSplitCapacitySpecs = (line = '', label = '', unit = 'BTU') => {
+  const values = [];
+  const ranges = [];
+
+  for (const match of line.matchAll(/(\d+(?:[,.]\d+)?)\s*\((\d+(?:[,.]\d+)?)\s*[~‐‑‒–—−-]\s*(\d+(?:[,.]\d+)?)\)/gu)) {
+    values.push(match[1]);
+    ranges.push(`${match[2]}–${match[3]}`);
+  }
+
+  if (values.length > 0) {
+    return [
+      `${label} ${formatSplitValues(values)} ${unit}`,
+      ranges.length > 0 ? `диапазон ${label.replace('производительность', 'производительности')} ${ranges.join(' / ')} ${unit}` : '',
+    ].filter(Boolean);
+  }
+
+  const plainValues = extractSplitRowValues(line, /(?:btu|вт|квт|производительность[^\d]*)/iu, /(\d+(?:[,.]\d+)?)/gu);
+  const joined = formatSplitValues(plainValues);
+
+  return joined ? [`${label} ${joined} ${unit}`] : [];
+};
+
+const extractSplitTechnicalTableSpecs = (rawText = '') => {
+  const specs = [];
+  const lines = String(rawText ?? '').split(/\r?\n/).map(normalizeTechnicalSpecLine).filter(Boolean);
+
+  for (const line of lines) {
+    if (/производительность\s*\(\s*охлаждение\s*\)\s*btu/iu.test(line)) {
+      specs.push(...formatSplitCapacitySpecs(line, 'производительность охлаждения', 'BTU'));
+    } else if (/производительность\s*\(\s*обогрев\s*\)\s*btu/iu.test(line)) {
+      specs.push(...formatSplitCapacitySpecs(line, 'производительность обогрева', 'BTU'));
+    } else if (/класс\s+энергоэффективности\s*\(\s*eer\s*\/\s*cop\s*\)/iu.test(line)) {
+      const energy = formatEnergyClassFeature(collectEnergyClassValues(line));
+      if (energy) specs.push(`класс энергоэффективности EER/COP ${energy}`);
+    } else if (/расход\s+воздуха\s*\([^)]*внутренн[^\)]*наружн[^\)]*\)\s*м(?:3|³)\s*\/\s*ч/iu.test(line)) {
+      const values = extractSplitRowValues(line, /м(?:3|³)\s*\/\s*ч/iu, /(\d+(?:[,.]\d+)?\s*\/\s*\d+(?:[,.]\d+)?)/gu);
+      const value = formatSplitValues(values);
+      if (value) specs.push(`расход воздуха внутренний/наружный блок ${value} м³/ч`);
+    } else if (/уровень\s+шума\s*\([^)]*внутренн[^\)]*наружн[^\)]*\)\s*дб/iu.test(line)) {
+      const values = extractSplitRowValues(line, /дб(?:\([^)]+\))?/iu, /(\d+(?:[,.]\d+)?\s*\/\s*\d+(?:[,.]\d+)?)/gu);
+      const value = formatSplitValues(values);
+      if (value) specs.push(`уровень шума внутренний/наружный блок ${value} дБ`);
+    } else if (/напряжение\s+питания\s*в\s*~?\s*гц/iu.test(line)) {
+      const values = extractSplitRowValues(line, /гц/iu, /(\d{3}\s*[-‐‑‒–—−]\s*\d{3}\s*~\s*\d{2})/gu);
+      const normalizedPowerValues = values.map((value) => value.replace(/\s+/gu, '').replace(/(\d{3})[-‐‑‒–—−](\d{3})~(\d{2})/u, '$1–$2 В / $3 Гц'));
+      const value = formatSplitValues(normalizedPowerValues).replace(/\s*\/\s*/u, ' / ');
+      if (value) specs.push(`питание ${value}`);
+    } else if (/потребляемая\s+мощность\s*\(\s*охлаждение\s*\)\s*вт/iu.test(line)) {
+      const values = extractSplitRowValues(line, /вт/iu, /(\d+(?:[,.]\d+)?)(?:\s*\([^)]+\))?/gu);
+      const value = formatSplitValues(values);
+      if (value) specs.push(`потребляемая мощность охлаждение ${value} Вт`);
+    } else if (/потребляемая\s+мощность\s*\(\s*обогрев\s*\)\s*вт/iu.test(line)) {
+      const values = extractSplitRowValues(line, /вт/iu, /(\d+(?:[,.]\d+)?)(?:\s*\([^)]+\))?/gu);
+      const value = formatSplitValues(values);
+      if (value) specs.push(`потребляемая мощность обогрев ${value} Вт`);
+    } else if (/номинальный\s+ток\s*\([^)]*охлаждение\s*\/\s*обогрев[^)]*\)\s*[aа]/iu.test(line)) {
+      const currentUnitMatch = /(?:^|\s)[AА](?:\s|$)/u.exec(line);
+      const currentValuesText = currentUnitMatch ? line.slice(currentUnitMatch.index + currentUnitMatch[0].length) : line;
+      const pairs = [...currentValuesText.matchAll(/(\d+(?:[,.]\d+)?)\s*(?:\([^)]+\))?\s*\/\s*(\d+(?:[,.]\d+)?)/gu)].map((match) => `${match[1]}/${match[2]}`);
+      const value = formatSplitValues(pairs, { separator: '; ' });
+      if (value) specs.push(`номинальный ток охлаждение/обогрев ${value} А`);
+    } else if (/размеры\s+внутреннего\s+блока[^\d]*мм/iu.test(line)) {
+      const value = formatSplitValues(extractSplitRowValues(line, /мм/iu, /(\d+\s*[×xх]\s*\d+\s*[×xх]\s*\d+)/giu).map(normalizeDimensionValue));
+      if (value) specs.push(`габариты внутреннего блока ${value} мм`);
+    } else if (/размеры\s+наружного\s+блока[^\d]*мм/iu.test(line)) {
+      const value = formatSplitValues(extractSplitRowValues(line, /мм/iu, /(\d+\s*[×xх]\s*\d+\s*[×xх]\s*\d+)/giu).map(normalizeDimensionValue));
+      if (value) specs.push(`габариты наружного блока ${value} мм`);
+    } else if (/размеры\s+упаковки\s+внутреннего\s+блока[^\d]*мм/iu.test(line)) {
+      const value = formatSplitValues(extractSplitRowValues(line, /мм/iu, /(\d+\s*[×xх]\s*\d+\s*[×xх]\s*\d+)/giu).map(normalizeDimensionValue));
+      if (value) specs.push(`габариты упаковки внутреннего блока ${value} мм`);
+    } else if (/размеры\s+упаковки\s+наружного\s+блока[^\d]*мм/iu.test(line)) {
+      const value = formatSplitValues(extractSplitRowValues(line, /мм/iu, /(\d+\s*[×xх]\s*\d+\s*[×xх]\s*\d+)/giu).map(normalizeDimensionValue));
+      if (value) specs.push(`габариты упаковки наружного блока ${value} мм`);
+    } else if (/вес\s+нетто\s*\/\s*брутто\s+внутреннего\s+блока\s*кг/iu.test(line)) {
+      const value = formatSplitValues(extractSplitRowValues(line, /кг/iu, /(\d+(?:[,.]\d+)?\s*\/\s*\d+(?:[,.]\d+)?)/gu));
+      if (value) specs.push(`вес нетто/брутто внутреннего блока ${value} кг`);
+    } else if (/вес\s+нетто\s*\/\s*брутто\s+наружного\s+блока\s*кг/iu.test(line)) {
+      const value = formatSplitValues(extractSplitRowValues(line, /кг/iu, /(\d+(?:[,.]\d+)?\s*\/\s*\d+(?:[,.]\d+)?)/gu));
+      if (value) specs.push(`вес нетто/брутто наружного блока ${value} кг`);
+    } else if (/диаметр\s+труб\s*\([^)]*жидкость[^\)]*газ[^\)]*\)/iu.test(line)) {
+      const match = /Ø\s*(\d+(?:[,.]\d+)?)[^(\/]+(?:\([^)]*\))?\s*\/\s*Ø\s*(\d+(?:[,.]\d+)?)/iu.exec(line);
+      if (match) specs.push(`диаметр труб жидкость/газ Ø${match[1]} / Ø${match[2]} мм`);
+    } else if (/максимальная\s+длина\s+магистрали\s*м/iu.test(line)) {
+      const value = formatSplitValues(extractSplitRowValues(line, /м/iu, /(\d+(?:[,.]\d+)?)/gu));
+      if (value) specs.push(`максимальная длина магистрали ${value} м`);
+    } else if (/максимальный\s+перепад\s+высот\s*м/iu.test(line)) {
+      const value = formatSplitValues(extractSplitRowValues(line, /м/iu, /(\d+(?:[,.]\d+)?)/gu));
+      if (value) specs.push(`максимальный перепад высот ${value} м`);
+    } else if (/хладагент\s*\/\s*вес\s*кг/iu.test(line)) {
+      const values = [...line.matchAll(/\b(R\s*\d{2,3}[A-ZА-Я]*)\s*\/\s*(\d+(?:[,.]\d+)?)/giu)].map((match) => `${match[1].replace(/\s+/gu, '')}, заправка ${match[2]} кг`);
+      const value = formatSplitValues(values);
+      if (value) specs.push(`хладагент ${value}`);
+    } else if (/диапазон\s+рабочих\s+температур\s*\([^)]*охлаждение[^\)]*обогрев[^\)]*\)/iu.test(line)) {
+      const values = [...line.matchAll(/([+\-−]?\d+\s*…\s*[+\-−]?\d+\s*°?C\s*\/\s*[+\-−]?\d+\s*…\s*[+\-−]?\d+\s*°?C)/giu)].map((match) => match[1].replace(/[−]/gu, '-').replace(/\s+/gu, ''));
+      const value = formatSplitValues(values);
+      if (value) specs.push(`рабочие температуры охлаждение/обогрев ${value}`);
+    }
+  }
+
+  return unique(specs);
+};
+
+const extractSplitSystemImportantSpecs = (rawText = '') => {
+  const tableSpecs = extractSplitTechnicalTableSpecs(rawText);
+  const fallbackSpecs = String(rawText ?? '')
       .split(/\r?\n/)
       .map(formatSplitSpecLine)
-      .filter(Boolean),
-  );
+      .filter(Boolean)
+      .filter((line) => !/^(?:НА ОБОГРЕВ|Установочные размеры и габариты|[AА]\+?\s*\/\s*[AА]\+?)$/u.test(line));
+
+  return tableSpecs.length >= 5 ? tableSpecs : unique([...tableSpecs, ...fallbackSpecs]);
+};
 
 const extractCategoryImportantSpecs = (rawText = '', categoryProfile = null) => {
   if (!categoryProfile) {
