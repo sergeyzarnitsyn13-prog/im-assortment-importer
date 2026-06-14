@@ -2096,7 +2096,26 @@ const extractSplitPipeDiameterPairs = (text = '') => unique(
     .map((match) => `Ø${match[1]}/Ø${match[2]}`),
 );
 
-const isSplitPipeDiameterContinuation = (line = '') => /Ø\s*\d+(?:[,.]\d+)?[\s\S]{0,80}?\/\s*Ø\s*\d+(?:[,.]\d+)?/iu.test(line);
+const extractSplitPipeDiameterPairsFromWindow = (text = '') => {
+  const source = String(text ?? '');
+  const labelMatch = /диаметр\s+труб\s*\([^)]*жидкость[^)]*газ[^)]*\)/iu.exec(source);
+
+  if (!labelMatch) {
+    return extractSplitPipeDiameterPairs(source);
+  }
+
+  const readDiameters = (value = '') => [...String(value ?? '').matchAll(/Ø\s*(\d+(?:[,.]\d+)?)/giu)].map((match) => `Ø${match[1]}`);
+  const liquidValues = readDiameters(source.slice(0, labelMatch.index)).slice(-8);
+  const gasValues = readDiameters(source.slice(labelMatch.index + labelMatch[0].length)).slice(0, liquidValues.length || 8);
+
+  if (liquidValues.length > 0 && liquidValues.length === gasValues.length) {
+    return unique(liquidValues.map((value, index) => `${value}/${gasValues[index]}`));
+  }
+
+  return extractSplitPipeDiameterPairs(source);
+};
+
+const isSplitPipeDiameterContinuation = (line = '') => /Ø\s*\d+(?:[,.]\d+)?[\s\S]{0,80}?\/\s*Ø\s*\d+(?:[,.]\d+)?|^Ø\s*\d+(?:[,.]\d+)?(?:\s*\([^)]*\))?(?:\s+Ø\s*\d+(?:[,.]\d+)?(?:\s*\([^)]*\))?)*\s*$/iu.test(line);
 
 const extractSplitTechnicalTableSpecs = (rawText = '') => {
   const specs = [];
@@ -2170,7 +2189,8 @@ const extractSplitTechnicalTableSpecs = (rawText = '') => {
         index += 1;
         pipeLines.push(lines[index]);
       }
-      const value = extractSplitPipeDiameterPairs(pipeLines.join(' ')).join('; ');
+      const pipeWindow = lines.slice(Math.max(0, index - 4), Math.min(lines.length, index + 5)).join(' ');
+      const value = extractSplitPipeDiameterPairsFromWindow(`${pipeWindow} ${pipeLines.join(' ')}`).join('; ');
       if (value) specs.push(`диаметр труб жидкость/газ ${value} мм`);
     } else if (/максимальная\s+длина\s+магистрали\s*м/iu.test(line)) {
       const value = formatSplitValues(extractSplitRowValues(line, /м/iu, /(\d+(?:[,.]\d+)?)/gu));
@@ -2536,9 +2556,13 @@ const buildDraftWarning = ({ hasExactSeriesPages, hasTechnicalTable, prefix = ''
 
 const getIsolatedSourceTexts = (source) => {
   const profile = findSeriesProfile(source?.profileId || source?.code || source?.seriesName) || source || {};
-  const exactSeriesText = extractRelevantSeriesBlock(String(source.exactSeriesRawText ?? source.exactSeriesText ?? source.overviewRawText ?? ''), profile);
+  const rawExactSeriesText = String(source.exactSeriesRawText ?? source.exactSeriesText ?? source.overviewRawText ?? '');
+  const rawTechnicalText = String(source.technicalRawText ?? source.technicalText ?? '');
+  const categoryProbe = getCategoryProfile({ approvedProfile: profile, source, sourceText: [rawExactSeriesText, rawTechnicalText].join(' ') });
+  const useSplitFeatureBlock = isSplitSystemProfile(categoryProbe);
+  const exactSeriesText = extractRelevantSeriesBlock(rawExactSeriesText, profile, useSplitFeatureBlock ? { preferSeriesHeader: true } : {});
   const categorySummaryText = extractRelevantSeriesBlock(String(source.categorySummaryRawText ?? source.categorySummaryText ?? source.summaryRawText ?? source.summaryText ?? ''), profile);
-  const technicalText = extractRelevantSeriesBlock(String(source.technicalRawText ?? source.technicalText ?? ''), profile);
+  const technicalText = extractRelevantSeriesBlock(rawTechnicalText, profile);
   const serviceText = String(source.serviceRawText ?? source.serviceText ?? '');
 
   return {

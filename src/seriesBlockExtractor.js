@@ -117,7 +117,7 @@ const NEXT_FOREIGN_PATTERNS = [
 
 const getFirstCodeIndex = (rawText = '', profile = {}) => findFirstPatternIndex(rawText, getSeriesCodeConfirmationPatterns(profile));
 
-export const extractRelevantSeriesBlock = (rawText = '', profile = {}) => {
+export const extractRelevantSeriesBlock = (rawText = '', profile = {}, options = {}) => {
   const text = String(rawText || '');
 
   if (!text.trim()) {
@@ -130,16 +130,31 @@ export const extractRelevantSeriesBlock = (rawText = '', profile = {}) => {
     return text;
   }
 
-  const ownHeaderPatterns = [
-    profile.seriesName && profile.code ? new RegExp(`(?:^|\\n)\\s*${escapeRegExp(profile.seriesName).replace(/\s+/gu, '\\s+')}\\s+${escapeRegExp(profile.code)}\\b`, 'giu') : null,
+  const normalizedSeriesName = String(profile.seriesName || '').trim();
+  const normalizedCode = String(profile.code || '').trim();
+  const seriesNameIncludesCode = normalizedSeriesName && normalizedCode && new RegExp(`(?:^|\\s)${escapeRegExp(normalizedCode)}$`, 'iu').test(normalizedSeriesName);
+  const seriesHeaderPatterns = [
+    normalizedSeriesName && normalizedCode && !seriesNameIncludesCode ? new RegExp(`(?:^|\\n)\\s*${escapeRegExp(normalizedSeriesName).replace(/\s+/gu, '\\s+')}\\s+${escapeRegExp(normalizedCode)}\\b`, 'giu') : null,
+    normalizedSeriesName ? new RegExp(`(?:^|\\n)\\s*${escapeRegExp(normalizedSeriesName).replace(/\s+/gu, '\\s+')}\\b`, 'giu') : null,
+  ].filter(Boolean);
+  const technicalHeaderPatterns = [
     profile.code ? new RegExp(`(?:^|\\n)\\s*(?:Технические\\s+характеристики|Параметр\\s*\\/\\s*Модель)[^\\n]{0,80}\\b${escapeRegExp(profile.code)}\\b`, 'giu') : null,
   ].filter(Boolean);
-  const startHeaderIndex = findLastPatternIndex(text, [...BLOCK_START_PATTERNS, ...ownHeaderPatterns], Math.min(codeIndex + String(profile.code || '').length + 120, text.length));
+  const startPatterns = options?.preferSeriesHeader
+    ? [...BLOCK_START_PATTERNS, ...seriesHeaderPatterns]
+    : [...BLOCK_START_PATTERNS, ...seriesHeaderPatterns, ...technicalHeaderPatterns];
+  const startSearchEnd = Math.min(codeIndex + String(profile.code || '').length + 120, text.length);
+  const ownSeriesHeaderIndex = options?.preferSeriesHeader && normalizedSeriesName
+    ? findLastPatternIndex(text, seriesHeaderPatterns, startSearchEnd)
+    : -1;
+  const startHeaderIndex = ownSeriesHeaderIndex >= 0
+    ? ownSeriesHeaderIndex
+    : findLastPatternIndex(text, startPatterns, startSearchEnd);
   const windowStart = Math.max(codeIndex - 2000, 0);
   const lineStartBeforeCode = text.lastIndexOf('\n', codeIndex);
   const ownLineStart = lineStartBeforeCode >= 0 ? lineStartBeforeCode + 1 : 0;
   const isSplitCode = /^BS[A-Z]+$/iu.test(String(profile.code || '').trim());
-  const start = isSplitCode ? ownLineStart : startHeaderIndex >= 0 ? startHeaderIndex : windowStart;
+  const start = isSplitCode && !options?.preferSeriesHeader ? ownLineStart : startHeaderIndex >= 0 ? startHeaderIndex : windowStart;
   const searchEndFrom = codeIndex + 1;
   const nextForeignIndex = findFirstPatternIndex(text, NEXT_FOREIGN_PATTERNS, searchEndFrom);
   const windowEnd = Math.min(codeIndex + 2500, text.length);

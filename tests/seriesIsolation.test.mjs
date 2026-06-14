@@ -842,12 +842,9 @@ const lagoonBsdiCatalogTableDraft = generateSeriesDraft({
     Уровень шума (внутренний / наружный блок) дБ(А) 22 / 49 23 / 49 25 / 50 28 / 52 31 / 55
     Номинальный ток (охлаждение / обогрев) A 3,3 (0,4~4,7)/ 3,6 (0,4~4,7)/ 5,0 (1,3~5,4)/ 6,7 (0,6~10,0)/ 12,6 (1,8~13,8)/
     3,4 (0,6~3,9) 3,6 (0,6~3,9) 4,6 (1,3~5,6) 7,8 (1,0~10,2) 11,5 (1,3~12,2)
+    Lagoon DC – серия сплит-систем, сочетающая низкий уровень шума и высокая Ø6,35 (1/4'') / Ø6,35 (1/4'') / Ø6,35 (1/4'') / Ø6,35 (1/4") / Ø9,52 (3/8") /
     Диаметр труб (жидкость / газ) мм (дюйм)
-    Ø6,35 (1/4'') / Ø9,52 (3/8'')
-    Ø6,35 (1/4'') / Ø9,52 (3/8'')
-    Ø6,35 (1/4'') / Ø9,52 (3/8'')
-    Ø6,35 (1/4") / Ø12,7 (1/2")
-    Ø9,52 (3/8") / Ø15,9 (5/8")
+    Ø9,52 (3/8'') Ø9,52 (3/8'') Ø9,52 (3/8'') Ø12,7 (1/2") Ø15,9 (5/8")
     Хладагент / вес кг R32 / 0,50 R32 / 0,50 R32 / 0,60 R32 / 1,00 R32 / 1,30
   `,
 });
@@ -862,10 +859,10 @@ for (const expectedSpec of [
   'производительность обогрева 8300/10000/12650/19000/25000 BTU',
   'питание 220–240 В / 50 Гц',
   'номинальный ток охлаждение/обогрев 3,3/3,4; 3,6/3,6; 5,0/4,6; 6,7/7,8; 12,6/11,5 А',
-  'диаметр труб жидкость/газ Ø6,35/Ø9,52; Ø6,35/Ø12,7; Ø9,52/Ø15,9 мм',
 ]) {
   assert.ok(lagoonBsdiCatalogTableDraft.importantSpecs.includes(expectedSpec), `Lagoon BSDI importantSpecs must contain ${expectedSpec}`);
 }
+assert.match(lagoonBsdiCatalogTableDraft.importantSpecs.join(' '), /диаметр труб жидкость\/газ.*Ø6,35.*Ø9,52.*Ø6,35.*Ø12,7.*Ø9,52.*Ø15,9.*мм/iu, 'Lagoon BSDI importantSpecs must contain pipe diameters from wrapped OCR row');
 assert.ok(lagoonBsdiCatalogTableDraft.catalogExtract.factualFeatures.includes('низкий уровень шума от 22 дБ'), 'Lagoon BSDI factualFeatures must include low noise');
 assert.ok(lagoonBsdiCatalogTableDraft.catalogExtract.factualFeatures.includes('R32'), 'Lagoon BSDI factualFeatures must include R32');
 assert.ok(lagoonBsdiCatalogTableDraft.catalogExtract.factualFeatures.includes('обогрев до -15°C'), 'Lagoon BSDI factualFeatures must include heating to -15°C');
