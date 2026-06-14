@@ -881,24 +881,59 @@ const defenderBshiRawExtractorDraft = generateSeriesDraft({
   exactSeriesRawText: `
     DEFENDER BSHI
     UV-фильтр
+    самоочистка со стерилизацией
     обогрев при -20°C
+    R32
+    DC inverter
     A++
   `,
   technicalRawText: `
     Технические характеристики BSHI
-    Параметр / Модель BSHI-09 BSHI-12
-    Производительность охлаждение, Вт 2600 3500
-    Производительность обогрев, Вт 2800 3800
-    Класс энергоэффективности (EER/COP) A++/A++ A++/A++
-    Уровень шума внутреннего блока 19/21 дБ
-    Рабочие температуры обогрев -20…+24°C
+    Параметр / Модель BSHI-09 BSHI-12 BSHI-18 BSHI-24
+    Производительность (охлаждение) BTU 9210 11940 18425 24905
+    Производительность (обогрев) BTU 10920 12965 19110 24905
+    Класс энергоэффективности (SEER/SCOP) А++ / А+++ А++ / А+++ А++ / А+++ А++ / А+++
+    Расход воздуха (внутренний/наружный блок) м³/ч 580/1800 620/2000 850/2800 1050/3200
+    Уровень шума (внутренний/наружный блок) дБ 19/50 21/52 24/55 27/58
+    Напряжение питания В ~ Гц 220-240~50 220-240~50 220-240~50 220-240~50
+    Диаметр труб (жидкость/газ) мм Ø6,35/Ø9,52 Ø6,35/Ø12,70 Ø6,35/Ø12,70 Ø6,35/Ø15,88
+    Диапазон рабочих температур (охлаждение/обогрев) -15…+48°C/-20…+32°C -15…+48°C/-20…+32°C -15…+48°C/-20…+32°C -15…+48°C/-20…+32°C
   `,
 });
-assert.match(defenderBshiRawExtractorDraft.catalogExtract.factualFeatures.join('\n'), /УФ-обработка воздуха/iu, 'Defender BSHI factualFeatures must include UV filter');
-assert.match(defenderBshiRawExtractorDraft.catalogExtract.factualFeatures.join('\n'), /обогрев до -20°C|стабильная работа на обогрев/iu, 'Defender BSHI factualFeatures must include -20°C heating');
-assert.equal(/A\+\+/u.test(defenderBshiRawExtractorDraft.catalogExtract.factualFeatures.join('\n')), false, 'Defender BSHI factualFeatures must not include standalone energy class from technical row');
-assert.match(defenderBshiRawExtractorDraft.catalogExtract.importantSpecs.join('\n'), /класс энергоэффективности EER\/COP A\+\+\/A\+\+/u, 'Defender BSHI importantSpecs must include energy class from technical row');
-assert.match(defenderBshiRawExtractorDraft.catalogExtract.importantSpecs.join('\n'), /производительность охлаждения 2600 3500 Вт|производительность охлаждения 2600\/3500 Вт/iu, 'Defender BSHI importantSpecs must include technical table rows');
+assert.equal(defenderBshiRawExtractorDraft.shortDescription, '', 'Defender BSHI must not generate shortDescription');
+assert.equal(defenderBshiRawExtractorDraft.positioning, '', 'Defender BSHI must not generate positioning');
+assert.deepEqual(defenderBshiRawExtractorDraft.targetClient, [], 'Defender BSHI must not generate targetClient');
+assert.equal(defenderBshiRawExtractorDraft.mainSalesIdea, '', 'Defender BSHI must not generate mainSalesIdea');
+assert.deepEqual(defenderBshiRawExtractorDraft.salesArguments, [], 'Defender BSHI must not generate salesArguments');
+assert.equal(defenderBshiRawExtractorDraft.clientSpeech, '', 'Defender BSHI must not generate clientSpeech');
+assert.deepEqual(defenderBshiRawExtractorDraft.whenRecommend, [], 'Defender BSHI must not generate whenRecommend');
+assert.deepEqual(defenderBshiRawExtractorDraft.whenNotRecommend, [], 'Defender BSHI must not generate whenNotRecommend');
+assert.deepEqual(defenderBshiRawExtractorDraft.objections, [], 'Defender BSHI must not generate objections');
+assert.ok(defenderBshiRawExtractorDraft.catalogExtract, 'Defender BSHI must include catalogExtract');
+assert.ok(defenderBshiRawExtractorDraft.catalogExtract.factualFeatures.includes('УФ-обработка воздуха'), 'Defender BSHI factualFeatures must include UV treatment');
+assert.ok(defenderBshiRawExtractorDraft.catalogExtract.factualFeatures.includes('самоочистка со стерилизацией'), 'Defender BSHI factualFeatures must include sterilization self-cleaning');
+assert.ok(defenderBshiRawExtractorDraft.catalogExtract.factualFeatures.includes('обогрев до -20°C'), 'Defender BSHI factualFeatures must include -20°C heating');
+assert.ok(defenderBshiRawExtractorDraft.catalogExtract.factualFeatures.includes('низкий уровень шума от 19 дБ'), 'Defender BSHI factualFeatures must include low noise from 19 dB');
+assert.ok(defenderBshiRawExtractorDraft.catalogExtract.factualFeatures.includes('инвертор'), 'Defender BSHI factualFeatures must include inverter');
+assert.ok(defenderBshiRawExtractorDraft.catalogExtract.factualFeatures.includes('R32'), 'Defender BSHI factualFeatures must include R32');
+assert.ok(defenderBshiRawExtractorDraft.importantSpecs.includes('производительность охлаждения 9210/11940/18425/24905 BTU'), 'Defender BSHI importantSpecs must include cooling BTU');
+assert.ok(defenderBshiRawExtractorDraft.importantSpecs.includes('производительность обогрева 10920/12965/19110/24905 BTU'), 'Defender BSHI importantSpecs must include heating BTU');
+assert.match(defenderBshiRawExtractorDraft.importantSpecs.join(' '), /класс энергоэффективности SEER\/SCOP (А|A)\+\+\/(А|A)\+\+\+/u, 'Defender BSHI importantSpecs must include SEER/SCOP energy class');
+assert.ok(defenderBshiRawExtractorDraft.importantSpecs.includes('питание 220–240 В / 50 Гц'), 'Defender BSHI importantSpecs must include power supply');
+assert.ok(defenderBshiRawExtractorDraft.importantSpecs.includes('диаметр труб жидкость/газ Ø6,35/Ø9,52; Ø6,35/Ø12,70; Ø6,35/Ø15,88 мм'), 'Defender BSHI importantSpecs must include pipe diameters');
+assert.ok(defenderBshiRawExtractorDraft.importantSpecs.includes('рабочие температуры охлаждение/обогрев -15…+48°C/-20…+32°C'), 'Defender BSHI importantSpecs must include operating temperatures');
+assert.match(defenderBshiRawExtractorDraft.technicalSpecs.join(' '), /класс энергоэффективности SEER\/SCOP (А|A)\+\+\/(А|A)\+\+\+/u, 'Defender BSHI technicalSpecs must include SEER/SCOP energy class');
+assert.match(defenderBshiRawExtractorDraft.catalogExtract.importantSpecs.join(' '), /класс энергоэффективности SEER\/SCOP (А|A)\+\+\/(А|A)\+\+\+/u, 'Defender BSHI catalogExtract importantSpecs must include SEER/SCOP energy class');
+assert.match(defenderBshiRawExtractorDraft.diagnostics.technicalSpecs.join(' '), /класс энергоэффективности SEER\/SCOP (А|A)\+\+\/(А|A)\+\+\+/u, 'Defender BSHI diagnostics must include SEER/SCOP energy class');
+assert.equal(/А\+\+\/А\+\+\+|A\+\+\/A\+\+\+/u.test(defenderBshiRawExtractorDraft.catalogExtract.factualFeatures.join(' ')), false, 'Defender BSHI factualFeatures must not include technical energy class');
+assert.equal(Object.hasOwn(defenderBshiRawExtractorDraft.sourceRefs, 'shortDescription'), false, 'empty Defender shortDescription must not have sourceRef');
+assert.equal(Object.hasOwn(defenderBshiRawExtractorDraft.sourceRefs, 'positioning'), false, 'empty Defender positioning must not have sourceRef');
+assert.equal(Object.hasOwn(defenderBshiRawExtractorDraft.sourceRefs, 'targetClient'), false, 'empty Defender targetClient must not have sourceRef');
+assert.equal(Object.hasOwn(defenderBshiRawExtractorDraft.sourceRefs, 'mainSalesIdea'), false, 'empty Defender mainSalesIdea must not have sourceRef');
+assert.equal(Object.hasOwn(defenderBshiRawExtractorDraft.sourceRefs, 'salesArguments'), false, 'empty Defender salesArguments must not have sourceRef');
+assert.equal(Object.hasOwn(defenderBshiRawExtractorDraft.sourceRefs, 'clientSpeech'), false, 'empty Defender clientSpeech must not have sourceRef');
+assert.equal(Object.hasOwn(defenderBshiRawExtractorDraft.sourceRefs, 'whenRecommend'), false, 'empty Defender whenRecommend must not have sourceRef');
+assert.equal(Object.hasOwn(defenderBshiRawExtractorDraft.sourceRefs, 'whenNotRecommend'), false, 'empty Defender whenNotRecommend must not have sourceRef');
 
 const platinumX4Profile = SERIES_PROFILES.find((profile) => profile.seriesName === 'Platinum X4');
 const platinumX4Draft = generateSeriesDraft({
