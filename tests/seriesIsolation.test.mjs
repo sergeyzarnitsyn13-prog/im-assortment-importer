@@ -1568,24 +1568,70 @@ const getProfile = (profileId, overrides = {}) => {
 
 const electroluxSmartlineDcDraft = getProfile('electrolux-2026-dc-smartline-dc-inverter', {
   exactSeriesRawText: 'Smartline DC Inverter Electrolux DC-инверторные сплит-системы EACS / I-07HSM / N8_V3 / in EACS / I-07HSM / N8_V3 / out.',
-  technicalRawText: `Характеристики
-Параметр / Модель EACS / I-07HSM / N8_V3 / in EACS / I-09HSM / N8_V3 / in
-Производительность (охлаждение), BTU/h 9212 11976
-Потребляемая мощность (охлаждение), Вт 805 1040
-Напряжение питания, В/Гц 220-240~50 220-240~50
-Класс энергоэффективности SEER / SCOP A++ / A+++ A++ / A+++
-Хладагент / вес, кг R32 / 0,55 R32 / 0,65`,
+  exactSeriesPages: [21],
+  technicalPages: [21],
+  technicalRawText: `Smartline DC Inverter
+EACSI-07HSM/N8_V3 EACSI-09HSM/N8_V3 EACSI-12HSM/N8_V3 EACSI-18HSM/N8_V3 EACSI-24HSM/N8_V3
+Характеристики
+Производительность (охлаждение), BTU/h 9000 (4000-9500) 10000 (4000-11500) 12000 (4400-12800) 18000 (6600-21400) 24000 (10300-30000)
+Производительность (обогрев), BTU/h 9800 (3100-10200) 11500 (3100-12000) 13000 (3600-13600) 19000 (4400-23900) 25000 (5200-32300)
+Потребляемая мощность (охлаждение), Вт 823 (100-1034) 913 (100-1020) 1096 (280-1270) 1550 (150-2250) 2191 (340-3450)
+Потребляемая мощность (обогрев), Вт 796 (140-816) 933 (140-1080) 1055 (300-1180) 1543 (220-2350) 2030 (300-3150)
+Напряжение питания, В/Гц 220-240 / 50 220-240 / 50 220-240 / 50 220-240 / 50 220-240 / 50
+Класс энергоэффективности (EER / COP) A / A A / A A / A A / A A / A
+Расход воздуха (внутренний блок), м 3 /ч 500 514 520 800 1090
+Уровень звукового давления (внутренний
+26 26,5 25,5 31 34,5
+блок), дБ(А)
+Размеры внутреннего блока (Ш×В×Г), мм 729×292×200 729×292×200 729×292×200 969×320×241 1083×336×244
+Размеры внешнего блока (Ш×В×Г), мм 668×469×252 720×495×270 720×495×270 805×554×330 890×673×342
+Размеры упаковки внутреннего блока
+790×375×270 790×375×270 790×375×270 1045×405×305 1155×315×415
+(Ш×В×Г), мм
+Размеры упаковки внешнего блока
+765×515×270 828×540×298 828×540×298 915×615×370 995×740×398
+(Ш×В×Г), мм
+Вес нетто / брутто внутреннего блока, кг 7,6 / 9,9 8,0 / 10,2 8,1 / 10,3 11,2 / 14,6 13,6 / 17,3
+Вес нетто / брутто внешнего блока, кг 17,9 / 19,5 19,7 / 21,6 20,6 / 22,4 33,5 / 36,1 43,9 / 46,9
+Диаметр труб (жидкость / газ), дюйм 1/4" / 3/8" 1/4" / 3/8" 1/4" / 3/8" 1/4" / 1/2" 3/8" / 5/8"
+Максимальная длина трассы / перепад
+25 / 10 25 / 10 25 / 10 30 / 20 50 / 25
+высот, м
+Диапазон рабочих температур
+-15 ~ 50 / -15 ~ 24 -15 ~ 50 / -15 ~ 24 -15 ~ 50 / -15 ~ 24 -15 ~ 50 / -20 ~ 24 -15 ~ 50 / -20 ~ 24
+(охлаждение / обогрев), °С
+Кондиционеры Electrolux работают на озонобезопасном фреоне R32.`,
 });
 assert.equal(electroluxSmartlineDcDraft.brand, 'Electrolux');
+assert.equal(electroluxSmartlineDcDraft.seriesName, 'Smartline DC Inverter');
 assert.equal(electroluxSmartlineDcDraft.group, 'DC-инверторные сплит-системы');
 assert.equal(electroluxSmartlineDcDraft.shortDescription, '');
 assert.equal(electroluxSmartlineDcDraft.positioning, '');
 assert.deepEqual(electroluxSmartlineDcDraft.salesArguments, []);
 assert.ok(electroluxSmartlineDcDraft.catalogExtract);
 assert.match(electroluxSmartlineDcDraft.catalogExtract.extractionQuality, /good|partial|needs_review/u);
-assert.match(electroluxSmartlineDcDraft.catalogExtract.diagnostics.foundModels.join(' '), /EACS\/I-07HSM\/N8_V3|EACS\/I-09HSM\/N8_V3/u);
-assert.match(electroluxSmartlineDcDraft.importantSpecs.join(' '), /производительность охлаждения|потребляемая мощность охлаждение|питание/u);
-assert.match(electroluxSmartlineDcDraft.importantSpecs.join(' '), /хладагент R32|R32/u);
+assert.ok(electroluxSmartlineDcDraft.catalogExtract.diagnostics.foundModels.includes('EACS/I-07HSM/N8_V3'));
+assert.ok(electroluxSmartlineDcDraft.catalogExtract.diagnostics.foundModels.includes('EACS/I-24HSM/N8_V3'));
+assert.ok(electroluxSmartlineDcDraft.importantSpecs.includes('производительность охлаждения 9000/10000/12000/18000/24000 BTU'));
+assert.ok(electroluxSmartlineDcDraft.importantSpecs.includes('производительность обогрева 9800/11500/13000/19000/25000 BTU'));
+assert.ok(electroluxSmartlineDcDraft.importantSpecs.includes('питание 220–240 В / 50 Гц'));
+assert.ok(electroluxSmartlineDcDraft.importantSpecs.includes('класс энергоэффективности EER/COP A/A'));
+assert.ok(electroluxSmartlineDcDraft.importantSpecs.includes('расход воздуха внутренний блок 500/514/520/800/1090 м³/ч'));
+assert.match(electroluxSmartlineDcDraft.importantSpecs.join(' '), /уровень шума внутрен.*26.*26,5.*25,5.*31.*34,5.*дБ/u);
+assert.ok(electroluxSmartlineDcDraft.importantSpecs.includes('хладагент R32'));
+const electroluxSmartlineSpecsText = electroluxSmartlineDcDraft.importantSpecs.join(' ');
+assert.equal(electroluxSmartlineSpecsText.includes('хладагент а'), false);
+assert.equal(electroluxSmartlineSpecsText.includes('хладагент е R32'), false);
+assert.equal(electroluxSmartlineSpecsText.includes('EER (A) COP(A) шума'), false);
+assert.equal(electroluxSmartlineSpecsText.includes('производительность охлаждения ), BTU'), false);
+assert.equal(electroluxSmartlineSpecsText.includes('габариты внутреннего блока его блока'), false);
+assert.equal(electroluxSmartlineSpecsText.includes('длина трассы трассы/перепад'), false);
+assert.deepEqual(electroluxSmartlineDcDraft.catalogExtract.diagnostics.missingFields, []);
+assert.ok(electroluxSmartlineDcDraft.catalogExtract.rawText.indexOf('Smartline DC Inverter') >= 0);
+const electroluxSmartlineWarningsText = electroluxSmartlineDcDraft.catalogExtract.diagnostics.warnings.join(' ');
+assert.equal(electroluxSmartlineWarningsText.includes('Производительность (охлаждение), BTU/h'), false);
+assert.equal(electroluxSmartlineWarningsText.includes('Класс энергоэффективности (EER / COP)'), false);
+assert.equal(electroluxSmartlineWarningsText.includes('Напряжение питания, В/Гц'), false);
 
 const electroluxFusionSuperDraft = getProfile('electrolux-2026-dc-fusion-wave-super-dc-inverter', {
   exactSeriesRawText: 'Fusion Wave Super DC Inverter Electrolux DC-инверторные сплит-системы EACS/I-07HFW/N8 EACS/I-09HFW/N8.',
