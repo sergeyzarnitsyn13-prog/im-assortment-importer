@@ -26,8 +26,9 @@ const featurePatterns = [
   { label: 'i-FEEL', patterns: [/\bi\s*-?\s*feel\b/u, /\bifeel\b/u, /климат\s*-?\s*контрол/u, /ай\s*фил/u] },
   { label: '7 скоростей вентилятора', patterns: [/7\s+скорост/u, /скорост[а-яё]*\s+вентилятор/u] },
   { label: 'стабильная работа на обогрев', patterns: [/стабильн[а-яё]*\s+работ[а-яё]*\s+на\s+обогрев/u, /работ[а-яё]*\s+на\s+обогрев/u] },
-  { label: 'обогрев до -20°C', patterns: [/обогрев[^\n.]{0,40}-\s*20(?:\s*°?\s*[cс])?/u] },
-  { label: 'обогрев до -30°C', patterns: [/обогрев[^\n.]{0,40}-\s*30(?:\s*°?\s*[cс])?/u] },
+  { label: 'обогрев до -15°C', patterns: [/обогрев[^\n.]{0,140}(?:от|до)?\s*[-–—−]\s*15(?:\s*°?\s*[cс])?/u] },
+  { label: 'обогрев до -20°C', patterns: [/обогрев[^\n.]{0,140}(?:от|до)?\s*[-–—−]\s*20(?:\s*°?\s*[cс])?/u] },
+  { label: 'обогрев до -30°C', patterns: [/обогрев[^\n.]{0,140}(?:от|до)?\s*[-–—−]\s*30(?:\s*°?\s*[cс])?/u] },
   { label: 'самоочистка со стерилизацией', patterns: [/самоочист[а-яё\s-]{0,120}стерилизац/u, /стерилизац[а-яё\s-]{0,120}самоочист/u, /самоочистка\s+со\s+стерилизацией/u, /стерилизац(?:ия|ией|иеи|ию|ии|ией|иеи|ие)/u] },
   { label: 'самоочистка', patterns: [/самоочист/u, /\bself\s*-?\s*clean/u] },
   { label: 'R32', patterns: [/\br\s*32\b/u] },
@@ -1448,6 +1449,7 @@ const isSplitSystemProfile = (categoryProfile = null) => ['inverterSplit', 'onOf
 
 const shouldKeepDescriptionFeature = (feature = '', categoryProfile = null) => (
   !isTechnicalFeature(feature) ||
+  (isSplitSystemProfile(categoryProfile) && !isEnergyClassFeature(feature)) ||
   (isMobileAirConditionerProfile(categoryProfile) && /энергоэффектив|r\s*290|эко-?фреон|40\s*дб/u.test(normalizeSearchText(feature)))
 );
 
@@ -1457,7 +1459,7 @@ const sanitizeCategoryFeatureClasses = (features = [], technicalText = '', categ
   }
 
   if (isSplitSystemProfile(categoryProfile)) {
-    return unique(features).filter((feature) => !/^\s*[AА]\+*\s*\/\s*[AА]\+*\s*$/u.test(String(feature ?? '')));
+    return unique(features).filter((feature) => /^класс\s+энергоэффективности/iu.test(String(feature ?? '')) || !isEnergyClassFeature(feature));
   }
 
   return sanitizeEnergyClasses(features, technicalText);
@@ -2071,11 +2073,41 @@ const formatSplitCapacitySpecs = (line = '', label = '', unit = 'BTU') => {
   return joined ? [`${label} ${joined} ${unit}`] : [];
 };
 
+
+const extractMainNumericValues = (text = '') => String(text ?? '')
+  .replace(/\([^)]*\)/gu, ' ')
+  .match(/\d+(?:[,.]\d+)?/gu) || [];
+
+const formatSplitCurrentFromWrappedRows = (coolingLine = '', heatingLine = '') => {
+  const currentUnitMatch = /(?:^|\s)[AА](?:\s|$)/u.exec(coolingLine);
+  const coolingText = currentUnitMatch ? coolingLine.slice(currentUnitMatch.index + currentUnitMatch[0].length) : coolingLine;
+  const coolingValues = extractMainNumericValues(coolingText);
+  const heatingValues = extractMainNumericValues(heatingLine);
+
+  if (coolingValues.length === 0 || coolingValues.length !== heatingValues.length) {
+    return '';
+  }
+
+  return coolingValues.map((value, index) => `${value}/${heatingValues[index]}`).join('; ');
+};
+
+const extractSplitPipeDiameterPairs = (text = '') => unique(
+  [...String(text ?? '').matchAll(/Ø\s*(\d+(?:[,.]\d+)?)(?:\s*\([^)]*\))?\s*\/\s*Ø\s*(\d+(?:[,.]\d+)?)/giu)]
+    .map((match) => `Ø${match[1]}/Ø${match[2]}`),
+);
+
+const isSplitPipeDiameterContinuation = (line = '') => /Ø\s*\d+(?:[,.]\d+)?[\s\S]{0,80}?\/\s*Ø\s*\d+(?:[,.]\d+)?/iu.test(line);
+
 const extractSplitTechnicalTableSpecs = (rawText = '') => {
   const specs = [];
-  const lines = String(rawText ?? '').split(/\r?\n/).map(normalizeTechnicalSpecLine).filter(Boolean);
+  const lines = String(rawText ?? '').split(/\r?\n/).map((line) => {
+    const normalizedLine = String(line ?? '').trim().replace(/\s+/gu, ' ');
 
-  for (const line of lines) {
+    return STRICT_ENERGY_CLASS_ROW_MARKER.test(normalizedLine) ? limitEnergyClassSegment(normalizedLine) : normalizedLine;
+  }).filter(Boolean);
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
     if (/производительность\s*\(\s*охлаждение\s*\)\s*btu/iu.test(line)) {
       specs.push(...formatSplitCapacitySpecs(line, 'производительность охлаждения', 'BTU'));
     } else if (/производительность\s*\(\s*обогрев\s*\)\s*btu/iu.test(line)) {
@@ -2107,9 +2139,13 @@ const extractSplitTechnicalTableSpecs = (rawText = '') => {
     } else if (/номинальный\s+ток\s*\([^)]*охлаждение\s*\/\s*обогрев[^)]*\)\s*[aа]/iu.test(line)) {
       const currentUnitMatch = /(?:^|\s)[AА](?:\s|$)/u.exec(line);
       const currentValuesText = currentUnitMatch ? line.slice(currentUnitMatch.index + currentUnitMatch[0].length) : line;
-      const pairs = [...currentValuesText.matchAll(/(\d+(?:[,.]\d+)?)\s*(?:\([^)]+\))?\s*\/\s*(\d+(?:[,.]\d+)?)/gu)].map((match) => `${match[1]}/${match[2]}`);
-      const value = formatSplitValues(pairs, { separator: '; ' });
+      const inlinePairs = [...currentValuesText.matchAll(/(\d+(?:[,.]\d+)?)\s*(?:\([^)]+\))?\s*\/\s*(\d+(?:[,.]\d+)?)/gu)].map((match) => `${match[1]}/${match[2]}`);
+      const wrappedValue = /\/\s*$/u.test(line)
+        ? formatSplitCurrentFromWrappedRows(line, lines[index + 1] || '')
+        : '';
+      const value = wrappedValue || formatSplitValues(inlinePairs, { separator: '; ' });
       if (value) specs.push(`номинальный ток охлаждение/обогрев ${value} А`);
+      if (wrappedValue) index += 1;
     } else if (/размеры\s+внутреннего\s+блока[^\d]*мм/iu.test(line)) {
       const value = formatSplitValues(extractSplitRowValues(line, /мм/iu, /(\d+\s*[×xх]\s*\d+\s*[×xх]\s*\d+)/giu).map(normalizeDimensionValue));
       if (value) specs.push(`габариты внутреннего блока ${value} мм`);
@@ -2129,8 +2165,13 @@ const extractSplitTechnicalTableSpecs = (rawText = '') => {
       const value = formatSplitValues(extractSplitRowValues(line, /кг/iu, /(\d+(?:[,.]\d+)?\s*\/\s*\d+(?:[,.]\d+)?)/gu));
       if (value) specs.push(`вес нетто/брутто наружного блока ${value} кг`);
     } else if (/диаметр\s+труб\s*\([^)]*жидкость[^\)]*газ[^\)]*\)/iu.test(line)) {
-      const match = /Ø\s*(\d+(?:[,.]\d+)?)[^(\/]+(?:\([^)]*\))?\s*\/\s*Ø\s*(\d+(?:[,.]\d+)?)/iu.exec(line);
-      if (match) specs.push(`диаметр труб жидкость/газ Ø${match[1]} / Ø${match[2]} мм`);
+      const pipeLines = [line];
+      while (isSplitPipeDiameterContinuation(lines[index + 1] || '')) {
+        index += 1;
+        pipeLines.push(lines[index]);
+      }
+      const value = extractSplitPipeDiameterPairs(pipeLines.join(' ')).join('; ');
+      if (value) specs.push(`диаметр труб жидкость/газ ${value} мм`);
     } else if (/максимальная\s+длина\s+магистрали\s*м/iu.test(line)) {
       const value = formatSplitValues(extractSplitRowValues(line, /м/iu, /(\d+(?:[,.]\d+)?)/gu));
       if (value) specs.push(`максимальная длина магистрали ${value} м`);

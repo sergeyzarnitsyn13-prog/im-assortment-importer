@@ -315,8 +315,8 @@ const lagoonEnergyDraft = buildTechnicalOnlyDraft({
   seriesName: 'LAGOON',
   technicalRawText: 'Технические характеристики BSDI\nКласс энергоэффективности (EER/COP) A/A A/A A/A A++/A+++ A++/A+++ Расход воздуха 480/1300 520/1800',
 });
-assert.ok(lagoonEnergyDraft.salesFeatures.includes('A/A → A++/A+++'), 'LAGOON energy feature must show actual EER/COP table classes range');
-assert.ok(lagoonEnergyDraft.keyFeatures.includes('A/A → A++/A+++'), 'LAGOON keyFeatures must include confident EER/COP energy range');
+assert.equal(lagoonEnergyDraft.salesFeatures.includes('A/A → A++/A+++'), false, 'LAGOON salesFeatures must not include technical EER/COP energy range');
+assert.equal(lagoonEnergyDraft.keyFeatures.includes('A/A → A++/A+++'), false, 'LAGOON keyFeatures must not include technical EER/COP energy range');
 assert.ok(lagoonEnergyDraft.importantSpecs.includes('класс энергоэффективности EER/COP A/A → A++/A+++'), 'LAGOON importantSpecs must include confident EER/COP energy range with label');
 
 const lagoonMainAdvantagesEnergyDraft = buildTechnicalOnlyDraft({
@@ -395,9 +395,10 @@ const lagoonFlatPdfEnergyDraft = buildTechnicalOnlyDraft({
   seriesName: 'LAGOON',
   technicalRawText: lagoonFlatPdfTechnicalRawText,
 });
-assert.ok(
+assert.equal(
   lagoonFlatPdfEnergyDraft.salesFeatures.includes('A/A → A++/A+'),
-  'LAGOON flat PDF card must show only the EER/COP energy class row range',
+  false,
+  'LAGOON flat PDF card must not put the EER/COP energy class row range into salesFeatures',
 );
 assert.equal(
   /A\+\+\/A\+\+\+/u.test(stringifyDraft(lagoonFlatPdfEnergyDraft)),
@@ -753,6 +754,8 @@ assert.deepEqual(discoveryBsviCatalogTableDraft.salesArguments, [], 'Discovery B
 assert.ok(discoveryBsviCatalogTableDraft.catalogExtract, 'Discovery BSVI catalogExtract must be present');
 assert.ok(discoveryBsviCatalogTableDraft.catalogExtract.factualFeatures.includes('3D-контроль потока воздуха'), 'Discovery BSVI factualFeatures must include 3D airflow');
 assert.ok(discoveryBsviCatalogTableDraft.catalogExtract.factualFeatures.includes('7 скоростей вентилятора'), 'Discovery BSVI factualFeatures must include 7 fan speeds');
+assert.ok(discoveryBsviCatalogTableDraft.catalogExtract.factualFeatures.includes('i-FEEL'), 'Discovery BSVI factualFeatures must include i-FEEL');
+assert.ok(discoveryBsviCatalogTableDraft.catalogExtract.factualFeatures.includes('стабильная работа на обогрев'), 'Discovery BSVI factualFeatures must include stable heating');
 assert.equal(discoveryBsviCatalogTableDraft.catalogExtract.factualFeatures.join(' ').includes('A/A'), false, 'Discovery BSVI factualFeatures must not contain standalone energy class');
 for (const expectedSpec of [
   'производительность охлаждения 7500/9000/12000 BTU',
@@ -765,6 +768,8 @@ for (const expectedSpec of [
   'потребляемая мощность обогрев 650/770/1013 Вт',
   'габариты внутреннего блока 780×275×190 мм',
   'габариты наружного блока 712×276×459 мм',
+  'номинальный ток охлаждение/обогрев 3,3/3,0; 3,8/3,6; 5,1/4,7 А',
+  'диаметр труб жидкость/газ Ø6,35/Ø9,52 мм',
   'хладагент R32, заправка 0,44 кг',
 ]) {
   assert.ok(discoveryBsviCatalogTableDraft.importantSpecs.includes(expectedSpec), `Discovery BSVI importantSpecs must contain ${expectedSpec}`);
@@ -809,6 +814,64 @@ assert.match(lagoonBsdiRawExtractorDraft.catalogExtract.factualFeatures.join('\n
 assert.match(lagoonBsdiRawExtractorDraft.catalogExtract.factualFeatures.join('\n'), /Wi-Fi управление/iu, 'Lagoon BSDI factualFeatures must include Wi-Fi');
 assert.match(lagoonBsdiRawExtractorDraft.catalogExtract.importantSpecs.join('\n'), /A\/A\s*→\s*A\+\+\/A\+\+\+/u, 'Lagoon BSDI importantSpecs must preserve actual technical energy class range');
 assert.equal(/LAGOON BSD\s|ON\/OFF Lagoon|посторонняя серия/iu.test(stringifyDraft(lagoonBsdiRawExtractorDraft.catalogExtract)), false, 'Lagoon BSDI catalogExtract must not include ON/OFF BSD data');
+
+const lagoonBsdiCatalogTableDraft = generateSeriesDraft({
+  profileId: lagoonCategoryProfile.id,
+  category: lagoonCategoryProfile.category,
+  group: lagoonCategoryProfile.group,
+  seriesName: lagoonCategoryProfile.seriesName,
+  code: lagoonCategoryProfile.code,
+  exactSeriesPages: [62],
+  technicalPages: [63],
+  exactSeriesRawText: `
+    LAGOON BSDI
+    Wi-Fi-Control
+    Golden Fin
+    обогрев при температуре наружного воздуха от –15°C
+    низкий уровень шума от 22 дБ
+    R32
+  `,
+  technicalRawText: `
+    Параметр / Модель
+    BSDI/in-07HN8_V2 BSDI/in-09HN8_V2 BSDI/in-12HN8_V2 BSDI/in-18HN8_V2 BSDI/in-24HN8_V2
+    BSDI/out-07HN8_V2 BSDI/out-09HN8_V2 BSDI/out-12HN8_V2 BSDI/out-18HN8_V2 BSDI/out-24HN8_V2
+    Производительность (охлаждение) BTU 8000 (2300~9000) 9000 (2600~11000) 12300 (3200~14000) 18000 (4100~21000) 24000 (5500~27000)
+    Производительность (обогрев) BTU 8300 (2300~9500) 10000 (2800~12000) 12650 (3300~14500) 19000 (4300~22000) 25000 (5800~28000)
+    Класс энергоэффективности (EER/COP) А/А А/А А/А A++/A+++ A++/A+++
+    Напряжение питания В~Гц 220-240~50 220-240~50 220-240~50 220-240~50 220-240~50
+    Уровень шума (внутренний / наружный блок) дБ(А) 22 / 49 23 / 49 25 / 50 28 / 52 31 / 55
+    Номинальный ток (охлаждение / обогрев) A 3,3 (0,4~4,7)/ 3,6 (0,4~4,7)/ 5,0 (1,3~5,4)/ 6,7 (0,6~10,0)/ 12,6 (1,8~13,8)/
+    3,4 (0,6~3,9) 3,6 (0,6~3,9) 4,6 (1,3~5,6) 7,8 (1,0~10,2) 11,5 (1,3~12,2)
+    Диаметр труб (жидкость / газ) мм (дюйм)
+    Ø6,35 (1/4'') / Ø9,52 (3/8'')
+    Ø6,35 (1/4'') / Ø9,52 (3/8'')
+    Ø6,35 (1/4'') / Ø9,52 (3/8'')
+    Ø6,35 (1/4") / Ø12,7 (1/2")
+    Ø9,52 (3/8") / Ø15,9 (5/8")
+    Хладагент / вес кг R32 / 0,50 R32 / 0,50 R32 / 0,60 R32 / 1,00 R32 / 1,30
+  `,
+});
+assert.equal(lagoonBsdiCatalogTableDraft.shortDescription, '', 'Lagoon BSDI must not generate shortDescription');
+assert.equal(lagoonBsdiCatalogTableDraft.positioning, '', 'Lagoon BSDI must not generate positioning');
+assert.deepEqual(lagoonBsdiCatalogTableDraft.salesArguments, [], 'Lagoon BSDI must not generate salesArguments');
+assert.ok(lagoonBsdiCatalogTableDraft.catalogExtract.diagnostics.foundModels.includes('BSDI/in-07HN8_V2'), 'Lagoon BSDI foundModels must include indoor model');
+assert.ok(lagoonBsdiCatalogTableDraft.catalogExtract.diagnostics.foundModels.includes('BSDI/out-24HN8_V2'), 'Lagoon BSDI foundModels must include outdoor model');
+for (const expectedSpec of [
+  'класс энергоэффективности EER/COP А/А → A++/A+++',
+  'производительность охлаждения 8000/9000/12300/18000/24000 BTU',
+  'производительность обогрева 8300/10000/12650/19000/25000 BTU',
+  'питание 220–240 В / 50 Гц',
+  'номинальный ток охлаждение/обогрев 3,3/3,4; 3,6/3,6; 5,0/4,6; 6,7/7,8; 12,6/11,5 А',
+  'диаметр труб жидкость/газ Ø6,35/Ø9,52; Ø6,35/Ø12,7; Ø9,52/Ø15,9 мм',
+]) {
+  assert.ok(lagoonBsdiCatalogTableDraft.importantSpecs.includes(expectedSpec), `Lagoon BSDI importantSpecs must contain ${expectedSpec}`);
+}
+assert.ok(lagoonBsdiCatalogTableDraft.catalogExtract.factualFeatures.includes('низкий уровень шума от 22 дБ'), 'Lagoon BSDI factualFeatures must include low noise');
+assert.ok(lagoonBsdiCatalogTableDraft.catalogExtract.factualFeatures.includes('R32'), 'Lagoon BSDI factualFeatures must include R32');
+assert.ok(lagoonBsdiCatalogTableDraft.catalogExtract.factualFeatures.includes('обогрев до -15°C'), 'Lagoon BSDI factualFeatures must include heating to -15°C');
+assert.ok(lagoonBsdiCatalogTableDraft.catalogExtract.factualFeatures.includes('Golden Fin'), 'Lagoon BSDI factualFeatures must include Golden Fin');
+assert.match(lagoonBsdiCatalogTableDraft.catalogExtract.factualFeatures.join(' '), /Wi-Fi-Control|Wi-Fi управление/iu, 'Lagoon BSDI factualFeatures must include Wi-Fi control');
+assert.equal(lagoonBsdiCatalogTableDraft.catalogExtract.factualFeatures.join(' ').includes('А/А → A++/A+++'), false, 'Lagoon BSDI factualFeatures must not include technical energy range');
 
 const defenderBshiRawExtractorDraft = generateSeriesDraft({
   profileId: defenderProfile.id,
