@@ -209,6 +209,28 @@ const hasForbiddenSmartInverterText = (text = '', profile = {}) => {
   return /\bEVO\b|HEAVY\s+PRO|HEAVY\s+INDUSTRIAL|Промышленные\s+мобильные\s+(?:кондиционеры|осушители)|\bBGK\s*(?:15|18|25|32)\b|\bBDI\s*-?\s*(?:70|100)L\b|\bBPAC\s*-?\s*(?:12|14)\s+IE\s*\/?\s*N6\b/iu.test(text);
 };
 
+const hasForbiddenElectroluxSeriesText = (text = '', profile = {}) => {
+  const normalizedName = normalizeSearchText(profile.seriesName);
+
+  if (normalizedName === 'fusion wave') {
+    return /Super\s+DC\s+Inverter|EACS\s*\/?\s*I\s*-\s*\d{2}\s*HFW/iu.test(text);
+  }
+
+  if (normalizedName === 'smartline') {
+    return /Smartline\s+DC\s+Inverter|EACS\s*\/?\s*I\s*-\s*\d{2}\s*HSM|HSM\s*\/\s*N8_V3/iu.test(text);
+  }
+
+  if (normalizedName === 'fusion wave super dc inverter') {
+    return /\bEACS\s*-\s*\d{2}\s*HFW/iu.test(text) && !/Super\s+DC\s+Inverter|EACS\s*\/?\s*I\s*-\s*\d{2}\s*HFW/iu.test(text);
+  }
+
+  if (normalizedName === 'smartline dc inverter') {
+    return /\bEACS\s*-\s*\d{2}\s*HSM/iu.test(text) && !/Smartline\s+DC\s+Inverter|EACS\s*\/?\s*I\s*-\s*\d{2}\s*HSM|HSM\s*\/\s*N8_V3/iu.test(text);
+  }
+
+  return false;
+};
+
 const getTechnicalPageReasons = ({ matchedTokenObjects = [], hasTechnicalTableMarker = false }) => {
   const reasons = [];
   const modelPrefixes = unique(
@@ -274,12 +296,12 @@ const getPageClass = ({ text, profile, allProfiles, matchedTokens, matchedOtherS
   const requiresCodeConfirmation = profileRequiresCodeConfirmation(profile, allProfiles);
 
   if (hasSelectedSeries && requiresCodeConfirmation && !hasSelectedCode) {
-    return hasForbiddenSmartInverterText(text, profile) || matchedOtherSeries.length > 0
+    return hasForbiddenSmartInverterText(text, profile) || hasForbiddenElectroluxSeriesText(text, profile) || matchedOtherSeries.length > 0
       ? PAGE_CLASSES.otherSeriesPage
       : PAGE_CLASSES.categoryPage;
   }
 
-  if (hasSelectedSeries && hasForbiddenSmartInverterText(text, profile) && !hasSelectedCode) {
+  if (hasSelectedSeries && (hasForbiddenSmartInverterText(text, profile) || hasForbiddenElectroluxSeriesText(text, profile))) {
     return PAGE_CLASSES.otherSeriesPage;
   }
 
