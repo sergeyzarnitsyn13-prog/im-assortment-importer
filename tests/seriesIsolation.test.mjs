@@ -317,7 +317,7 @@ const lagoonEnergyDraft = buildTechnicalOnlyDraft({
 });
 assert.ok(lagoonEnergyDraft.salesFeatures.includes('A/A → A++/A+++'), 'LAGOON energy feature must show actual EER/COP table classes range');
 assert.ok(lagoonEnergyDraft.keyFeatures.includes('A/A → A++/A+++'), 'LAGOON keyFeatures must include confident EER/COP energy range');
-assert.ok(lagoonEnergyDraft.importantSpecs.includes('A/A → A++/A+++'), 'LAGOON importantSpecs must include confident EER/COP energy range');
+assert.ok(lagoonEnergyDraft.importantSpecs.includes('класс энергоэффективности EER/COP A/A → A++/A+++'), 'LAGOON importantSpecs must include confident EER/COP energy range with label');
 
 const lagoonMainAdvantagesEnergyDraft = buildTechnicalOnlyDraft({
   seriesName: 'LAGOON',
@@ -409,8 +409,8 @@ const singleEnergyDraft = buildTechnicalOnlyDraft({
   seriesName: 'LAGOON',
   technicalRawText: 'Технические характеристики BSDI\nКласс энергоэффективности (EER/COP) A/A A/A A/A',
 });
-assert.ok(singleEnergyDraft.salesFeatures.includes('A/A'), 'single energy class must be shown unchanged');
-assert.equal(/→/u.test(singleEnergyDraft.salesFeatures.join(' ')), false, 'single energy class must not be rendered as a range');
+assert.ok(singleEnergyDraft.importantSpecs.includes('класс энергоэффективности EER/COP A/A'), 'single energy class must be shown unchanged in importantSpecs');
+assert.equal(/→/u.test(singleEnergyDraft.importantSpecs.join(' ')), false, 'single energy class must not be rendered as a range');
 
 const exactEnergyClassWithoutEerDraft = buildTechnicalOnlyDraft({
   seriesName: 'LAGOON',
@@ -698,6 +698,82 @@ assert.match(discoveryBsviRawExtractorDraft.catalogExtract.factualFeatures.join(
 assert.match(discoveryBsviRawExtractorDraft.catalogExtract.importantSpecs.join('\n'), /производительность охлаждения 2600 3500 5200 Вт|производительность охлаждения 2600\/3500\/5200 Вт/iu, 'Discovery BSVI importantSpecs must include cooling capacity from BSVI table');
 assert.equal(/ON\/OFF Discovery BSV|BSV-09|посторонняя серия|Golden Fin/iu.test(discoveryBsviCatalogText), false, 'Discovery BSVI catalogExtract must not include ON/OFF BSV or neighboring series data');
 
+const discoveryBsviCatalogTableDraft = generateSeriesDraft({
+  profileId: discoveryProfile.id,
+  category: discoveryProfile.category,
+  group: discoveryProfile.group,
+  seriesName: discoveryProfile.seriesName,
+  code: discoveryProfile.code,
+  exactSeriesPages: [17],
+  technicalPages: [34],
+  exactSeriesRawText: `
+    DISCOVERY / BSVI
+    DC-inverter
+    3D-контроль потока воздуха
+    i-FEEL
+    7 скоростей вентилятора
+    стабильная работа на обогрев
+    низкий уровень шума от 23 дБ
+    обогрев до -15°C
+    R32
+  `,
+  technicalRawText: `
+    Параметр / Модель
+    BSVI / in-07HN8_V2 BSVI / in-09HN8_V2 BSVI / in-12HN8_V2
+    BSVI / out-07HN8_V2 BSVI / out-09HN8_V2 BSVI / out-12HN8_V2
+    Производительность (охлаждение) BTU 7500 (2200~9550) 9000 (2800~11500) 12000 (3410~13000)
+    Производительность (обогрев) BTU 8000 (2200~10000) 9500 (2400~12500) 12500 (3480~13500)
+    Класс энергоэффективности (EER/COP) A / A A / A A / A
+    Расход воздуха (внутренний / наружный блок) м3/ч 520 / 1400 520 / 1400 520 / 1400
+    Уровень шума (внутренний / наружный блок) дБ(А) 23 / 49 23 / 49 23 / 49
+    Напряжение питания В~Гц 220-240~50 220-240~50 220-240~50
+    Потребляемая мощность (охлаждение) Вт 685 (160~1600) 820 (200~1700) 1095 (300~1800)
+    Потребляемая мощность (обогрев) Вт 650 (160~1500) 770 (200~1600) 1013 (300~1800)
+    Номинальный ток (охлаждение / обогрев) A 3,3 (1,2~7,2) / 3,0 (1,2~7,2) 3,8 (1,3~7,5) / 3,6 (1,3~7,5) 5,1 (1,4~8,5) / 4,7 (1,4~8,5)
+    Размеры внутреннего блока (Ш×В×Г) мм 780×275×190 780×275×190 780×275×190
+    Размеры наружного блока (Ш×В×Г) мм 712×276×459 712×276×459 712×276×459
+    Размеры упаковки внутреннего блока (Ш×В×Г) мм 844×340×255 844×340×255 844×340×255
+    Размеры упаковки наружного блока (Ш×В×Г) мм 765×310×481 765×310×481 765×310×481
+    Вес нетто / брутто внутреннего блока кг 7,5 / 9,5 7,5 / 9,5 7,5 / 9,5
+    Вес нетто / брутто наружного блока кг 19 / 20,5 19 / 20,5 19,5 / 21
+    Диаметр труб (жидкость / газ) мм (дюйм) Ø6,35 (1/4'') / Ø9,52 (3/8'') Ø6,35 (1/4'') / Ø9,52 (3/8'') Ø6,35 (1/4'') / Ø9,52 (3/8'')
+    Максимальная длина магистрали м 15 15 15
+    Максимальный перепад высот м 5 5 5
+    Хладагент / вес кг R32 / 0,44 R32 / 0,44 R32 / 0,44
+    Диапазон рабочих температур (охлаждение / обогрев) 0…+53°C / -15…+30°C 0…+53°C / -15…+30°C 0…+53°C / -15…+30°C
+    НА ОБОГРЕВ
+    Установочные размеры и габариты
+    A/A
+  `,
+});
+const discoveryBsviCatalogTableSpecsText = discoveryBsviCatalogTableDraft.importantSpecs.join('\n');
+assert.equal(discoveryBsviCatalogTableDraft.shortDescription, '', 'Discovery BSVI must not generate shortDescription');
+assert.equal(discoveryBsviCatalogTableDraft.positioning, '', 'Discovery BSVI must not generate positioning');
+assert.deepEqual(discoveryBsviCatalogTableDraft.salesArguments, [], 'Discovery BSVI must not generate salesArguments');
+assert.ok(discoveryBsviCatalogTableDraft.catalogExtract, 'Discovery BSVI catalogExtract must be present');
+assert.ok(discoveryBsviCatalogTableDraft.catalogExtract.factualFeatures.includes('3D-контроль потока воздуха'), 'Discovery BSVI factualFeatures must include 3D airflow');
+assert.ok(discoveryBsviCatalogTableDraft.catalogExtract.factualFeatures.includes('7 скоростей вентилятора'), 'Discovery BSVI factualFeatures must include 7 fan speeds');
+assert.equal(discoveryBsviCatalogTableDraft.catalogExtract.factualFeatures.join(' ').includes('A/A'), false, 'Discovery BSVI factualFeatures must not contain standalone energy class');
+for (const expectedSpec of [
+  'производительность охлаждения 7500/9000/12000 BTU',
+  'производительность обогрева 8000/9500/12500 BTU',
+  'класс энергоэффективности EER/COP A/A',
+  'расход воздуха внутренний/наружный блок 520/1400 м³/ч',
+  'уровень шума внутренний/наружный блок 23/49 дБ',
+  'питание 220–240 В / 50 Гц',
+  'потребляемая мощность охлаждение 685/820/1095 Вт',
+  'потребляемая мощность обогрев 650/770/1013 Вт',
+  'габариты внутреннего блока 780×275×190 мм',
+  'габариты наружного блока 712×276×459 мм',
+  'хладагент R32, заправка 0,44 кг',
+]) {
+  assert.ok(discoveryBsviCatalogTableDraft.importantSpecs.includes(expectedSpec), `Discovery BSVI importantSpecs must contain ${expectedSpec}`);
+}
+assert.equal(discoveryBsviCatalogTableSpecsText.includes('НА ОБОГРЕВ'), false, 'Discovery BSVI importantSpecs must not contain heating section header');
+assert.equal(discoveryBsviCatalogTableSpecsText.includes('Установочные размеры и габариты'), false, 'Discovery BSVI importantSpecs must not contain dimensions section header');
+assert.ok(discoveryBsviCatalogTableDraft.catalogExtract.diagnostics.foundModels.includes('BSVI/in-07HN8_V2'), 'Discovery BSVI foundModels must include indoor model');
+assert.ok(discoveryBsviCatalogTableDraft.catalogExtract.diagnostics.foundModels.includes('BSVI/out-07HN8_V2'), 'Discovery BSVI foundModels must include outdoor model');
+
 const lagoonBsdiRawExtractorDraft = generateSeriesDraft({
   profileId: lagoonCategoryProfile.id,
   category: lagoonCategoryProfile.category,
@@ -760,7 +836,8 @@ const defenderBshiRawExtractorDraft = generateSeriesDraft({
 });
 assert.match(defenderBshiRawExtractorDraft.catalogExtract.factualFeatures.join('\n'), /УФ-обработка воздуха/iu, 'Defender BSHI factualFeatures must include UV filter');
 assert.match(defenderBshiRawExtractorDraft.catalogExtract.factualFeatures.join('\n'), /обогрев до -20°C|стабильная работа на обогрев/iu, 'Defender BSHI factualFeatures must include -20°C heating');
-assert.match(defenderBshiRawExtractorDraft.catalogExtract.factualFeatures.join('\n'), /A\+\+/u, 'Defender BSHI factualFeatures must include A++ from technical row');
+assert.equal(/A\+\+/u.test(defenderBshiRawExtractorDraft.catalogExtract.factualFeatures.join('\n')), false, 'Defender BSHI factualFeatures must not include standalone energy class from technical row');
+assert.match(defenderBshiRawExtractorDraft.catalogExtract.importantSpecs.join('\n'), /класс энергоэффективности EER\/COP A\+\+\/A\+\+/u, 'Defender BSHI importantSpecs must include energy class from technical row');
 assert.match(defenderBshiRawExtractorDraft.catalogExtract.importantSpecs.join('\n'), /производительность охлаждения 2600 3500 Вт|производительность охлаждения 2600\/3500 Вт/iu, 'Defender BSHI importantSpecs must include technical table rows');
 
 const platinumX4Profile = SERIES_PROFILES.find((profile) => profile.seriesName === 'Platinum X4');
