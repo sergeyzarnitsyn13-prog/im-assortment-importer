@@ -933,7 +933,7 @@ function DraftTab({ draft, draftJson, editingCardId, onChange, onSourceRefChange
         <h2>{editingCardId ? 'Редактировать карточку серии' : 'Черновик карточки серии'}</h2>
         <div className="form-grid">
           {draft.draftWarning && <p className="notice warning-notice wide-field">{draft.draftWarning}</p>}
-          <RecognitionDiagnostics diagnostics={draft.diagnostics} />
+          <RecognitionDiagnostics catalogExtract={draft.catalogExtract} diagnostics={draft.diagnostics} />
           <TextInput name="brand" onChange={onChange} value={draft.brand} />
           <TextInput name="category" onChange={onChange} value={draft.category} />
           <TextInput name="seriesName" onChange={onChange} value={draft.seriesName} />
@@ -1007,7 +1007,7 @@ const formatDiagnosticValue = (value, emptyText = '—') => {
   return value || value === 0 ? String(value) : emptyText;
 };
 
-function RecognitionDiagnostics({ diagnostics }) {
+function RecognitionDiagnostics({ diagnostics, catalogExtract }) {
   if (!diagnostics) {
     return null;
   }
@@ -1037,6 +1037,11 @@ function RecognitionDiagnostics({ diagnostics }) {
           </div>
         ))}
       </dl>
+      {catalogExtract?.extractionQuality && (
+        <div className="notice recognition-diagnostics-warning">
+          <strong>Качество извлечения:</strong> {catalogExtract.extractionQuality}
+        </div>
+      )}
       {diagnostics.warnings?.length > 0 && (
         <div className="notice warning-notice recognition-diagnostics-warning">
           <strong>Предупреждения:</strong>
@@ -1046,6 +1051,16 @@ function RecognitionDiagnostics({ diagnostics }) {
             ))}
           </ul>
         </div>
+      )}
+      {catalogExtract?.unparsedTechnicalRows?.length > 0 && (
+        <details className="notice recognition-diagnostics-warning">
+          <summary>Нераспознанные строки таблицы</summary>
+          <ul>
+            {catalogExtract.unparsedTechnicalRows.map((row) => (
+              <li key={row}>{row}</li>
+            ))}
+          </ul>
+        </details>
       )}
     </section>
   );

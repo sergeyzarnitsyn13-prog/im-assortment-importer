@@ -610,6 +610,40 @@ const attachSourceRefs = (draft, source) => {
 };
 
 
+
+const CATALOG_PASSPORT_SALES_FIELDS = {
+  shortDescription: '',
+  positioning: '',
+  targetClient: [],
+  mainSalesIdea: '',
+  salesArguments: [],
+  clientSpeech: '',
+  differences: '',
+  whenRecommend: [],
+  whenNotRecommend: [],
+  objections: [],
+};
+
+export const stripGeneratedSalesFieldsForCatalogPassport = (draft = {}) => {
+  if (draft?.isManualCuratedProfile === true || draft?.manualProfile?.isManualCuratedProfile === true) {
+    return draft;
+  }
+
+  const cleanedDraft = {
+    ...draft,
+    ...Object.fromEntries(
+      Object.entries(CATALOG_PASSPORT_SALES_FIELDS).map(([field, value]) => [field, Array.isArray(value) ? [...value] : value]),
+    ),
+    sourceRefs: { ...(draft.sourceRefs || {}) },
+  };
+
+  for (const field of Object.keys(CATALOG_PASSPORT_SALES_FIELDS)) {
+    delete cleanedDraft.sourceRefs[field];
+  }
+
+  return cleanedDraft;
+};
+
 const getSourcePages = (source, field) => {
   const directPages = source?.[field];
   const diagnosticPages = source?.pageDiagnostics?.[field];
@@ -780,13 +814,91 @@ const buildCatalogDiagnostics = (diagnostics = {}) => ({
   extractionNotes: diagnostics.notes || [],
 });
 
-const buildCatalogExtract = ({ source = {}, salesFeatures = [], importantSpecs = [], diagnostics = {}, exactSeriesText = '', narrativeText = '' } = {}) => ({
-  descriptionsFromCatalog: getCatalogDescriptionTexts({ source, exactSeriesText, narrativeText }),
-  factualFeatures: Array.isArray(salesFeatures) ? [...salesFeatures] : [],
-  importantSpecs: Array.isArray(importantSpecs) ? [...importantSpecs] : [],
-  sourcePages: getCatalogSourcePages(source),
-  diagnostics: buildCatalogDiagnostics(diagnostics),
-});
+const hasTechnicalGarbage = (items = []) => items.some((item) => /undefined|null|\[object Object\]/iu.test(String(item ?? '')));
+
+const collectRawTableText = (source = {}) => String(source.technicalRawText ?? source.technicalText ?? '').trim();
+
+const collectUnparsedTechnicalRows = ({ rawTableText = '', importantSpecs = [] } = {}) => {
+  const normalizedSpecs = normalizeSearchText(importantSpecs.join(' '));
+
+  return unique(
+    String(rawTableText ?? '')
+      .split(/\r?\n/)
+      .map((line) => String(line ?? '').replace(/\s+/gu, ' ').trim())
+      .filter(Boolean)
+      .filter((line) => {
+        const normalized = normalizeSearchText(line);
+
+        if (normalized.length < 8 || /^(?:параметр|модель|технические характеристики)\b/u.test(normalized)) {
+          return false;
+        }
+
+        const looksLikeTechnicalRow =
+          /^(?:на обогрев|установочные размеры и габариты)$/u.test(normalized) ||
+          /(?:производительность|btu|класс\s+энергоэффективности|seer|scop|eer|cop|расход\s+воздуха|уровень\s+шума|мощность|ток|электропитание|напряжение|размер|габарит|вес|хладагент|диаметр|трасс|перепад|температур|марка\s+компрессора)/u.test(normalized);
+
+        if (!looksLikeTechnicalRow) {
+          return false;
+        }
+
+        return !normalizedSpecs.includes(normalized.slice(0, Math.min(normalized.length, 40)));
+      }),
+  );
+};
+
+const buildCatalogWarnings = ({ diagnostics = {}, sourcePages = [], unparsedTechnicalRows = [], importantSpecs = [], rawText = '', rawTableText = '' } = {}) => unique([
+  ...(diagnostics.warnings || []),
+  sourcePages.length > 2 ? 'sourcePages содержит несколько страниц — требуется проверка' : '',
+  rawTableText && importantSpecs.length === 0 ? 'Таблица найдена, но строки технических характеристик не распознаны' : '',
+  ...unparsedTechnicalRows.map((row) => /^(?:на обогрев|установочные размеры и габариты)$/iu.test(row)
+    ? `Служебная строка таблицы пропущена: ${row}`
+    : `Не удалось уверенно распарсить строку: ${row}`),
+  rawText && rawTableText && rawText.length < rawTableText.length ? 'rawText короче technicalRawText — требуется проверка сырья' : '',
+].filter(Boolean));
+
+const getExtractionQuality = ({ source = {}, diagnostics = {}, sourcePages = [], factualFeatures = [], importantSpecs = [], warnings = [], rawText = '', rawTableText = '', unparsedTechnicalRows = [] } = {}) => {
+  const hasIdentity = Boolean((diagnostics.brand || source.brand) && (diagnostics.seriesName || source.seriesName) && (diagnostics.seriesCode || source.code));
+  const hasModels = (diagnostics.foundModels || diagnostics.modelCodes || []).length > 0;
+  const hasCriticalWarning = warnings.some((warning) => /не определена серия|не определён бренд|technicalRawText пустой|модели\/коды не найдены|таблица найдена, но строки/i.test(warning));
+  const hasSuspiciousPages = sourcePages.length > 2;
+  const hasMixedSeries = warnings.some((warning) => /смешиван|похожие серии|другой серии|соседн|посторонн/iu.test(warning));
+
+  if (!hasIdentity || sourcePages.length === 0 || !rawText || importantSpecs.length === 0 || hasTechnicalGarbage(importantSpecs) || hasMixedSeries || (rawTableText && !hasModels) || unparsedTechnicalRows.length > Math.max(3, importantSpecs.length)) {
+    return 'needs_review';
+  }
+
+  if (hasCriticalWarning || hasSuspiciousPages || unparsedTechnicalRows.length > 0 || factualFeatures.length === 0 || importantSpecs.length < 3) {
+    return 'partial';
+  }
+
+  return 'good';
+};
+
+const buildCatalogExtract = ({ source = {}, salesFeatures = [], importantSpecs = [], diagnostics = {}, exactSeriesText = '', narrativeText = '' } = {}) => {
+  const sourcePages = getCatalogSourcePages(source);
+  const rawText = String([source.exactSeriesRawText, source.categorySummaryRawText, source.summaryRawText, source.technicalRawText].filter(Boolean).join('\n\n') || source.rawText || '').trim();
+  const rawTableText = collectRawTableText(source);
+  const unparsedTechnicalRows = collectUnparsedTechnicalRows({ rawTableText, importantSpecs });
+  const factualFeatures = Array.isArray(salesFeatures) ? [...salesFeatures] : [];
+  const specs = Array.isArray(importantSpecs) ? [...importantSpecs] : [];
+  const warnings = buildCatalogWarnings({ diagnostics, sourcePages, unparsedTechnicalRows, importantSpecs: specs, rawText, rawTableText });
+  const catalogDiagnostics = buildCatalogDiagnostics({ ...diagnostics, warnings });
+  const extractionQuality = getExtractionQuality({ source, diagnostics: catalogDiagnostics, sourcePages, factualFeatures, importantSpecs: specs, warnings, rawText, rawTableText, unparsedTechnicalRows });
+
+  return {
+    descriptionsFromCatalog: getCatalogDescriptionTexts({ source, exactSeriesText, narrativeText }),
+    factualFeatures,
+    importantSpecs: specs,
+    sourcePages,
+    rawText,
+    technicalRawText: rawTableText,
+    featureRawText: String(source.exactSeriesRawText ?? source.exactSeriesText ?? exactSeriesText ?? '').trim(),
+    rawTableText,
+    unparsedTechnicalRows,
+    extractionQuality,
+    diagnostics: catalogDiagnostics,
+  };
+};
 
 const normalizeLine = (line = '') => String(line ?? '').trim().replace(/^[-–—•*\d.)\s]+/, '').trim();
 
@@ -2134,6 +2246,9 @@ const extractSplitTechnicalTableSpecs = (rawText = '') => {
     } else if (/класс\s+энергоэффективности\s*\(\s*eer\s*\/\s*cop\s*\)/iu.test(line)) {
       const energy = formatEnergyClassFeature(collectEnergyClassValues(line));
       if (energy) specs.push(`класс энергоэффективности EER/COP ${energy}`);
+    } else if (/класс\s+энергоэффективности\s*\(\s*seer\s*\/\s*scop\s*\)/iu.test(line)) {
+      const energy = formatEnergyClassFeature(collectEnergyClassValues(line));
+      if (energy) specs.push(`класс энергоэффективности SEER/SCOP ${energy}`);
     } else if (/расход\s+воздуха\s*\([^)]*внутренн[^\)]*наружн[^\)]*\)\s*м(?:3|³)\s*\/\s*ч/iu.test(line)) {
       const values = extractSplitRowValues(line, /м(?:3|³)\s*\/\s*ч/iu, /(\d+(?:[,.]\d+)?\s*\/\s*\d+(?:[,.]\d+)?)/gu);
       const value = formatSplitValues(values);
@@ -2737,6 +2852,7 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
   const draft = {
     profileId: approvedProfile.id,
     profileStatus: approvedProfile.profileStatus,
+    isManualCuratedProfile: Boolean(source.isManualCuratedProfile || manualProfile?.isManualCuratedProfile || isManualOrApprovedSalesProfile(approvedSalesProfile) || isManualOrApprovedSalesProfile(salesProfile)),
     draftWarning,
     brand: approvedProfile.brand,
     category: approvedProfile.category,
@@ -2773,7 +2889,7 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
   };
   const diagnostics = buildDraftDiagnostics(isolatedSource, draft);
 
-  return attachSourceRefs({
+  const draftWithCatalogExtract = attachSourceRefs({
     ...draft,
     diagnostics,
     catalogExtract: buildCatalogExtract({
@@ -2785,6 +2901,8 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
       narrativeText,
     }),
   }, source);
+
+  return stripGeneratedSalesFieldsForCatalogPassport(draftWithCatalogExtract);
 };
 
 export const generateIcePeakDraft = (source) => {
@@ -2834,6 +2952,7 @@ export const generateSeriesDraft = (source) => {
   const draft = {
     profileId: source.profileId || '',
     profileStatus: 'unknown',
+    isManualCuratedProfile: Boolean(source.isManualCuratedProfile || manualProfile?.isManualCuratedProfile || isManualOrApprovedSalesProfile(salesProfile)),
     draftWarning: buildDraftWarning({
       hasExactSeriesPages: hasEnoughDescriptionSource,
       hasTechnicalTable,
@@ -2878,7 +2997,7 @@ export const generateSeriesDraft = (source) => {
   };
   const diagnostics = buildDraftDiagnostics(isolatedSource, draft);
 
-  return attachSourceRefs({
+  const draftWithCatalogExtract = attachSourceRefs({
     ...draft,
     diagnostics,
     catalogExtract: buildCatalogExtract({
@@ -2890,4 +3009,6 @@ export const generateSeriesDraft = (source) => {
       narrativeText,
     }),
   }, source);
+
+  return stripGeneratedSalesFieldsForCatalogPassport(draftWithCatalogExtract);
 };
