@@ -26,12 +26,20 @@ const featurePatterns = [
   { label: 'i-FEEL', patterns: [/\bi\s*-?\s*feel\b/u, /\bifeel\b/u, /климат\s*-?\s*контрол/u, /ай\s*фил/u] },
   { label: '7 скоростей вентилятора', patterns: [/7\s+скорост/u, /скорост[а-яё]*\s+вентилятор/u] },
   { label: 'стабильная работа на обогрев', patterns: [/стабильн[а-яё]*\s+работ[а-яё]*\s+на\s+обогрев/u, /работ[а-яё]*\s+на\s+обогрев/u] },
+  { label: 'обогрев до -20°C', patterns: [/обогрев[^\n.]{0,40}-\s*20(?:\s*°?\s*[cс])?/u] },
+  { label: 'обогрев до -30°C', patterns: [/обогрев[^\n.]{0,40}-\s*30(?:\s*°?\s*[cс])?/u] },
   { label: 'самоочистка со стерилизацией', patterns: [/самоочист[а-яё\s-]{0,120}стерилизац/u, /стерилизац[а-яё\s-]{0,120}самоочист/u, /самоочистка\s+со\s+стерилизацией/u, /стерилизац(?:ия|ией|иеи|ию|ии|ией|иеи|ие)/u] },
   { label: 'самоочистка', patterns: [/самоочист/u, /\bself\s*-?\s*clean/u] },
   { label: 'R32', patterns: [/\br\s*32\b/u] },
   { label: 'Full DC inverter', patterns: [/\bfull\s*dc\s*inverter\b/u, /полн(?:ый|ыи)\s+dc\s+инвертор/u] },
   { label: 'инвертор', patterns: [/инвертор/u, /\binverter\b/u] },
   { label: 'Golden Fin', patterns: [/\bgolden\s*fin\b/u, /голден\s*фин/u, /защитн[а-яё]*\s+покрыт/u] },
+  { label: 'Blue Fin', patterns: [/\bblue\s*fin\b/u, /блю\s*фин/u] },
+  { label: 'антикоррозийное покрытие', patterns: [/антикорроз[а-яё]*\s+покрыт/u] },
+  { label: 'защита от перепадов напряжения', patterns: [/защит[а-яё]*\s+от\s+перепад[а-яё]*\s+напряж/u] },
+  { label: 'работа при низком напряжении 120 В', patterns: [/низк[а-яё]*\s+напряж[а-яё\s]{0,30}120\s*в/u, /120\s*в[а-яё\s]{0,60}напряж/u] },
+  { label: 'тихая работа 21 дБ', patterns: [/21\s*дб[а]?[^\n.]{0,60}(?:тих|шум)|(?:тих|шум)[^\n.]{0,60}21\s*дб[а]?/u] },
+  { label: 'самоочистка 4 поколения', patterns: [/самоочист[а-яё\s-]{0,60}4(?:-?го)?\s+поколен/u] },
   { label: 'фильтрация воздуха', patterns: [/фильтрац/u, /фильтр[^\n.]{0,80}воздух/u, /air\s*filter/u] },
   { label: 'ионизация', patterns: [/ионизац/u, /\bion\s*air\b/u, /ионизатор/u, /\bionizer\b/u, /\bioniser\b/u] },
   { label: 'ION COMBO-4', patterns: [/\bion\s*combo-?4\b/u, /комбо\s*-?\s*фильтр\s+4\s+в\s+1/u] },
@@ -860,9 +868,22 @@ const normalizeMobileModelCode = (value = '') => String(value ?? '')
 const normalizeSeriesCode = (value = '') => normalizeMobileModelCode(value).replace(/^(BPAC|BPHS)\s+/iu, '$1-');
 
 const MOBILE_MODEL_PATTERN = /\b(?:BPAC|BPHS)\s*-?\s*\d{2}\s+[A-Z]{2}(?:\s*\/\s*N\d)?\b/giu;
+const SPLIT_MODEL_PATTERN = /\bBS(?:NI|PKI|HI|PI|YI|OI|TI|DI|VI|D|T|V|O|W|Q)\s*-?\s*\d{2,3}(?:[A-Z0-9/-]*)?\b/giu;
 
 const extractConcreteMobileModels = (rawText = '', seriesCode = '') => {
   const normalizedSeriesCode = normalizeSeriesCode(seriesCode);
+  const normalizedSplitCode = String(seriesCode ?? '').toLocaleUpperCase('ru-RU').trim();
+
+  if (/^BS[A-Z]+$/u.test(normalizedSplitCode)) {
+    const splitModels = unique(
+      (String(rawText ?? '').match(SPLIT_MODEL_PATTERN) || [])
+        .map((model) => model.replace(/[‐‑‒–—−]/gu, '-').replace(/\s+/gu, ' ').trim())
+        .filter((model) => model.toLocaleUpperCase('ru-RU').startsWith(normalizedSplitCode)),
+    );
+
+    return splitModels;
+  }
+
   const suffix = (normalizedSeriesCode.match(/^(?:BPAC|BPHS)-(.+)$/iu) || [])[1]?.replace(/[^A-Z0-9]+/giu, '') || '';
   const models = unique(
     (String(rawText ?? '').match(MOBILE_MODEL_PATTERN) || [])
@@ -1182,6 +1203,7 @@ const formatEnergyClassFeature = (values = []) => {
 };
 
 const ENERGY_CLASS_ROW_MARKER = /класс\s+энергоэффективности\s*\(\s*eer\s*\/\s*cop\s*\)/iu;
+const STRICT_ENERGY_CLASS_ROW_MARKER = /класс\s+энергоэффективности(?:\s*\(\s*(?:eer\s*\/\s*cop|seer\s*\/\s*scop)\s*\)|\s+(?:охлаждение|обогрев))/iu;
 const ENERGY_CLASS_SEGMENT_MAX_LENGTH = 360;
 const ENERGY_CLASS_NEXT_ROW_MARKERS = [
   'Расход воздуха',
@@ -1218,7 +1240,7 @@ const buildEnergyClassDecision = (values = [], reasonPrefix = 'accepted') => {
 export const diagnoseEnergyClass = (technicalText = '') => {
   const normalizedText = String(technicalText ?? '').replace(/[‐‑‒–—−]/gu, '-');
   const sourceSegment = normalizedText;
-  const markerMatch = ENERGY_CLASS_ROW_MARKER.exec(sourceSegment);
+  const markerMatch = STRICT_ENERGY_CLASS_ROW_MARKER.exec(sourceSegment);
 
   if (!markerMatch) {
     return {
@@ -1414,6 +1436,7 @@ const sortSalesFeatures = (features = []) => {
 };
 
 const isMobileAirConditionerProfile = (categoryProfile = null) => categoryProfile?.id === 'mobileAirConditioner';
+const isSplitSystemProfile = (categoryProfile = null) => ['inverterSplit', 'onOffSplit'].includes(categoryProfile?.id);
 
 const shouldKeepDescriptionFeature = (feature = '', categoryProfile = null) => (
   !isTechnicalFeature(feature) ||
@@ -1611,7 +1634,7 @@ const pickCategoryMainAdvantages = (features = [], fallback = [], categoryProfil
 const normalizeTechnicalSpecLine = (line = '') => {
   const normalizedLine = normalizeLine(line);
 
-  return ENERGY_CLASS_ROW_MARKER.test(normalizedLine) ? limitEnergyClassSegment(normalizedLine) : normalizedLine;
+  return STRICT_ENERGY_CLASS_ROW_MARKER.test(normalizedLine) ? limitEnergyClassSegment(normalizedLine) : normalizedLine;
 };
 
 const extractTechnicalSpecs = (rawText = '') =>
@@ -1906,6 +1929,91 @@ const extractMobileAirConditionerImportantSpecs = (rawText = '') => mergeMobileS
     .filter(isMobileStructuredTechnicalSpecLine),
 );
 
+const SPLIT_SPEC_RULES = [
+  { label: 'производительность охлаждения', pattern: /(?:производительность|мощность)\s+охлаждени[яе]|холодопроизводительность/iu, unit: 'Вт' },
+  { label: 'производительность обогрева', pattern: /(?:производительность|мощность)\s+обогрев[ае]/iu, unit: 'Вт' },
+  { label: 'BTU', pattern: /\bbtu\b|бте/iu, unit: 'BTU' },
+  { label: 'класс энергоэффективности EER/COP', pattern: /класс\s+энергоэффективности\s*\(\s*eer\s*\/\s*cop\s*\)/iu },
+  { label: 'класс энергоэффективности SEER/SCOP', pattern: /класс\s+энергоэффективности\s*\(\s*seer\s*\/\s*scop\s*\)/iu },
+  { label: 'SEER', pattern: /\bseer\b/iu },
+  { label: 'SCOP', pattern: /\bscop\b/iu },
+  { label: 'EER', pattern: /\beer\b/iu },
+  { label: 'COP', pattern: /\bcop\b/iu },
+  { label: 'уровень шума внутреннего блока', pattern: /уровень\s+шума\s*(?:\([^)]*(?:внутренн|внутр)[^)]*\)|(?:внутренн[а-яё]*|внутр\.?)\s*(?:блок[а-яё]*)?)/iu, unit: 'дБ' },
+  { label: 'уровень шума наружного блока', pattern: /уровень\s+шума\s*(?:\([^)]*(?:наружн|нар\.)[^)]*\)|(?:наружн[а-яё]*|нар\.?)\s*(?:блок[а-яё]*)?)/iu, unit: 'дБ' },
+  { label: 'расход воздуха', pattern: /расход\s+воздуха/iu, unit: 'м³/ч' },
+  { label: 'хладагент', pattern: /хладагент|фреон/iu },
+  { label: 'площадь помещения', pattern: /площад[ьи]\s+помещ|помещени[ея]\s+до/iu, unit: 'м²' },
+  { label: 'электропитание', pattern: /электропитание|напряжение\s+питания/iu },
+  { label: 'потребляемая мощность охлаждение', pattern: /потребляемая\s+мощность[^\n]*охлажден/iu, unit: 'Вт' },
+  { label: 'потребляемая мощность обогрев', pattern: /потребляемая\s+мощность[^\n]*обогрев/iu, unit: 'Вт' },
+  { label: 'ток охлаждение', pattern: /(?:номинальный\s+)?ток[^\n]*охлажден/iu, unit: 'А' },
+  { label: 'ток обогрев', pattern: /(?:номинальный\s+)?ток[^\n]*обогрев/iu, unit: 'А' },
+  { label: 'габариты внутреннего блока', pattern: /(?:габарит|размер)[^\n]*(?:внутренн|внутр\.?)/iu, unit: 'мм' },
+  { label: 'габариты наружного блока', pattern: /(?:габарит|размер)[^\n]*(?:наружн|нар\.?)/iu, unit: 'мм' },
+  { label: 'вес внутреннего блока', pattern: /вес[^\n]*(?:внутренн|внутр\.?)/iu, unit: 'кг' },
+  { label: 'вес наружного блока', pattern: /вес[^\n]*(?:наружн|нар\.?)/iu, unit: 'кг' },
+  { label: 'диаметр жидкостной трубы', pattern: /диаметр[^\n]*(?:жидкостн|жидк\.?)/iu },
+  { label: 'диаметр газовой трубы', pattern: /диаметр[^\n]*(?:газов|газ\.?)/iu },
+  { label: 'длина трассы', pattern: /длина\s+трассы|максимальная\s+длина/iu, unit: 'м' },
+  { label: 'перепад высот', pattern: /перепад\s+высот/iu, unit: 'м' },
+  { label: 'рабочие температуры охлаждение', pattern: /(?:рабоч|диапазон)[^\n]*температур[^\n]*охлажден/iu },
+  { label: 'рабочие температуры обогрев', pattern: /(?:рабоч|диапазон)[^\n]*температур[^\n]*обогрев/iu },
+];
+
+const normalizeSpecValues = (value = '', unit = '') => {
+  let normalized = String(value ?? '')
+    .replace(/[×хХ*]/gu, '×')
+    .replace(/\s*\/\s*/gu, '/')
+    .replace(/\s+/gu, ' ')
+    .replace(/^[\s:;,-]+|[\s:;,-]+$/gu, '')
+    .trim();
+
+  if (unit && normalized && !new RegExp(escapeRegExp(unit).replace('³', '[³3]'), 'iu').test(normalized)) {
+    normalized = `${normalized} ${unit}`;
+  }
+
+  return normalized;
+};
+
+const stripSplitSpecLabel = (line = '', rule) => {
+  const match = rule.pattern.exec(line);
+  const value = match ? line.slice(match.index + match[0].length) : line;
+
+  return value
+    .replace(/^[\s,;:]+(?:вт|btu|бте|дб[а]?|м(?:³|3)\s*\/\s*ч|мм|кг|м²|м|а)(?=$|[\s\d/.,;:])/iu, ' ')
+    .replace(/\b(?:параметр|модель|bsni|bspki|bshi|bspi|bsyi|bsoi|bsti|bsdi|bsvi)[-\w/]*\b/giu, ' ')
+    .replace(/\s+/gu, ' ');
+};
+
+const formatSplitSpecLine = (line = '') => {
+  const normalizedLine = normalizeTechnicalSpecLine(line);
+  const rule = SPLIT_SPEC_RULES.find((item) => item.pattern.test(normalizedLine));
+
+  if (!rule) {
+    return '';
+  }
+
+  if (/^класс\s+энергоэффективности/iu.test(rule.label)) {
+    const values = collectEnergyClassValues(limitEnergyClassSegment(normalizedLine));
+    const displayValue = formatEnergyClassFeature(values);
+    return displayValue ? `${rule.label} ${displayValue}` : normalizeTechnicalSpecLine(normalizedLine);
+  }
+
+  const rawValue = stripSplitSpecLabel(normalizedLine, rule);
+  const value = normalizeSpecValues(rawValue, rule.unit);
+
+  return value ? `${rule.label} ${value}` : normalizedLine;
+};
+
+const extractSplitSystemImportantSpecs = (rawText = '') =>
+  unique(
+    String(rawText ?? '')
+      .split(/\r?\n/)
+      .map(formatSplitSpecLine)
+      .filter(Boolean),
+  );
+
 const extractCategoryImportantSpecs = (rawText = '', categoryProfile = null) => {
   if (!categoryProfile) {
     return extractTechnicalSpecs(rawText);
@@ -1913,6 +2021,12 @@ const extractCategoryImportantSpecs = (rawText = '', categoryProfile = null) => 
 
   if (isMobileAirConditionerProfile(categoryProfile)) {
     return extractMobileAirConditionerImportantSpecs(rawText);
+  }
+
+  if (isSplitSystemProfile(categoryProfile)) {
+    const splitSpecs = extractSplitSystemImportantSpecs(rawText);
+
+    return splitSpecs.length > 0 ? splitSpecs : extractTechnicalSpecs(rawText);
   }
 
   return unique(
@@ -2435,13 +2549,22 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
     status: 'draft',
   };
 
-  const diagnostics = buildDraftDiagnostics(source, draft);
+  const isolatedSource = {
+    ...source,
+    exactSeriesRawText: exactSeriesText,
+    categorySummaryRawText: (categoryProfile?.id === 'mobileAirConditioner' || categoryProfile?.id === 'waterHeater') ? summaryText : '',
+    summaryRawText: (categoryProfile?.id === 'mobileAirConditioner' || categoryProfile?.id === 'waterHeater') ? summaryText : '',
+    categorySummaryText: (categoryProfile?.id === 'mobileAirConditioner' || categoryProfile?.id === 'waterHeater') ? summaryText : '',
+    summaryText: (categoryProfile?.id === 'mobileAirConditioner' || categoryProfile?.id === 'waterHeater') ? summaryText : '',
+    technicalRawText: technicalText,
+  };
+  const diagnostics = buildDraftDiagnostics(isolatedSource, draft);
 
   return attachSourceRefs({
     ...draft,
     diagnostics,
     catalogExtract: buildCatalogExtract({
-      source,
+      source: isolatedSource,
       salesFeatures,
       importantSpecs,
       diagnostics,
@@ -2531,13 +2654,22 @@ export const generateSeriesDraft = (source) => {
     status: 'draft',
   };
 
-  const diagnostics = buildDraftDiagnostics(source, draft);
+  const isolatedSource = {
+    ...source,
+    exactSeriesRawText: exactSeriesText,
+    categorySummaryRawText: (categoryProfile?.id === 'mobileAirConditioner' || categoryProfile?.id === 'waterHeater') ? summaryText : '',
+    summaryRawText: (categoryProfile?.id === 'mobileAirConditioner' || categoryProfile?.id === 'waterHeater') ? summaryText : '',
+    categorySummaryText: (categoryProfile?.id === 'mobileAirConditioner' || categoryProfile?.id === 'waterHeater') ? summaryText : '',
+    summaryText: (categoryProfile?.id === 'mobileAirConditioner' || categoryProfile?.id === 'waterHeater') ? summaryText : '',
+    technicalRawText: technicalText,
+  };
+  const diagnostics = buildDraftDiagnostics(isolatedSource, draft);
 
   return attachSourceRefs({
     ...draft,
     diagnostics,
     catalogExtract: buildCatalogExtract({
-      source,
+      source: isolatedSource,
       salesFeatures,
       importantSpecs,
       diagnostics,
