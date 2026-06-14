@@ -15,7 +15,13 @@ const getGenericCodePatterns = (code = '') => {
     return [];
   }
 
-  return [new RegExp(escapeRegExp(normalizedCode).replace(/[\s\-_]+/gu, '[\\s\\-_]*'), 'iu')];
+  const flexibleCode = escapeRegExp(normalizedCode).replace(/[\s\-_]+/gu, '[\\s\\-_]*');
+  const modelCode = flexibleCode.length >= 3 ? `${flexibleCode}[\\s\\-_]*\\d{2,3}` : flexibleCode;
+
+  return [
+    new RegExp(`(^|[^0-9a-zа-яё])${flexibleCode}(?=$|[^0-9a-zа-яё])`, 'iu'),
+    new RegExp(`(^|[^0-9a-zа-яё])${modelCode}(?=$|[^0-9a-zа-яё])`, 'iu'),
+  ];
 };
 
 export const getSeriesCodeConfirmationPatterns = ({ seriesName = '', code = '' } = {}) => {
@@ -86,6 +92,8 @@ const findLastPatternIndex = (text = '', patterns = [], toIndex = text.length) =
 };
 
 const BLOCK_START_PATTERNS = [
+  /(?:^|\n)\s*(?:Бытовые\s+сплит-системы|DC-?\s*инверторные\s+сплит-системы|Инверторные\s+сплит-системы|Кондиционирование)\b/giu,
+  /(?:^|\n)\s*(?:BOHO|ICE\s+PEAK|DEFENDER|PLATINUM\s+BLACK|ECO\s+SMART|ODYSSEY\s+PRO|TESSEY|LAGOON|DISCOVERY)\s+(?:BSNI|BSPKI|BSHI|BSPI|BSYI|BSOI|BSTI|BSDI|BSVI|BST|BSD|BSV)\b/giu,
   /(?:^|\n)\s*Бытовые\s+мобильные\s+кондиционеры\b/giu,
   /(?:^|\n)\s*Промышленные\s+мобильные\s+кондиционеры\b/giu,
   /(?:^|\n)\s*Промышленные\s+мобильные\s+осушители\b/giu,
@@ -93,6 +101,9 @@ const BLOCK_START_PATTERNS = [
 ];
 
 const NEXT_FOREIGN_PATTERNS = [
+  /(?:^|\n)\s*(?:Бытовые\s+сплит-системы|DC-?\s*инверторные\s+сплит-системы|Инверторные\s+сплит-системы|Кондиционирование)\b/giu,
+  /(?:^|\n)\s*(?:BOHO|ICE\s+PEAK|DEFENDER|PLATINUM\s+BLACK|ECO\s+SMART|ODYSSEY\s+PRO|TESSEY|LAGOON|DISCOVERY|OLYMPIO\s+\w+)\s+(?:BSNI|BSPKI|BSHI|BSPI|BSYI|BSOI|BSTI|BSDI|BSVI|BSO|BSW|BST|BSD|BSV|BSQ)\b/giu,
+  /(?:^|\n)\s*Технические\s+характеристики\s+(?:BSNI|BSPKI|BSHI|BSPI|BSYI|BSOI|BSTI|BSDI|BSVI|BSO|BSW|BST|BSD|BSV|BSQ)\b/giu,
   /(?:^|\n)\s*Бытовые\s+мобильные\s+кондиционеры\b/giu,
   /(?:^|\n)\s*Промышленные\s+мобильные\s+кондиционеры\b/giu,
   /(?:^|\n)\s*Промышленные\s+мобильные\s+осушители\b/giu,
@@ -119,9 +130,16 @@ export const extractRelevantSeriesBlock = (rawText = '', profile = {}) => {
     return text;
   }
 
-  const startHeaderIndex = findLastPatternIndex(text, BLOCK_START_PATTERNS, codeIndex);
+  const ownHeaderPatterns = [
+    profile.seriesName && profile.code ? new RegExp(`(?:^|\\n)\\s*${escapeRegExp(profile.seriesName).replace(/\s+/gu, '\\s+')}\\s+${escapeRegExp(profile.code)}\\b`, 'giu') : null,
+    profile.code ? new RegExp(`(?:^|\\n)\\s*(?:Технические\\s+характеристики|Параметр\\s*\\/\\s*Модель)[^\\n]{0,80}\\b${escapeRegExp(profile.code)}\\b`, 'giu') : null,
+  ].filter(Boolean);
+  const startHeaderIndex = findLastPatternIndex(text, [...BLOCK_START_PATTERNS, ...ownHeaderPatterns], Math.min(codeIndex + String(profile.code || '').length + 120, text.length));
   const windowStart = Math.max(codeIndex - 2000, 0);
-  const start = startHeaderIndex >= 0 ? startHeaderIndex : windowStart;
+  const lineStartBeforeCode = text.lastIndexOf('\n', codeIndex);
+  const ownLineStart = lineStartBeforeCode >= 0 ? lineStartBeforeCode + 1 : 0;
+  const isSplitCode = /^BS[A-Z]+$/iu.test(String(profile.code || '').trim());
+  const start = isSplitCode ? ownLineStart : startHeaderIndex >= 0 ? startHeaderIndex : windowStart;
   const searchEndFrom = codeIndex + 1;
   const nextForeignIndex = findFirstPatternIndex(text, NEXT_FOREIGN_PATTERNS, searchEndFrom);
   const windowEnd = Math.min(codeIndex + 2500, text.length);

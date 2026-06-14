@@ -654,6 +654,115 @@ assert.equal(lagoonCategoryDraft.shortDescription, '', 'inverter split shortDesc
 assert.equal(lagoonCategoryDraft.positioning, '', 'inverter split positioning may stay empty without manual/legacy profile');
 assert.match(lagoonCategoryDraft.importantSpecs.join('\n'), /A\/A|шум|температур|R32/iu, 'inverter importantSpecs must include energy/noise/temperature/refrigerant when present');
 
+const discoveryBsviRawExtractorDraft = generateSeriesDraft({
+  profileId: discoveryProfile.id,
+  category: discoveryProfile.category,
+  group: discoveryProfile.group,
+  seriesName: discoveryProfile.seriesName,
+  code: discoveryProfile.code,
+  exactSeriesPages: [50],
+  technicalPages: [51],
+  exactSeriesRawText: `
+    DISCOVERY BSV
+    ON/OFF Discovery BSV Golden Fin посторонняя серия.
+
+    DISCOVERY BSVI
+    DC-inverter
+    3D-контроль потока воздуха
+    7 скоростей вентилятора
+
+    LAGOON BSDI
+    Wi-Fi-Control Golden Fin соседняя серия.
+  `,
+  technicalRawText: `
+    Технические характеристики BSV
+    Уровень шума внутреннего блока 21 дБ
+
+    Технические характеристики BSVI
+    Параметр / Модель BSVI-09 BSVI-12 BSVI-18
+    Производительность охлаждение, Вт 2600 3500 5200
+    Производительность обогрев, Вт 2800 3800 5400
+    Уровень шума внутреннего блока 23/24/28 дБ
+    Хладагент R32
+
+    Технические характеристики BSDI
+    Golden Fin Wi-Fi-Control
+  `,
+});
+const discoveryBsviCatalogText = stringifyDraft(discoveryBsviRawExtractorDraft.catalogExtract);
+assert.deepEqual(discoveryBsviRawExtractorDraft.catalogExtract.sourcePages, [50, 51], 'Discovery BSVI sourcePages must contain selected pages only');
+assert.deepEqual(discoveryBsviRawExtractorDraft.catalogExtract.diagnostics.foundModels, ['BSVI-09', 'BSVI-12', 'BSVI-18'], 'Discovery BSVI foundModels must contain concrete BSVI models only');
+assert.match(discoveryBsviRawExtractorDraft.catalogExtract.factualFeatures.join('\n'), /3D-контроль потока воздуха/iu, 'Discovery BSVI factualFeatures must include 3D airflow');
+assert.match(discoveryBsviRawExtractorDraft.catalogExtract.factualFeatures.join('\n'), /7 скоростей/iu, 'Discovery BSVI factualFeatures must include 7 speeds');
+assert.match(discoveryBsviRawExtractorDraft.catalogExtract.factualFeatures.join('\n'), /DC inverter|инвертор/iu, 'Discovery BSVI factualFeatures must include inverter fact');
+assert.match(discoveryBsviRawExtractorDraft.catalogExtract.importantSpecs.join('\n'), /производительность охлаждения 2600 3500 5200 Вт|производительность охлаждения 2600\/3500\/5200 Вт/iu, 'Discovery BSVI importantSpecs must include cooling capacity from BSVI table');
+assert.equal(/ON\/OFF Discovery BSV|BSV-09|посторонняя серия|Golden Fin/iu.test(discoveryBsviCatalogText), false, 'Discovery BSVI catalogExtract must not include ON/OFF BSV or neighboring series data');
+
+const lagoonBsdiRawExtractorDraft = generateSeriesDraft({
+  profileId: lagoonCategoryProfile.id,
+  category: lagoonCategoryProfile.category,
+  group: lagoonCategoryProfile.group,
+  seriesName: lagoonCategoryProfile.seriesName,
+  code: lagoonCategoryProfile.code,
+  exactSeriesPages: [60],
+  technicalPages: [61],
+  exactSeriesRawText: `
+    LAGOON BSD
+    ON/OFF Lagoon BSD посторонняя серия.
+
+    LAGOON BSDI
+    Wi-Fi-Control
+    Golden Fin
+    рекламная иконка A+++
+
+    TESSEY BSTI
+    соседняя серия.
+  `,
+  technicalRawText: `
+    Технические характеристики BSDI
+    Параметр / Модель BSDI-07 BSDI-09 BSDI-12 BSDI-18 BSDI-24
+    Класс энергоэффективности (EER/COP) A/A A/A A/A A++/A+++ A++/A+++
+    Уровень шума внутреннего блока 21/23/25/28/31 дБ
+    Хладагент R32
+
+    Технические характеристики BSD
+    Класс энергоэффективности (EER/COP) A/A
+  `,
+});
+assert.match(lagoonBsdiRawExtractorDraft.catalogExtract.factualFeatures.join('\n'), /Golden Fin/iu, 'Lagoon BSDI factualFeatures must include Golden Fin');
+assert.match(lagoonBsdiRawExtractorDraft.catalogExtract.factualFeatures.join('\n'), /Wi-Fi управление/iu, 'Lagoon BSDI factualFeatures must include Wi-Fi');
+assert.match(lagoonBsdiRawExtractorDraft.catalogExtract.importantSpecs.join('\n'), /A\/A\s*→\s*A\+\+\/A\+\+\+/u, 'Lagoon BSDI importantSpecs must preserve actual technical energy class range');
+assert.equal(/LAGOON BSD\s|ON\/OFF Lagoon|посторонняя серия/iu.test(stringifyDraft(lagoonBsdiRawExtractorDraft.catalogExtract)), false, 'Lagoon BSDI catalogExtract must not include ON/OFF BSD data');
+
+const defenderBshiRawExtractorDraft = generateSeriesDraft({
+  profileId: defenderProfile.id,
+  category: defenderProfile.category,
+  group: defenderProfile.group,
+  seriesName: defenderProfile.seriesName,
+  code: defenderProfile.code,
+  exactSeriesPages: [70],
+  technicalPages: [71],
+  exactSeriesRawText: `
+    DEFENDER BSHI
+    UV-фильтр
+    обогрев при -20°C
+    A++
+  `,
+  technicalRawText: `
+    Технические характеристики BSHI
+    Параметр / Модель BSHI-09 BSHI-12
+    Производительность охлаждение, Вт 2600 3500
+    Производительность обогрев, Вт 2800 3800
+    Класс энергоэффективности (EER/COP) A++/A++ A++/A++
+    Уровень шума внутреннего блока 19/21 дБ
+    Рабочие температуры обогрев -20…+24°C
+  `,
+});
+assert.match(defenderBshiRawExtractorDraft.catalogExtract.factualFeatures.join('\n'), /УФ-обработка воздуха/iu, 'Defender BSHI factualFeatures must include UV filter');
+assert.match(defenderBshiRawExtractorDraft.catalogExtract.factualFeatures.join('\n'), /обогрев до -20°C|стабильная работа на обогрев/iu, 'Defender BSHI factualFeatures must include -20°C heating');
+assert.match(defenderBshiRawExtractorDraft.catalogExtract.factualFeatures.join('\n'), /A\+\+/u, 'Defender BSHI factualFeatures must include A++ from technical row');
+assert.match(defenderBshiRawExtractorDraft.catalogExtract.importantSpecs.join('\n'), /производительность охлаждения 2600 3500 Вт|производительность охлаждения 2600\/3500 Вт/iu, 'Defender BSHI importantSpecs must include technical table rows');
+
 const platinumX4Profile = SERIES_PROFILES.find((profile) => profile.seriesName === 'Platinum X4');
 const platinumX4Draft = generateSeriesDraft({
   profileId: platinumX4Profile.id,
