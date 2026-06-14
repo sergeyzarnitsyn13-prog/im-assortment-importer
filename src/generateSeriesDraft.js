@@ -816,13 +816,19 @@ const buildCatalogDiagnostics = (diagnostics = {}) => ({
 
 const hasTechnicalGarbage = (items = []) => items.some((item) => /undefined|null|\[object Object\]/iu.test(String(item ?? '')));
 
+const dedupeRawTextBlocks = (rawText = '') => unique(String(rawText ?? '')
+  .split(/\n{2,}/u)
+  .map((block) => block.trim())
+  .filter(Boolean)).join('\n\n');
+
 const collectRawTableText = (source = {}) => String(source.technicalRawText ?? source.technicalText ?? '').trim();
 
 const collectUnparsedTechnicalRows = ({ rawTableText = '', importantSpecs = [] } = {}) => {
   const normalizedSpecs = normalizeSearchText(importantSpecs.join(' '));
+  const recognizedElectroluxSpecs = normalizeSearchText(extractSplitTechnicalTableSpecs(rawTableText).join(' '));
 
   return unique(
-    String(rawTableText ?? '')
+    normalizeElectroluxLogicalRows(rawTableText)
       .split(/\r?\n/)
       .map((line) => String(line ?? '').replace(/\s+/gu, ' ').trim())
       .filter(Boolean)
@@ -841,7 +847,30 @@ const collectUnparsedTechnicalRows = ({ rawTableText = '', importantSpecs = [] }
           return false;
         }
 
-        return !normalizedSpecs.includes(normalized.slice(0, Math.min(normalized.length, 40)));
+        const electroluxRowWasParsed =
+          (/производительность\s*\(\s*охлаждение\s*\).*btu/u.test(normalized) && recognizedElectroluxSpecs.includes('производительность охлаждения')) ||
+          (/производительность\s*\(\s*обогрев\s*\).*btu/u.test(normalized) && recognizedElectroluxSpecs.includes('производительность обогрева')) ||
+          (/потребляемая\s+мощность\s*\(\s*охлаждение\s*\)/u.test(normalized) && recognizedElectroluxSpecs.includes('потребляемая мощность охлаждение')) ||
+          (/потребляемая\s+мощность\s*\(\s*обогрев\s*\)/u.test(normalized) && recognizedElectroluxSpecs.includes('потребляемая мощность обогрев')) ||
+          (/напряжение\s+питания/u.test(normalized) && recognizedElectroluxSpecs.includes('питание')) ||
+          (/класс\s+энергоэффективности/u.test(normalized) && recognizedElectroluxSpecs.includes('класс энергоэффективности')) ||
+          (/расход\s+воздуха/u.test(normalized) && recognizedElectroluxSpecs.includes('расход воздуха')) ||
+          (/уровень\s+звукового\s+давления/u.test(normalized) && recognizedElectroluxSpecs.includes('уровень шума')) ||
+          (/размеры\s+внутреннего\s+блока/u.test(normalized) && recognizedElectroluxSpecs.includes('габариты внутреннего блока')) ||
+          (/размеры\s+(?:внешнего|наружного)\s+блока/u.test(normalized) && recognizedElectroluxSpecs.includes('габариты наружного блока')) ||
+          (/размеры\s+упаковки\s+внутреннего\s+блока/u.test(normalized) && recognizedElectroluxSpecs.includes('габариты упаковки внутреннего блока')) ||
+          (/размеры\s+упаковки\s+(?:внешнего|наружного)\s+блока/u.test(normalized) && recognizedElectroluxSpecs.includes('габариты упаковки наружного блока')) ||
+          (/вес\s+нетто\s*\/\s*брутто\s+внутреннего/u.test(normalized) && recognizedElectroluxSpecs.includes('вес нетто/брутто внутреннего блока')) ||
+          (/вес\s+нетто\s*\/\s*брутто\s+(?:внешнего|наружного)/u.test(normalized) && recognizedElectroluxSpecs.includes('вес нетто/брутто наружного блока')) ||
+          (/диаметр\s+труб/u.test(normalized) && recognizedElectroluxSpecs.includes('диаметр труб')) ||
+          (/максимальная\s+длина\s+трассы/u.test(normalized) && recognizedElectroluxSpecs.includes('максимальная длина трассы')) ||
+          (/диапазон\s+рабочих\s+температур/u.test(normalized) && recognizedElectroluxSpecs.includes('рабочие температуры'));
+        if (electroluxRowWasParsed) {
+          return false;
+        }
+
+        const normalizedFormatted = normalizeSearchText(formatSplitSpecLine(line));
+        return !(normalizedSpecs.includes(normalized.slice(0, Math.min(normalized.length, 40))) || (normalizedFormatted && normalizedSpecs.includes(normalizedFormatted.slice(0, Math.min(normalizedFormatted.length, 40)))));
       }),
   );
 };
@@ -876,7 +905,7 @@ const getExtractionQuality = ({ source = {}, diagnostics = {}, sourcePages = [],
 
 const buildCatalogExtract = ({ source = {}, salesFeatures = [], importantSpecs = [], diagnostics = {}, exactSeriesText = '', narrativeText = '' } = {}) => {
   const sourcePages = getCatalogSourcePages(source);
-  const rawText = String([source.exactSeriesRawText, source.categorySummaryRawText, source.summaryRawText, source.technicalRawText].filter(Boolean).join('\n\n') || source.rawText || '').trim();
+  const rawText = dedupeRawTextBlocks([source.exactSeriesRawText, source.categorySummaryRawText, source.summaryRawText, source.technicalRawText].filter(Boolean).join('\n\n') || source.rawText || '');
   const rawTableText = collectRawTableText(source);
   const unparsedTechnicalRows = collectUnparsedTechnicalRows({ rawTableText, importantSpecs });
   const factualFeatures = Array.isArray(salesFeatures) ? [...salesFeatures] : [];
@@ -2165,6 +2194,8 @@ const formatSplitSpecLine = (line = '') => {
   return value ? `${rule.label} ${value}` : normalizedLine;
 };
 
+const isGarbageSplitSpecLine = (line = '') => /(?:\),\s*BTU|его\s+блока|ость\s*\/\s*газ|^хладагент\s+[ае]\b|EER\s*\(A\)\s*COP\s*\(A\)\s*шума|длина\s+трассы\s+трассы\s*\/\s*перепад)/iu.test(String(line ?? ''));
+
 const splitUniqueValues = (values = []) => unique(values.map((value) => String(value ?? '').trim()).filter(Boolean));
 
 const formatSplitValues = (values = [], { separator = '/', collapseSame = true } = {}) => {
@@ -2262,9 +2293,42 @@ const extractSplitPipeDiameterPairsFromWindow = (text = '') => {
 
 const isSplitPipeDiameterContinuation = (line = '') => /Ø\s*\d+(?:[,.]\d+)?[\s\S]{0,80}?\/\s*Ø\s*\d+(?:[,.]\d+)?|^Ø\s*\d+(?:[,.]\d+)?(?:\s*\([^)]*\))?(?:\s+Ø\s*\d+(?:[,.]\d+)?(?:\s*\([^)]*\))?)*\s*$/iu.test(line);
 
+const isElectroluxValueOnlyRow = (line = '') => {
+  const normalized = String(line ?? '').trim();
+  return /^(?:\d+(?:[,.]\d+)?(?:\s*\([^)]+\))?|[+\-−]?\d+\s*[~‐‑‒–—−]\s*[+\-−]?\d+\s*\/\s*[+\-−]?\d+\s*[~‐‑‒–—−]\s*[+\-−]?\d+|\d+\s*[×xх]\s*\d+\s*[×xх]\s*\d+|\d+(?:[,.]\d+)?\s*\/\s*\d+(?:[,.]\d+)?|\d+\s*\/\s*\d+"?\s*\/\s*\d+\s*\/\s*\d+"?)(?:\s+(?:\d+(?:[,.]\d+)?(?:\s*\([^)]+\))?|[+\-−]?\d+\s*[~‐‑‒–—−]\s*[+\-−]?\d+\s*\/\s*[+\-−]?\d+\s*[~‐‑‒–—−]\s*[+\-−]?\d+|\d+\s*[×xх]\s*\d+\s*[×xх]\s*\d+|\d+(?:[,.]\d+)?\s*\/\s*\d+(?:[,.]\d+)?|\d+\s*\/\s*\d+"?\s*\/\s*\d+\s*\/\s*\d+"?))*$/iu.test(normalized);
+};
+
+const normalizeElectroluxLogicalRows = (rawText = '') => {
+  const rows = String(rawText ?? '').split(/\r?\n/).map((line) => String(line ?? '').replace(/BTU\s*\/\s*h/giu, 'BTU').replace(/м\s*(?:3|³)\s*\/\s*ч/giu, 'м³/ч').replace(/\s+/gu, ' ').trim()).filter(Boolean);
+  const logicalRows = [];
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const line = rows[index];
+
+    if (/^уровень\s+звукового\s+давления\s*\(\s*внутренний$/iu.test(line) && isElectroluxValueOnlyRow(rows[index + 1] || '') && /^блок\)\s*,?\s*дб/iu.test(rows[index + 2] || '')) {
+      logicalRows.push(`${line} ${rows[index + 2]} ${rows[index + 1]}`);
+      index += 2;
+    } else if (/^размеры\s+упаковки\s+(?:внутреннего|внешнего|наружного)\s+блока$/iu.test(line) && isElectroluxValueOnlyRow(rows[index + 1] || '') && /^\(\s*ш\s*[×xх]\s*в\s*[×xх]\s*г\s*\)\s*,?\s*мм$/iu.test(rows[index + 2] || '')) {
+      logicalRows.push(`${line} ${rows[index + 2]} ${rows[index + 1]}`);
+      index += 2;
+    } else if (/^максимальная\s+длина\s+трассы\s*\/\s*перепад$/iu.test(line) && isElectroluxValueOnlyRow(rows[index + 1] || '') && /^высот\s*,?\s*м$/iu.test(rows[index + 2] || '')) {
+      logicalRows.push(`${line} ${rows[index + 2]} ${rows[index + 1]}`);
+      index += 2;
+    } else if (/^диапазон\s+рабочих\s+температур$/iu.test(line) && isElectroluxValueOnlyRow(rows[index + 1] || '') && /^\(\s*охлаждение\s*\/\s*обогрев\s*\)\s*,?\s*°?\s*с$/iu.test(rows[index + 2] || '')) {
+      logicalRows.push(`${line} ${rows[index + 2]} ${rows[index + 1]}`);
+      index += 2;
+    } else {
+      logicalRows.push(line);
+    }
+  }
+
+  return logicalRows.join('\n');
+};
+
 const extractSplitTechnicalTableSpecs = (rawText = '') => {
   const specs = [];
-  const lines = String(rawText ?? '').split(/\r?\n/).map((line) => {
+  const normalizedRawText = normalizeElectroluxLogicalRows(rawText);
+  const lines = String(normalizedRawText ?? '').split(/\r?\n/).map((line) => {
     const normalizedLine = String(line ?? '')
       .replace(/BTU\s*\/\s*h/giu, 'BTU')
       .trim()
@@ -2275,9 +2339,9 @@ const extractSplitTechnicalTableSpecs = (rawText = '') => {
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
-    if (/производительность\s*\(\s*охлаждение\s*\)\s*btu/iu.test(line)) {
+    if (/производительность\s*\(\s*охлаждение\s*\)\s*,?\s*btu/iu.test(line)) {
       specs.push(...formatSplitCapacitySpecs(line, 'производительность охлаждения', 'BTU'));
-    } else if (/производительность\s*\(\s*обогрев\s*\)\s*btu/iu.test(line)) {
+    } else if (/производительность\s*\(\s*обогрев\s*\)\s*,?\s*btu/iu.test(line)) {
       specs.push(...formatSplitCapacitySpecs(line, 'производительность обогрева', 'BTU'));
     } else if (/класс\s+энергоэффективности\s*\(\s*eer\s*\/\s*cop\s*\)/iu.test(line)) {
       const energy = formatEnergyClassFeature(collectEnergyClassValues(line));
@@ -2288,27 +2352,31 @@ const extractSplitTechnicalTableSpecs = (rawText = '') => {
     } else if (/класс\s+энергоэффективности(?:\s*\(\s*)?\s*eer\s*\/\s*cop/iu.test(line)) {
       const energy = formatEnergyClassFeature(collectEnergyClassValues(line));
       if (energy) specs.push(`класс энергоэффективности EER/COP ${energy}`);
-    } else if (/расход\s+воздуха\s*\([^)]*внутренн[^\)]*наружн[^\)]*\)\s*м(?:3|³)\s*\/\s*ч/iu.test(line)) {
+    } else if (/расход\s+воздуха\s*\([^)]*внутренн[^\)]*наружн[^\)]*\)\s*,?\s*м(?:3|³)\s*\/\s*ч/iu.test(line)) {
       const values = extractSplitRowValues(line, /м(?:3|³)\s*\/\s*ч/iu, /(\d+(?:[,.]\d+)?\s*\/\s*\d+(?:[,.]\d+)?)/gu);
       const value = formatSplitValues(values);
       if (value) specs.push(`расход воздуха внутренний/наружный блок ${value} м³/ч`);
-    } else if (/уровень\s+(?:шума|звукового\s+давления)\s*\([^)]*внутренн[^\)]*наружн[^\)]*\)\s*дб/iu.test(line)) {
+    } else if (/расход\s+воздуха\s*\([^)]*внутренн[^\)]*\)\s*,?\s*м(?:3|³)\s*\/\s*ч/iu.test(line)) {
+      const values = extractSplitRowValues(line, /м(?:3|³)\s*\/\s*ч/iu, /(\d+(?:[,.]\d+)?)/gu);
+      const value = formatSplitValues(values);
+      if (value) specs.push(`расход воздуха внутренний блок ${value} м³/ч`);
+    } else if (/уровень\s+(?:шума|звукового\s+давления)\s*\([^)]*внутренн[^\)]*наружн[^\)]*\)\s*,?\s*дб/iu.test(line)) {
       const values = extractSplitRowValues(line, /дб(?:\([^)]+\))?/iu, /(\d+(?:[,.]\d+)?\s*\/\s*\d+(?:[,.]\d+)?)/gu);
       const value = formatSplitValues(values);
       if (value) specs.push(`уровень шума внутренний/наружный блок ${value} дБ`);
-    } else if (/уровень\s+(?:шума|звукового\s+давления)\s*\([^)]*внутренн[^\)]*\)\s*дб/iu.test(line)) {
+    } else if (/уровень\s+(?:шума|звукового\s+давления)\s*\([^)]*внутренн[^\)]*\)\s*,?\s*дб/iu.test(line)) {
       const value = formatSplitValues(extractSplitRowValues(line, /дб(?:\([^)]+\))?/iu, /(\d+(?:[,.]\d+)?)/gu));
       if (value) specs.push(`уровень шума внутреннего блока ${value} дБ`);
-    } else if (/напряжение\s+питания\s*в\s*~?\s*гц/iu.test(line)) {
-      const values = extractSplitRowValues(line, /гц/iu, /(\d{3}\s*[-‐‑‒–—−]\s*\d{3}\s*~\s*\d{2})/gu);
-      const normalizedPowerValues = values.map((value) => value.replace(/\s+/gu, '').replace(/(\d{3})[-‐‑‒–—−](\d{3})~(\d{2})/u, '$1–$2 В / $3 Гц'));
+    } else if (/напряжение\s+питания\s*,?\s*в\s*\/?\s*~?\s*гц/iu.test(line)) {
+      const values = extractSplitRowValues(line, /гц/iu, /(\d{3}\s*[-‐‑‒–—−]\s*\d{3}\s*(?:~|\/)?\s*\d{2})/gu);
+      const normalizedPowerValues = values.map((value) => value.replace(/\s+/gu, '').replace(/(\d{3})[-‐‑‒–—−](\d{3})(?:~|\/)?(\d{2})/u, '$1–$2 В / $3 Гц'));
       const value = formatSplitValues(normalizedPowerValues).replace(/\s*\/\s*/u, ' / ');
       if (value) specs.push(`питание ${value}`);
-    } else if (/потребляемая\s+мощность\s*\(\s*охлаждение\s*\)\s*вт/iu.test(line)) {
+    } else if (/потребляемая\s+мощность\s*\(\s*охлаждение\s*\)\s*,?\s*вт/iu.test(line)) {
       const values = extractSplitRowValues(line, /вт/iu, /(\d+(?:[,.]\d+)?)(?:\s*\([^)]+\))?/gu);
       const value = formatSplitValues(values);
       if (value) specs.push(`потребляемая мощность охлаждение ${value} Вт`);
-    } else if (/потребляемая\s+мощность\s*\(\s*обогрев\s*\)\s*вт/iu.test(line)) {
+    } else if (/потребляемая\s+мощность\s*\(\s*обогрев\s*\)\s*,?\s*вт/iu.test(line)) {
       const values = extractSplitRowValues(line, /вт/iu, /(\d+(?:[,.]\d+)?)(?:\s*\([^)]+\))?/gu);
       const value = formatSplitValues(values);
       if (value) specs.push(`потребляемая мощность обогрев ${value} Вт`);
@@ -2334,10 +2402,10 @@ const extractSplitTechnicalTableSpecs = (rawText = '') => {
     } else if (/размеры\s+упаковки\s+(?:наружного|внешнего)\s+блока[^\d]*мм/iu.test(line)) {
       const value = formatSplitValues(extractSplitRowValues(line, /мм/iu, /(\d+\s*[×xх]\s*\d+\s*[×xх]\s*\d+)/giu).map(normalizeDimensionValue));
       if (value) specs.push(`габариты упаковки наружного блока ${value} мм`);
-    } else if (/вес\s+нетто\s*\/\s*брутто\s+внутреннего\s+блока\s*кг/iu.test(line)) {
+    } else if (/вес\s+нетто\s*\/\s*брутто\s+внутреннего\s+блока\s*,?\s*кг/iu.test(line)) {
       const value = formatSplitValues(extractSplitRowValues(line, /кг/iu, /(\d+(?:[,.]\d+)?\s*\/\s*\d+(?:[,.]\d+)?)/gu));
       if (value) specs.push(`вес нетто/брутто внутреннего блока ${value} кг`);
-    } else if (/вес\s+нетто\s*\/\s*брутто\s+(?:наружного|внешнего)\s+блока\s*кг/iu.test(line)) {
+    } else if (/вес\s+нетто\s*\/\s*брутто\s+(?:наружного|внешнего)\s+блока\s*,?\s*кг/iu.test(line)) {
       const value = formatSplitValues(extractSplitRowValues(line, /кг/iu, /(\d+(?:[,.]\d+)?\s*\/\s*\d+(?:[,.]\d+)?)/gu));
       if (value) specs.push(`вес нетто/брутто наружного блока ${value} кг`);
     } else if (/диаметр\s+труб\s*\([^)]*жидкость[^\)]*газ[^\)]*\)/iu.test(line)) {
@@ -2350,7 +2418,7 @@ const extractSplitTechnicalTableSpecs = (rawText = '') => {
       const inchPairs = [...pipeLines.join(' ').matchAll(/(\d+\s*\/\s*\d+\s*"?)[\s/]+(\d+\s*\/\s*\d+\s*"?)/gu)].map((match) => `${match[1].replace(/\s+/gu, '')}/${match[2].replace(/\s+/gu, '')}`);
       const value = inchPairs.length > 0 ? unique(inchPairs).join('; ') : extractSplitPipeDiameterPairsFromWindow(`${pipeWindow} ${pipeLines.join(' ')}`).join('; ');
       if (value) specs.push(`диаметр труб жидкость/газ ${value}${inchPairs.length > 0 ? '' : ' мм'}`);
-    } else if (/максимальная\s+длина\s+(?:магистрали|трассы)(?:\s*\/\s*перепад\s+высот)?\s*м/iu.test(line)) {
+    } else if (/максимальная\s+длина\s+(?:магистрали|трассы)(?:\s*\/\s*перепад\s+высот)?\s*,?\s*м/iu.test(line)) {
       if (/\/\s*перепад\s+высот/iu.test(line)) {
         const values = [...line.matchAll(/(\d+(?:[,.]\d+)?)\s*\/\s*(\d+(?:[,.]\d+)?)/gu)].map((match) => `${match[1]}/${match[2]}`);
         const value = formatSplitValues(values, { separator: '; ' });
@@ -2367,9 +2435,13 @@ const extractSplitTechnicalTableSpecs = (rawText = '') => {
       const value = formatSplitValues(values);
       if (value) specs.push(`хладагент ${value}`);
     } else if (/диапазон\s+рабочих\s+температур\s*\([^)]*охлаждение[^\)]*обогрев[^\)]*\)/iu.test(line)) {
-      const values = [...line.matchAll(/([+\-−]?\d+\s*…\s*[+\-−]?\d+\s*°?C\s*\/\s*[+\-−]?\d+\s*…\s*[+\-−]?\d+\s*°?C)/giu)].map((match) => match[1].replace(/[−]/gu, '-').replace(/\s+/gu, ''));
+      const values = [...line.matchAll(/([+\-−]?\d+\s*(?:…|~|[-‐‑‒–—−])\s*[+\-−]?\d+\s*(?:°?C|°?\s*С)?\s*\/\s*[+\-−]?\d+\s*(?:…|~|[-‐‑‒–—−])\s*[+\-−]?\d+\s*(?:°?C|°?\s*С)?)/giu)]
+        .map((match) => match[1].replace(/[−]/gu, '-').replace(/\s*[~‐‑‒–—−]\s*/gu, '…+').replace(/[+]-/gu, '-').replace(/\s+/gu, '').replace(/С/gu, 'C'));
       const value = formatSplitValues(values);
       if (value) specs.push(`рабочие температуры охлаждение/обогрев ${value}`);
+    } else if (/(?:хладагент|фреон)[^\n]{0,80}\bR\s*\d{2,3}/iu.test(line)) {
+      const refrigerant = (line.match(/\bR\s*\d{2,3}[a-zа-я]?/iu) || [''])[0].replace(/\s+/gu, '');
+      if (refrigerant) specs.push(`хладагент ${refrigerant}`);
     }
   }
 
@@ -2382,6 +2454,7 @@ const extractSplitSystemImportantSpecs = (rawText = '') => {
       .split(/\r?\n/)
       .map(formatSplitSpecLine)
       .filter(Boolean)
+      .filter((line) => !isGarbageSplitSpecLine(line))
       .filter((line) => !/^(?:НА ОБОГРЕВ|Установочные размеры и габариты|[AА]\+?\s*\/\s*[AА]\+?)$/u.test(line));
 
   return tableSpecs.length >= 5 ? tableSpecs : unique([...tableSpecs, ...fallbackSpecs]);
