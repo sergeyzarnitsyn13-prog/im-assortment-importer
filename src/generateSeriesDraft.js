@@ -26,9 +26,9 @@ const featurePatterns = [
   { label: 'i-FEEL', patterns: [/\bi\s*-?\s*feel\b/u, /\bifeel\b/u, /климат\s*-?\s*контрол/u, /ай\s*фил/u] },
   { label: '7 скоростей вентилятора', patterns: [/7\s+скорост/u, /скорост[а-яё]*\s+вентилятор/u] },
   { label: 'стабильная работа на обогрев', patterns: [/стабильн[а-яё]*\s+работ[а-яё]*\s+на\s+обогрев/u, /работ[а-яё]*\s+на\s+обогрев/u] },
-  { label: 'обогрев до -15°C', patterns: [/обогрев[^\n.]{0,140}(?:от|до)?\s*[-–—−]\s*15(?:\s*°?\s*[cс])?/u] },
-  { label: 'обогрев до -20°C', patterns: [/обогрев[^\n.]{0,140}(?:от|до)?\s*[-–—−]\s*20(?:\s*°?\s*[cс])?/u] },
-  { label: 'обогрев до -30°C', patterns: [/обогрев[^\n.]{0,140}(?:от|до)?\s*[-–—−]\s*30(?:\s*°?\s*[cс])?/u] },
+  { label: 'обогрев до -15°C', patterns: [/обогрев[^\/\n.]{0,80}(?:при|от|до)\s*[-–—−]\s*15(?:\s*°?\s*[cс])?/u] },
+  { label: 'обогрев до -20°C', patterns: [/обогрев[^\/\n.]{0,80}(?:при|от|до)\s*[-–—−]\s*20(?:\s*°?\s*[cс])?/u] },
+  { label: 'обогрев до -30°C', patterns: [/обогрев[^\/\n.]{0,80}(?:при|от|до)\s*[-–—−]\s*30(?:\s*°?\s*[cс])?/u] },
   { label: 'самоочистка со стерилизацией', patterns: [/самоочист[а-яё\s-]{0,120}стерилизац/u, /стерилизац[а-яё\s-]{0,120}самоочист/u, /самоочистка\s+со\s+стерилизацией/u, /стерилизац(?:ия|ией|иеи|ию|ии|ией|иеи|ие)/u] },
   { label: 'самоочистка', patterns: [/самоочист/u, /\bself\s*-?\s*clean/u] },
   { label: 'R32', patterns: [/\br\s*32\b/u] },
@@ -1104,7 +1104,7 @@ const extractNoiseFeature = (technicalText = '') => {
 };
 
 export const extractHeatingRange = (technicalText = '') => {
-  const segment = getTechnicalValueSegment(technicalText, /диапазон\s+рабочих\s+температур/iu);
+  const segment = getTechnicalValueSegment(technicalText, /(?:диапазон\s+рабочих|рабочие)\s+температур/iu);
 
   if (!segment) {
     return '';
@@ -2134,6 +2134,9 @@ const extractSplitTechnicalTableSpecs = (rawText = '') => {
     } else if (/класс\s+энергоэффективности\s*\(\s*eer\s*\/\s*cop\s*\)/iu.test(line)) {
       const energy = formatEnergyClassFeature(collectEnergyClassValues(line));
       if (energy) specs.push(`класс энергоэффективности EER/COP ${energy}`);
+    } else if (/класс\s+энергоэффективности\s*\(\s*seer\s*\/\s*scop\s*\)/iu.test(line)) {
+      const energy = formatEnergyClassFeature(collectEnergyClassValues(line));
+      if (energy) specs.push(`класс энергоэффективности SEER/SCOP ${energy}`);
     } else if (/расход\s+воздуха\s*\([^)]*внутренн[^\)]*наружн[^\)]*\)\s*м(?:3|³)\s*\/\s*ч/iu.test(line)) {
       const values = extractSplitRowValues(line, /м(?:3|³)\s*\/\s*ч/iu, /(\d+(?:[,.]\d+)?\s*\/\s*\d+(?:[,.]\d+)?)/gu);
       const value = formatSplitValues(values);
@@ -2202,7 +2205,7 @@ const extractSplitTechnicalTableSpecs = (rawText = '') => {
       const values = [...line.matchAll(/\b(R\s*\d{2,3}[A-ZА-Я]*)\s*\/\s*(\d+(?:[,.]\d+)?)/giu)].map((match) => `${match[1].replace(/\s+/gu, '')}, заправка ${match[2]} кг`);
       const value = formatSplitValues(values);
       if (value) specs.push(`хладагент ${value}`);
-    } else if (/диапазон\s+рабочих\s+температур\s*\([^)]*охлаждение[^\)]*обогрев[^\)]*\)/iu.test(line)) {
+    } else if (/(?:(?:диапазон\s+рабочих\s+температур\s*\([^)]*охлаждение[^\)]*обогрев[^\)]*\))|(?:рабочие\s+температуры\s+охлаждение\s*\/\s*обогрев))/iu.test(line)) {
       const values = [...line.matchAll(/([+\-−]?\d+\s*…\s*[+\-−]?\d+\s*°?C\s*\/\s*[+\-−]?\d+\s*…\s*[+\-−]?\d+\s*°?C)/giu)].map((match) => match[1].replace(/[−]/gu, '-').replace(/\s+/gu, ''));
       const value = formatSplitValues(values);
       if (value) specs.push(`рабочие температуры охлаждение/обогрев ${value}`);
@@ -2692,6 +2695,72 @@ const buildAutoShortDescription = ({ approvedProfile, salesFeatures = [], techni
   );
 };
 
+
+const CATALOG_PASSPORT_SALES_TEXT_DEFAULTS = {
+  shortDescription: '',
+  positioning: '',
+  targetClient: [],
+  mainSalesIdea: '',
+  salesArguments: [],
+  clientSpeech: '',
+  differences: '',
+  whenRecommend: [],
+  whenNotRecommend: [],
+  objections: [],
+};
+
+const CATALOG_PASSPORT_SOURCE_REF_FIELDS = [
+  'shortDescription',
+  'positioning',
+  'targetClient',
+  'mainSalesIdea',
+  'salesArguments',
+  'clientSpeech',
+  'differences',
+  'whenRecommend',
+  'whenNotRecommend',
+  'objections',
+];
+
+const isExplicitManualCuratedSource = (source = {}) => (
+  source?.mode === 'manual-curated' ||
+  source?.isManualCurated === true ||
+  source?.manualCurated === true ||
+  source?.profileStatus === 'manual-curated' ||
+  source?.salesProfile?.status === 'approved' ||
+  source?.manualProfile?.status === 'approved'
+);
+
+const isCatalogAutoImportSource = (source = {}) => !isExplicitManualCuratedSource(source) && Boolean(
+  source?.mode === 'catalog-passport' ||
+  source?.isCatalogAutoImport === true ||
+  source?.rawText ||
+  source?.technicalRawText ||
+  source?.exactSeriesRawText ||
+  source?.pageDiagnostics ||
+  source?.technicalPages?.length ||
+  source?.sourceDate,
+);
+
+const stripGeneratedSalesFieldsForCatalogPassport = (draft = {}, source = {}) => {
+  if (!isCatalogAutoImportSource(source)) {
+    return draft;
+  }
+
+  const sourceRefs = { ...(draft.sourceRefs || {}) };
+  for (const field of CATALOG_PASSPORT_SOURCE_REF_FIELDS) {
+    delete sourceRefs[field];
+  }
+
+  return {
+    ...draft,
+    ...Object.fromEntries(
+      Object.entries(CATALOG_PASSPORT_SALES_TEXT_DEFAULTS).map(([field, value]) => [field, Array.isArray(value) ? [] : value]),
+    ),
+    sourceRefs,
+  };
+};
+
 const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
   const { exactSeriesText, technicalText, summaryText, serviceText, hasExactSeriesPages, hasTechnicalTable } = getIsolatedSourceTexts(source);
   const seriesName = approvedProfile.seriesName;
@@ -2773,7 +2842,7 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
   };
   const diagnostics = buildDraftDiagnostics(isolatedSource, draft);
 
-  return attachSourceRefs({
+  return stripGeneratedSalesFieldsForCatalogPassport(attachSourceRefs({
     ...draft,
     diagnostics,
     catalogExtract: buildCatalogExtract({
@@ -2784,7 +2853,7 @@ const buildProfileDraft = (source, approvedProfile, legacyProfile = null) => {
       exactSeriesText,
       narrativeText,
     }),
-  }, source);
+  }, source), source);
 };
 
 export const generateIcePeakDraft = (source) => {
@@ -2878,7 +2947,7 @@ export const generateSeriesDraft = (source) => {
   };
   const diagnostics = buildDraftDiagnostics(isolatedSource, draft);
 
-  return attachSourceRefs({
+  return stripGeneratedSalesFieldsForCatalogPassport(attachSourceRefs({
     ...draft,
     diagnostics,
     catalogExtract: buildCatalogExtract({
@@ -2889,5 +2958,5 @@ export const generateSeriesDraft = (source) => {
       exactSeriesText,
       narrativeText,
     }),
-  }, source);
+  }, source), source);
 };
