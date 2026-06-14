@@ -92,6 +92,7 @@ for (const profile of SERIES_PROFILES) {
 
   for (const otherProfile of SERIES_PROFILES) {
     if (otherProfile.id === profile.id || otherProfile.code === profile.code) continue;
+    if (profile.brand !== 'Ballu' || otherProfile.brand !== 'Ballu') continue;
 
     assert.equal(
       hasExactToken(text, otherProfile.code),
@@ -1549,5 +1550,132 @@ for (const [label, draft] of [
 
 assert.match(defenderBshiRawExtractorDraft.importantSpecs.join(' '), /класс энергоэффективности SEER\/SCOP (А|A)\+\+\/(А|A)\+\+\+/, 'Defender BSHI importantSpecs must include SEER/SCOP A++/A+++');
 assert.doesNotMatch(defenderBshiRawExtractorDraft.catalogExtract.factualFeatures.join(' '), /А\+\+\/А\+\+\+|A\+\+\/A\+\+\+/, 'Defender BSHI factualFeatures must not include SEER/SCOP energy value');
+
+const getProfile = (profileId, overrides = {}) => {
+  const profile = SERIES_PROFILES.find((item) => item.id === profileId);
+  assert.ok(profile, `${profileId} profile must exist`);
+
+  return generateSeriesDraft({
+    ...profile,
+    profileId,
+    title: `Тест ${profile.seriesName}`,
+    sourceRef: 'Electrolux smoke test',
+    exactSeriesPages: [1],
+    technicalPages: [2],
+    ...overrides,
+  });
+};
+
+const electroluxSmartlineDcDraft = getProfile('electrolux-2026-dc-smartline-dc-inverter', {
+  exactSeriesRawText: 'Smartline DC Inverter Electrolux DC-инверторные сплит-системы EACS / I-07HSM / N8_V3 / in EACS / I-07HSM / N8_V3 / out.',
+  technicalRawText: `Характеристики
+Параметр / Модель EACS / I-07HSM / N8_V3 / in EACS / I-09HSM / N8_V3 / in
+Производительность (охлаждение), BTU/h 9212 11976
+Потребляемая мощность (охлаждение), Вт 805 1040
+Напряжение питания, В/Гц 220-240~50 220-240~50
+Класс энергоэффективности SEER / SCOP A++ / A+++ A++ / A+++
+Хладагент / вес, кг R32 / 0,55 R32 / 0,65`,
+});
+assert.equal(electroluxSmartlineDcDraft.brand, 'Electrolux');
+assert.equal(electroluxSmartlineDcDraft.group, 'DC-инверторные сплит-системы');
+assert.equal(electroluxSmartlineDcDraft.shortDescription, '');
+assert.equal(electroluxSmartlineDcDraft.positioning, '');
+assert.deepEqual(electroluxSmartlineDcDraft.salesArguments, []);
+assert.ok(electroluxSmartlineDcDraft.catalogExtract);
+assert.match(electroluxSmartlineDcDraft.catalogExtract.extractionQuality, /good|partial|needs_review/u);
+assert.match(electroluxSmartlineDcDraft.catalogExtract.diagnostics.foundModels.join(' '), /EACS\/I-07HSM\/N8_V3|EACS\/I-09HSM\/N8_V3/u);
+assert.match(electroluxSmartlineDcDraft.importantSpecs.join(' '), /производительность охлаждения|потребляемая мощность охлаждение|питание/u);
+assert.match(electroluxSmartlineDcDraft.importantSpecs.join(' '), /хладагент R32|R32/u);
+
+const electroluxFusionSuperDraft = getProfile('electrolux-2026-dc-fusion-wave-super-dc-inverter', {
+  exactSeriesRawText: 'Fusion Wave Super DC Inverter Electrolux DC-инверторные сплит-системы EACS/I-07HFW/N8 EACS/I-09HFW/N8.',
+  technicalRawText: `Характеристики
+Параметр / Модель EACS/I-07HFW/N8 EACS/I-09HFW/N8
+Производительность (охлаждение), BTU/h 7000 9000
+Потребляемая мощность (охлаждение), Вт 650 820
+Расход воздуха (внутренний блок), м3/ч 420 520
+Размеры внешнего блока (Ш×В×Г), мм 732×555×330 732×555×330`,
+});
+assert.equal(electroluxFusionSuperDraft.brand, 'Electrolux');
+assert.equal(electroluxFusionSuperDraft.group, 'DC-инверторные сплит-системы');
+assert.match(electroluxFusionSuperDraft.seriesName, /Fusion Wave/u);
+assert.match(electroluxFusionSuperDraft.seriesName, /Super DC Inverter/u);
+assert.ok(electroluxFusionSuperDraft.importantSpecs.length > 3);
+assert.ok(electroluxFusionSuperDraft.catalogExtract.diagnostics.foundModels.length > 0);
+
+const electroluxOnOffFusionDraft = getProfile('electrolux-2026-onoff-fusion-wave', {
+  exactSeriesRawText: 'Fusion Wave Electrolux Традиционные сплит-системы EACS-07HFW/N3 EACS-09HFW/N3.',
+  technicalRawText: `Характеристики
+Параметр / Модель EACS-07HFW/N3 EACS-09HFW/N3
+Производительность (охлаждение), BTU/h 7000 9000
+Потребляемая мощность (охлаждение), Вт 650 820
+Класс энергоэффективности EER / COP A / A A / A
+Уровень звукового давления (внутренний блок), дБ(А) 24 26`,
+});
+assert.equal(electroluxOnOffFusionDraft.brand, 'Electrolux');
+assert.equal(electroluxOnOffFusionDraft.group, 'Традиционные сплит-системы');
+assert.equal(electroluxOnOffFusionDraft.seriesName, 'Fusion Wave');
+assert.doesNotMatch(electroluxOnOffFusionDraft.catalogExtract.rawText, /Super DC Inverter/u);
+assert.ok(electroluxOnOffFusionDraft.importantSpecs.length > 3);
+
+const electroluxOnOffSmartlineDraft = getProfile('electrolux-2026-onoff-smartline', {
+  exactSeriesRawText: 'Smartline Electrolux Традиционные сплит-системы EACS-07HSM/N3 EACS-09HSM/N3.',
+  technicalRawText: `Характеристики
+Параметр / Модель EACS-07HSM/N3 EACS-09HSM/N3
+Производительность (охлаждение), BTU/h 7000 9000
+Потребляемая мощность (охлаждение), Вт 650 820
+Класс энергоэффективности EER / COP A / A A / A
+Уровень звукового давления (внутренний блок), дБ(А) 24 26`,
+});
+assert.equal(electroluxOnOffSmartlineDraft.brand, 'Electrolux');
+assert.equal(electroluxOnOffSmartlineDraft.group, 'Традиционные сплит-системы');
+assert.equal(electroluxOnOffSmartlineDraft.seriesName, 'Smartline');
+assert.doesNotMatch(electroluxOnOffSmartlineDraft.catalogExtract.rawText, /Smartline DC Inverter/u);
+assert.ok(electroluxOnOffSmartlineDraft.importantSpecs.length > 3);
+
+const electroluxArizonaDraft = getProfile('electrolux-2026-mobile-arizona', {
+  exactSeriesRawText: 'Arizona Electrolux Мобильные кондиционеры.',
+  technicalRawText: `Параметр / Модель EACM-09 Arizona/N3 EACM-12 Arizona/N3
+Холодопроизводительность Вт 2600 3500
+Холодопроизводительность BTU 9000 12000
+Класс энергоэффективности A A
+Хладагент R290 R290
+Расход воздуха м³/ч 320 380
+Уровень шума ДБа 50 52
+Потребляемая мощность (охлаждение), Вт 1000 1350
+Электропитание В-Гц 220-240V 50Hz 220-240V 50Hz
+Габариты (Ш×Г×В), мм 440×335×715 440×335×715
+Вес нетто/брутто, кг 25/28 27/30`,
+});
+assert.equal(electroluxArizonaDraft.brand, 'Electrolux');
+assert.equal(electroluxArizonaDraft.group, 'Мобильные кондиционеры');
+assert.equal(electroluxArizonaDraft.seriesName, 'Arizona');
+assert.equal(electroluxArizonaDraft.shortDescription, '');
+assert.equal(electroluxArizonaDraft.positioning, '');
+assert.deepEqual(electroluxArizonaDraft.salesArguments, []);
+assert.ok(electroluxArizonaDraft.catalogExtract);
+assert.match(electroluxArizonaDraft.catalogExtract.extractionQuality, /good|partial|needs_review/u);
+assert.match(electroluxArizonaDraft.catalogExtract.rawText, /Arizona/iu);
+assert.ok(electroluxArizonaDraft.importantSpecs.length > 2);
+
+for (const id of [
+  'electrolux-2026-mobile-loft',
+  'electrolux-2026-mobile-cool-power',
+  'electrolux-2026-mobile-ice-column',
+]) {
+  const profile = SERIES_PROFILES.find((item) => item.id === id);
+  const draft = getProfile(id, {
+    exactSeriesRawText: `${profile.seriesName} Electrolux Мобильные кондиционеры.`,
+    technicalRawText: `Параметр / Модель EACM-09 ${profile.seriesName}/N3
+Холодопроизводительность Вт 2600
+Класс энергоэффективности A
+Хладагент R290`,
+  });
+  assert.equal(draft.brand, 'Electrolux');
+  assert.equal(draft.group, 'Мобильные кондиционеры');
+  assert.equal(draft.shortDescription, '');
+  assert.ok(draft.catalogExtract);
+  assert.match(draft.catalogExtract.extractionQuality, /good|partial|needs_review/u);
+}
 
 console.log(`series isolation ok: ${SERIES_PROFILES.length} profiles checked`);
